@@ -1,3 +1,9 @@
 [workspace]
-members = ["kernel"]
-default-members = ["kernel"]
+members = ["kernel", "linker", "xtask"]
+default-members = ["xtask"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

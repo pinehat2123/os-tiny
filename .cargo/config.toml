@@ -1,0 +1,8 @@
+[alias]
+xtask = "run --package xtask --release --"
+make = "xtask make"
+asm = "xtask asm"
+qemu = "xtask qemu"
+
+[build]
+target = "riscv64gc-unknown-none-elf"

@@ -1,0 +1,4 @@
+ignore = [
+    "kernel/src/plantform/arch/riscv64gc/link",
+    "kernel/src/plantform/arch/riscv64gc/asm",
+]

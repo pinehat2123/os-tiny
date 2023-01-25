@@ -1,14 +1,37 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#![no_main]
+#![no_std]
+#![feature(naked_functions, asm_const)]
+#![deny(warnings)]
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod test {}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+
+
+pub mod plantform;
+
+/// 非常简单的 Supervisor 裸机程序。
+///
+/// 打印 `Hello, World!`，然后关机。
+extern "C" fn rcore_main() -> ! {
+    use sbi_rt::*;
+    for c in b"Hello, world!" {
+        #[allow(deprecated)]
+        legacy::console_putchar(*c as _);
     }
+    system_reset(Shutdown, NoReason);
+    unreachable!()
 }
+
+
+use core::panic::PanicInfo;
+
+#[panic_handler]
+pub fn panic(_info: &PanicInfo) -> ! {
+    use sbi_rt::*;
+    system_reset(Shutdown, SystemFailure);
+    loop {}
+}
+
+
+
