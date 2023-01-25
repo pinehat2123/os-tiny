@@ -25,4 +25,4 @@
 
 use crate::rcore_main;
 
-linker::boot0!(rcore_main; stack = 4 * 4096);
+linker::boot0!(rcore_main; stack = 16 * 4096);

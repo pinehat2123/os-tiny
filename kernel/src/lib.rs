@@ -13,6 +13,7 @@ pub mod plantform;
 /// 非常简单的 Supervisor 裸机程序。
 ///
 /// 打印 `Hello, World!`，然后关机。
+#[no_mangle]
 extern "C" fn rcore_main() -> ! {
     use sbi_rt::*;
     for c in b"Hello, world!" {
