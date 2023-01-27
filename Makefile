@@ -20,7 +20,7 @@ dir:
 clean:
 	bash ./script/clean
 gitlab:
-	@${INFO} "Just Simple git push to gitlab"
+	@${INFO} "Just Simple git push to gitlab. --mangyu"
 	bash ./script/quick-push
 
 gitStatus:
