@@ -2,6 +2,9 @@
 members = ["kernel", "linker", "xtask"]
 default-members = ["xtask"]
 
+exclude = ["mod_mgmt"]
+
+
 [profile.dev]
 panic = "abort"
 
