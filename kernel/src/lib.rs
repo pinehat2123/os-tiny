@@ -6,8 +6,6 @@
 #[cfg(test)]
 mod test {}
 
-
-
 pub mod plantform;
 
 /// 非常简单的 Supervisor 裸机程序。
@@ -24,7 +22,6 @@ extern "C" fn rcore_main() -> ! {
     unreachable!()
 }
 
-
 use core::panic::PanicInfo;
 
 #[panic_handler]
@@ -33,6 +30,3 @@ pub fn panic(_info: &PanicInfo) -> ! {
     system_reset(Shutdown, SystemFailure);
     loop {}
 }
-
-
-

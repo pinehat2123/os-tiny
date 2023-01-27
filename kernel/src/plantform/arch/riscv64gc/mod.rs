@@ -1,17 +1,17 @@
 // Supervisor 汇编入口。
 //
 // 设置栈并跳转到 Rust。
-// 
+//
 // ```rust
 // #[naked]
 // #[no_mangle]
 // #[link_section = ".text.entry"]
 // unsafe extern "C" fn _start() -> ! {
 //     const STACK_SIZE: usize = 4096;
-// 
+//
 //     #[link_section = ".bss.uninit"]
 //     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
-// 
+//
 //     core::arch::asm!(
 //         "la sp, {stack} + {stack_size}",
 //         "j  {main}",
