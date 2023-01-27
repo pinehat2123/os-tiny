@@ -1,5 +1,7 @@
 TOOLS := tools
 
+AUTHOR := [my]
+
 MAKE ?= make
 BASH ?= /bin/bash
 CROSS ?=  
