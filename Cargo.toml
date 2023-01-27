@@ -1,5 +1,14 @@
 [workspace]
-members = ["kernel", "linker", "xtask"]
+members = [
+    "kernel", 
+    "linker", 
+    "xtask", 
+    "easy-fs", 
+    "allocator", 
+    "context", 
+    "vm", 
+    "signal-defs", "signal-impl", "signal"
+    ]
 default-members = ["xtask"]
 
 exclude = ["mod_mgmt"]
