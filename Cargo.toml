@@ -6,8 +6,10 @@ members = [
     "easy-fs", 
     "allocator", 
     "context", 
+    "syscall",
     "vm", 
-    "signal-defs", "signal-impl", "signal"
+    "signal-defs", "signal-impl", "signal",
+    "task-manage", "sync"
     ]
 default-members = ["xtask"]
 
