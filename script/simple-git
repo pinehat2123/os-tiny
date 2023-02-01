@@ -5,12 +5,6 @@ package UtilsGit;
 
 # @envGet = @main::envGet;
 
-sub git_commit {
-    @argList = @_;
-    $commitMsg = $argList[0];
-    print $commitMsg;
-}
-
 sub git_add {
     @argList = @_;
     $cmd = $argList[0];
@@ -25,6 +19,14 @@ sub git_commit {
     $msg = $argList[1] ? $argList[1] : ".";
     print "\e[35m" . $cmd . " " . "commit -m" . " " . $msg . "\n\e[0m";
     system $cmd . " " . "commit -m" . " " . $msg;
+}
+
+sub git_status {
+    @argList = @_;
+    $cmd = $argList[0];
+    $file = $argList[1] ? $argList[1] : ".";
+    print "\e[35m" . $cmd . " " . "status" . " " . $file . "\n\e[0m";
+    system $cmd . " " . "status" . " " . $file;
 }
 
 sub git_push {
@@ -72,11 +74,17 @@ sub pipeline {
   my $cmd  = "git";
   my $file = ".";
   my $date = `date`;
-  my $msg  =  "\"Update Info: $date\Author: Andre\nEmail: 12485443-Andre_HJR\@users.noreply.gitlab.com\"";
+  my $msg  =  "\"Update Info: $date\\Author: Andre\nEmail: 12485443-Andre_HJR\@users.noreply.gitlab.com\"";
   # git add the file.
   &UtilsGit::git_add($cmd, $file);
   &UtilsGit::git_commit($cmd, $msg);
   &UtilsGit::git_push($cmd, $msg);
+}
+
+sub status {
+  my $cmd  = "git";
+  my $file = $ARGV[1] ? $ARGV[1] : "";
+  &UtilsGit::git_status($cmd, $file);
 }
 
 $commander[0]();

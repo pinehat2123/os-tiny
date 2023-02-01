@@ -1,1 +1,20 @@
 #! /usr/bin/perl -w
+
+
+package UtilsClean;
+
+
+sub cargo_clean {
+    system "cargo clean";
+}
+
+
+package main;
+
+@commander = @ARGV;
+
+sub clean {
+    &UtilsClean::cargo_clean();
+}
+
+$commander[0]();

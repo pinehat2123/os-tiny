@@ -17,14 +17,15 @@ kernel:
 	
 ## This builds the kernel binary itself, which is the fully-linked code that first runs right after the bootloader
 $(kernel_binary): cargo $(kernel_static_lib) $(linker_script)
-	@$(CROSS)ld -n -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
+	@$(CROSS_LD) -n -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
 
 dir:
 	@${PRINT} "info echo"
 clean:
-	bash ./script/clean
+	@${PERL} ./script/simple-clean clean
 gitlab:
 	@${INFO} "${AUTHOR}Just Simple git push to gitlab."
-	perl ./script/simple-git pipeline
+	@${PERL} ./script/simple-git pipeline
 gitStatus:
-	@git status $(ROOT_DIR)
+	@${INFO} "${AUTHOR}Just git status for the pj."
+	@${PERL} ./script/simple-git status
