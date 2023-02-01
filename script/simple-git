@@ -1,0 +1,82 @@
+#!/usr/bin/perl -w
+
+
+package UtilsGit;
+
+# @envGet = @main::envGet;
+
+sub git_commit {
+    @argList = @_;
+    $commitMsg = $argList[0];
+    print $commitMsg;
+}
+
+sub git_add {
+    @argList = @_;
+    $cmd = $argList[0];
+    $file = $argList[1] ? $argList[1] : ".";
+    print "\e[35m" . $cmd . " " . "add" . " " . $file . "\n\e[0m";
+    system $cmd . " " . "add" . " " . $file;
+}
+
+sub git_commit {
+    @argList = @_;
+    $cmd = $argList[0];
+    $msg = $argList[1] ? $argList[1] : ".";
+    print "\e[35m" . $cmd . " " . "commit -m" . " " . $msg . "\n\e[0m";
+    system $cmd . " " . "commit -m" . " " . $msg;
+}
+
+sub git_push {
+    @argList = @_;
+    $cmd = $argList[0];
+    print "\e[35m" . $cmd . " " . "push origin main" . "\n\e[0m";
+    system $cmd . " " . "push origin main";
+}
+
+# Set for git config
+# git config user.name
+# git config user.email
+sub git_env_set {
+  @argList = \@_;
+  my $name = `git config user.name`;
+  my $email = `git config user.email`;
+  if ($name && $email) 
+  { print "\e[34mBasic git config is set.\n\e[0m";
+  } else
+  { print "\e[46mTry to set git.\e[0m";
+    $userName = $argList[0];
+    $userEmail = email_check($argList[1]);
+    print $userName . "--" . $userEmail . "\n";
+    print "\e[31mEnd git config.\e[0m";
+  }
+}
+
+sub email_check {
+  my $emailInfo = $_[0];
+  my $emailPattern = '[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+';
+  $emailInfo =~m/$emailPattern/ ? $emailInfo : "Error\@error";
+}
+
+package main;
+
+
+@commander = @ARGV;
+
+# &UtilsGit::git_commit("info");
+sub env_set {
+  &UtilsGit::git_env_set("andre", "12485443-Andre_HJR\@users.noreply.gitlab.com");
+}
+
+sub pipeline {
+  my $cmd  = "git";
+  my $file = ".";
+  my $date = `date`;
+  my $msg  =  "\"Update Info: $date\Author: Andre\nEmail: 12485443-Andre_HJR\@users.noreply.gitlab.com\"";
+  # git add the file.
+  &UtilsGit::git_add($cmd, $file);
+  &UtilsGit::git_commit($cmd, $msg);
+  &UtilsGit::git_push($cmd, $msg);
+}
+
+$commander[0]();
