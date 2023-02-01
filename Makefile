@@ -21,7 +21,6 @@ clean:
 	bash ./script/clean
 gitlab:
 	@${INFO} "${AUTHOR}Just Simple git push to gitlab."
-	bash ./script/quick-push
-
+	perl ./script/simple-git pipeline
 gitStatus:
 	@git status $(ROOT_DIR)
