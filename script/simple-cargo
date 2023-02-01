@@ -3,5 +3,20 @@
 
 package UtilsCargo;
 
+sub cargo_clean {
+
+}
+
+sub cargo_new {
+
+}
+
+sub cargo_check {
+
+}
+
+sub cargo_build {
+
+}
 
 package main;

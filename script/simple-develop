@@ -1,0 +1,30 @@
+#! /usr/bin/perl -w
+
+
+package UtilsDevelop;
+
+sub env_ubuntu_2204_software_install {
+
+}
+
+sub env_ubuntu_2204 {
+
+}
+
+sub env_compile_rust {
+
+}
+
+sub env_compile_qemu_7 {
+
+}
+
+sub env_compile {
+
+}
+
+sub _starfish {
+
+}
+
+package main;
