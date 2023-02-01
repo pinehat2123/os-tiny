@@ -49,11 +49,11 @@ run-inner:
 		-device loader,file=$(kernel_binary),addr=80200000
 
 
-dir:
-	@${PRINT} "info echo"
 
 clean:
 	@${PERL} ./script/simple-clean clean
+
+
 
 gitlab:
 	@${INFO} "${AUTHOR}Just Simple git push to gitlab."
