@@ -1,7 +1,6 @@
 // ARCH DEPENDENT STUFF
 
 pub mod arch;
-pub mod entry;
 // pub mod posix; // not finished
 
 // INTERFACE TO HANDLE DEPENDENT + INDEPENDENT CODE TOGETHER
