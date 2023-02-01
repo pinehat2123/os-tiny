@@ -1,29 +1,54 @@
 OUTPUT_ARCH(riscv)
-SECTIONS {
-    .text 0x80200000 : {
-        __start = .;
+ENTRY(_start)
+BASE_ADDRESS = 0x80200000;
+
+SECTIONS
+{
+    . = BASE_ADDRESS;
+    skernel = .;
+
+    stext = .;
+    .text : {
         *(.text.entry)
+        . = ALIGN(4K);
+        strampoline = .;
+        *(.text.trampoline);
+        . = ALIGN(4K);
         *(.text .text.*)
     }
-    .rodata : ALIGN(4K) {
-        __rodata = .;
+
+    . = ALIGN(4K);
+    etext = .;
+    srodata = .;
+    .rodata : {
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
     }
-    .data : ALIGN(4K) {
-        __data = .;
+
+    . = ALIGN(4K);
+    erodata = .;
+    sdata = .;
+    .data : {
         *(.data .data.*)
         *(.sdata .sdata.*)
     }
-    .bss : ALIGN(8) {
-        __sbss = .;
+
+    . = ALIGN(4K);
+    edata = .;
+    sbss_with_stack = .;
+    .bss : {
+        *(.bss.stack)
+        sbss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-        __ebss = .;
     }
-    .boot : ALIGN(4K) {
-        __boot = .;
-        KEEP(*(.boot.stack))
-    }
+
+    . = ALIGN(4K);
+    ebss = .;
     __end = .;
+    ekernel = .;
+
+    /DISCARD/ : {
+        *(.eh_frame)
+    }
 }

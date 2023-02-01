@@ -17,7 +17,7 @@ kernel:
 	
 ## This builds the kernel binary itself, which is the fully-linked code that first runs right after the bootloader
 $(kernel_binary): $(kernel_static_lib) $(linker_script)
-	$(CROSS_LD) -n -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
+	$(CROSS_LD) -n --static -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
 
 
 run:

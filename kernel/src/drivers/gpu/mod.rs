@@ -20,7 +20,7 @@ pub struct VirtIOGpuWrapper {
     gpu: UPIntrFreeCell<VirtIOGpu<'static, VirtioHal>>,
     fb: &'static [u8],
 }
-static BMP_DATA: &[u8] = include_bytes!("../../assert/mouse.bmp");
+static BMP_DATA: &[u8] = include_bytes!("assert/mouse.bmp");
 impl VirtIOGpuWrapper {
     pub fn new() -> Self {
         unsafe {

@@ -1,12 +1,16 @@
 # This is `Makefile`
 
-PJ ?= STARFISH
+PJ ?= lib
 
 include config/mkEnv.mk
 
 .PHONY: check \
+		simple \
 		clean \
 		gitlab gitStatus
+
+simple:
+	@${MAKE} clean && cargo build -p kernel --release
 
 check:
 	${CROSS_AS} --version;

@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
-#![feature(naked_functions, asm_const)]
-#![deny(warnings)]
+#![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message)]
+#![deny(warnings, unused_imports)]
 
 //use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE, INPUT_CONDVAR};
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
@@ -40,7 +40,18 @@ use crate::drivers::chardev::UART;
 use lazy_static::*;
 use sync::UPIntrFreeCell;
 
-use sbi_rt::*;
+core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
+
+fn clear_bss() {
+    extern "C" {
+        fn sbss();
+        fn ebss();
+    }
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
+            .fill(0);
+    }
+}
 
 
 lazy_static! {
@@ -58,7 +69,7 @@ extern "C" fn rcore_main() -> ! {
     // }
     // system_reset(Shutdown, NoReason);
     // unreachable!()
-    linker::zero_bss();
+    clear_bss();
     mm::init();
     UART.init();
     println!("KERN: init gpu");
@@ -79,11 +90,3 @@ extern "C" fn rcore_main() -> ! {
     panic!("Unreachable in rust_main!");
 }
 
-use core::panic::PanicInfo;
-
-#[panic_handler]
-pub fn panic(_info: &PanicInfo) -> ! {
-    use sbi_rt::*;
-    system_reset(Shutdown, SystemFailure);
-    loop {}
-}

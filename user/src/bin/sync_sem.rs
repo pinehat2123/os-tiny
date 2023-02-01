@@ -13,14 +13,14 @@ use user_lib::{sleep, thread_create, waittid};
 
 const SEM_SYNC: usize = 0;
 
-unsafe fn first() -> isize {
+unsafe fn first() -> ! {
     sleep(10);
     println!("First work and wakeup Second");
     semaphore_up(SEM_SYNC);
     exit(0)
 }
 
-unsafe fn second() -> isize {
+unsafe fn second() -> ! {
     println!("Second want to continue,but need to wait first");
     semaphore_down(SEM_SYNC);
     println!("Second can work now");

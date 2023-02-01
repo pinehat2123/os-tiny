@@ -2,80 +2,88 @@
 #![feature(linkage)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
+#![feature(core_intrinsics)]
 
-mod heap;
+#[macro_use]
+pub mod console;
+mod lang_items;
+mod syscall;
+mod file;
+mod task;
+mod sync;
+mod io;
 
 extern crate alloc;
+#[macro_use]
+extern crate bitflags;
 
-use core::alloc::Layout;
-use rcore_console::log;
+use alloc::vec::Vec;
+use buddy_system_allocator::LockedHeap;
+use syscall::*;
+pub use file::*;
+pub use task::*;
+pub use sync::*;
+pub use io::*;
 
-pub use rcore_console::{print, println};
-pub use syscall::*;
+const USER_HEAP_SIZE: usize = 32768;
+
+static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
+
+#[global_allocator]
+static HEAP: LockedHeap = LockedHeap::empty();
+
+#[alloc_error_handler]
+pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+    panic!("Heap allocation error, layout = {:?}", layout);
+}
 
 #[no_mangle]
 #[link_section = ".text.entry"]
-pub extern "C" fn _start() -> ! {
-    rcore_console::init_console(&Console);
-    rcore_console::set_log_level(option_env!("LOG"));
-    heap::init();
-    exit(main());
-    unreachable!()
+pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
+    unsafe {
+        HEAP.lock()
+            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
+    }
+    let mut v: Vec<&'static str> = Vec::new();
+    for i in 0..argc {
+        let str_start =
+            unsafe { ((argv + i * core::mem::size_of::<usize>()) as *const usize).read_volatile() };
+        let len = (0usize..)
+            .find(|i| unsafe { ((str_start + *i) as *const u8).read_volatile() == 0 })
+            .unwrap();
+        v.push(
+            core::str::from_utf8(unsafe {
+                core::slice::from_raw_parts(str_start as *const u8, len)
+            })
+            .unwrap(),
+        );
+    }
+    exit(main(argc, v.as_slice()));
 }
 
 #[linkage = "weak"]
 #[no_mangle]
-fn main() -> i32 {
+fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }
 
-#[panic_handler]
-fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let err = panic_info.message().unwrap();
-    if let Some(location) = panic_info.location() {
-        log::error!("Panicked at {}:{}, {err}", location.file(), location.line());
-    } else {
-        log::error!("Panicked: {err}");
-    }
-    exit(1);
-    unreachable!()
+#[macro_export]
+macro_rules! vstore {
+    ($var_ref: expr, $value: expr) => {
+        unsafe { core::intrinsics::volatile_store($var_ref as *const _ as _, $value) }
+    };
 }
 
-#[alloc_error_handler]
-fn alloc_error_handler(layout: Layout) -> ! {
-    panic!("Failed to alloc {layout:?}")
+#[macro_export]
+macro_rules! vload {
+    ($var_ref: expr) => {
+        unsafe { core::intrinsics::volatile_load($var_ref as *const _ as _) }
+    };
 }
 
-pub fn getchar() -> u8 {
-    let mut c = [0u8; 1];
-    read(STDIN, &mut c);
-    c[0]
-}
-
-struct Console;
-
-impl rcore_console::Console for Console {
-    #[inline]
-    fn put_char(&self, c: u8) {
-        syscall::write(STDOUT, &[c]);
-    }
-
-    #[inline]
-    fn put_str(&self, s: &str) {
-        syscall::write(STDOUT, s.as_bytes());
-    }
-}
-
-pub fn sleep(period_ms: usize) {
-    let mut time: TimeSpec = TimeSpec::ZERO;
-    clock_gettime(ClockId::CLOCK_MONOTONIC, &mut time as *mut _ as _);
-    let time = time + TimeSpec::from_millsecond(period_ms);
-    loop {
-        let mut now: TimeSpec = TimeSpec::ZERO;
-        clock_gettime(ClockId::CLOCK_MONOTONIC, &mut now as *mut _ as _);
-        if now > time {
-            break;
-        }
-        sched_yield();
-    }
+#[macro_export]
+macro_rules! memory_fence {
+    () => {
+        core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst)
+    };
 }

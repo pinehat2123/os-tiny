@@ -13,7 +13,7 @@ struct Argument {
     pub rc: i32,
 }
 
-fn thread_print(arg: *const Argument) -> isize {
+fn thread_print(arg: *const Argument) -> ! {
     let arg = unsafe { &*arg };
     for _ in 0..1000 {
         print!("{}", arg.ch);

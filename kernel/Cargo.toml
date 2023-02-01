@@ -17,12 +17,12 @@ embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
 
 [dependencies.riscv]
-version = "0.9"
-features = ["inline-asm"]
+git = "https://github.com/Andre-HJR/riscv.git"
+rev = "031d548a"
 
-[dependencies.sbi-rt]
-version = "^0.0.2"
-features = ["legacy"]
+# [dependencies.sbi-rt]
+# version = "^0.0.2"
+# features = ["legacy"]
 
 [dependencies.linker]
 path = "../linker"
