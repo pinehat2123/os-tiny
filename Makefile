@@ -1,6 +1,6 @@
 # This is `Makefile`
 
-PJ ?= lib
+PJ ?= LIb
 
 include config/mkEnv.mk
 

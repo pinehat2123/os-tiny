@@ -7,10 +7,10 @@ kernel:
 	@${CARGO} build -p kernel --${BUILD_MODE}
 	@${INFO} "move to Build/Kernel and \e[35mKernel Static Lib OK\e[0m"
 	@${CP} ${KERNEL_BUILD_DIR}/libkernel.a ${BUILD_TARGET_KERNEL}/
-	@${INFO} "Build/Asm"
-	@${MKDIR} -p build/asm
-	${CROSS_AS} -c $(kernel_asm) -o $(compiled_kernel_asm)
-	@${INFO} "move to Build/Asm and \e[35mKernel ASM OK\e[0m"
+# @${INFO} "Build/Asm"
+# @${MKDIR} -p build/asm
+# ${CROSS_AS} -c $(kernel_asm) -o $(compiled_kernel_asm)
+# @${INFO} "move to Build/Asm and \e[35mKernel ASM OK\e[0m"
 	@${INFO} "Kernel build finish."
 
 
@@ -27,9 +27,26 @@ run:
 	@${INFO} "Kernel Run finish."
 	@${MAKE} clean
 
+FS_IMG                    := user/target/$(TARGET)/$(MODE)/fs.img
+APPS                      := user/src/bin/*
+
+fs-img: $(APPS)
+	@cd user && make build TEST=$(TEST)
+	@rm -f $(FS_IMG)
+	@cd easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/target/riscv64gc-unknown-none-elf/release/
+
 run-inner:
 	qemu-system-riscv64 \
 		-machine virt \
+		-display none\
 		-nographic \
 		-bios $(BOOTLOADER) \
-		-device loader,file=$(kernel_binary),addr=80200000
+		-device loader,file=$(kernel_binary),addr=80200000\
+		-drive file=$(FS_IMG),if=none,format=raw,id=x0 \
+        -device virtio-blk-device,drive=x0 \
+		-device virtio-gpu-device  \
+		-device virtio-keyboard-device  \
+		-device virtio-mouse-device \
+		-serial stdio
+
+# -drive file=$(FS_IMG),if=none,format=raw,id=x0

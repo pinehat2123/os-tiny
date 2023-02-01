@@ -4,13 +4,15 @@ members = [
     "kernel_lib",
     "linker", 
     "xtask", 
-    "easy-fs", 
+    "easy-fs", "easy-fs-fuse",
+    "console",
     "allocator", 
     "context", 
     "syscall",
     "vm", 
     "signal-defs", "signal-impl", "signal",
-    "task-manage", "sync"
+    "task-manage", "sync",
+    "user", "user_libs"
     ]
 default-members = ["xtask"]
 
