@@ -1,5 +1,5 @@
-TOOLS_DIR := ./tools
-RISCV_DIR := ${TOOLS_DIR}/riscv
+TOOLS_DIR     := ./tools
+RISCV_DIR     := ${TOOLS_DIR}/riscv
 RISCV_BIN_DIR := ${RISCV_DIR}/bin
 
 AUTHOR := [my]
