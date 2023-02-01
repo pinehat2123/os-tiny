@@ -12,12 +12,9 @@ BUILD_DIR                 :=  $(ROOT_DIR)/target
 KERNEL_BUILD_DIR          :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
 
 BUILD_TARGET              := $(ROOT_DIR)/build
-BUILD_TARGET_KERNEL       := $(BUILD_TARGET)/kernel
-kernel_static_lib         := $(BUILD_TARGET_KERNEL)/libkernel.a
-kernel_binary             := $(BUILD_TARGET_KERNEL)/kernel.bin
 
-BUILD_TARGET_ASM          := $(BUILD_TARGET)/asm
-kernel_asm                := kernel/src/plantform/arch/riscv64gc/asm/entry.S
-compiled_kernel_asm       := $(BUILD_TARGET_ASM)/entry.o
-
-linker_script             := kernel/src/plantform/arch/riscv64gc/link/linker.ld
+ifeq ($(PJ), LIB)
+	include config/lib_kernel_lib_config.mk
+else
+	include config/lib_kernel_config.mk
+endif

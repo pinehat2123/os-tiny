@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "kernel", 
+    "kernel_lib",
     "linker", 
     "xtask", 
     "easy-fs", 
