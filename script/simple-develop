@@ -1,26 +1,56 @@
 #! /usr/bin/perl -w
 
+# Before you start this script, $WHALE required set!
 
 package UtilsDevelop;
 
 sub env_ubuntu_2204_software_install {
-
-}
-
-sub env_ubuntu_2204 {
-
+    # In ubuntu 22.04
+    system "sudo apt upgrade -y && sudo apt update -y"
+    system "sudo apt install -y autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev \
+              gawk build-essential bison flex texinfo gperf libtool patchutils bc \
+              zlib1g-dev libexpat-dev pkg-config  libglib2.0-dev libpixman-1-dev libsdl2-dev \
+              git tmux python3 python3-pip ninja-build"
 }
 
 sub env_compile_rust {
-
+    system "curl https://sh.rustup.rs -sSf | sh"
+    print "\e[34m Curl Script and Install Rust Finshed!\n\e[0m"
+    print "\n\e[36m rustc Version: \e[0m"
+    system "rustc --version"
+    print "\n\e[36m rustup Version: \e[0m"
+    system "rustup --version"
+    print "\n\e[36m cargo Version: \e[0m"
+    system "cargo --version"
+    print "\n\e[36mDeal With the Cross-Tool.\n\e[0m"
+    system "rustup target add riscv64gc-unknown-none-elf"
+    system "cargo install cargo-binutils"
+    system "rustup component add llvm-tools-preview"
+    system "rustup component add rust-src"
+    system "rustup component add rustfmt"
+    system "rustup component add clippy"
 }
 
 sub env_compile_qemu_7 {
-
+    system "wget https://download.qemu.org/qemu-7.0.0.tar.xz"
+    system "tar xvJf qemu-7.0.0.tar.xz"
+    system "cd qemu-7.0.0 && mkdir build && cd build"
+    system "../configure --prefix=$ENV{'WHALE'}/tools/qemu --target-list=riscv64-softmmu,riscv64-linux-user --enable-kvm # 如果要支持图形界面，可添加 " --enable-sdl" 参数"
+    system "make -j$(nproc)"
+    system "make install"
+    system "cd $ENV{'WHALE'}"
+    system "rm qemu-7.0.0.tar.xz && rm -rf qemu-7.0.0"
 }
 
-sub env_compile {
-
+sub env_compile_riscv {
+    system "wget https://mirror.iscas.ac.cn/plct/riscv-gnu-toolchain.20220725.tar.bz2"
+    system "tar xvjf riscv-gnu-toolchain.20220725.tar.bz2"
+    system "cd riscv-gnu-toolchain.20220725 && mkdir build && cd build"
+    system "../configure --prefix=$ENV{'WHALE'}/tools/riscv"
+    system "make -j$(nproc)"
+    system "make install"
+    system "cd $ENV{'WHALE'}"
+    system "rm riscv-gnu-toolchain.20220725.tar.bz2 && rm -rf riscv-gnu-toolchain.20220725"
 }
 
 sub _starfish {
@@ -28,3 +58,39 @@ sub _starfish {
 }
 
 package main;
+
+@commander = @ARGV;
+
+
+sub env {
+    print "\e[35m Ubuntu 22.04, Software prepare!\n\e[0m"
+    &UtilsDevelop::env_ubuntu_2204_software_install()
+    print "\e[35m Rust Install, newest!\n\e[0m"
+    &UtilsDevelop::env_compile_rust()
+    print "\e[35m Qemu Install(\$WHALE/tools/qemu), 7.0.0!\n\e[0m"
+    &UtilsDevelop::env_compile_qemu_7()
+    print "\e[35m riscv-gnu-tools Install(\$WHALE/tools/riscv), 20220725!\n\e[0m"
+    &UtilsDevelop::env_compile_riscv()
+}
+
+sub ubuntu_software {
+    print "\e[35m Ubuntu 22.04, Software prepare!\n\e[0m"
+    &UtilsDevelop::env_ubuntu_2204_software_install()
+}
+
+sub ubuntu_rust {
+    print "\e[35m Rust Install, newest!\n\e[0m"
+    &UtilsDevelop::env_compile_rust()
+}
+
+sub ubuntu_qemu {
+    print "\e[35m Qemu Install(\$WHALE/tools/qemu), 7.0.0!\n\e[0m"
+    &UtilsDevelop::env_compile_qemu_7()
+}
+
+sub ubuntu_riscv {
+    print "\e[35m riscv-gnu-tools Install(\$WHALE/tools/riscv), 20220725!\n\e[0m"
+    &UtilsDevelop::env_compile_riscv()
+}
+
+$commander[0]()
