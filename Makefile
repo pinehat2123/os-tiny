@@ -3,9 +3,13 @@
 include config/mkEnv.mk
 include config/config.mk
 
-.PHONY:  kernel run clean dir gitlab
+.PHONY:  kernel run clean dir gitlab check
 
 
+check:
+	${CROSS_AS} --version;
+	${CROSS_LD} --version;
+	${CROSS_GDB} --version;
 
 kernel: 
 	@${INFO} "DEAL WITH Kernel"
