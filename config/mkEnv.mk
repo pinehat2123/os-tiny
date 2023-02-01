@@ -5,6 +5,9 @@ RISCV_BIN_DIR := ${RISCV_DIR}/bin
 AUTHOR := [my]
 
 MAKE        ?= make
+MKDIR       ?= mkdir
+CP          ?= cp
+CARGO       ?= cargo 
 BASH        ?= /bin/bash
 PERL        ?= perl
 CROSS       ?=  riscv64-unknown-linux-gnu-

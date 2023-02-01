@@ -8,4 +8,7 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 BUILD_DIR :=  $(ROOT_DIR)/target
 KERNEL_BUILD_DIR :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
-kernel_static_lib := $(KERNEL_BUILD_DIR)/libkernel.a
+
+BUILD_TARGET := $(ROOT_DIR)/build
+BUILD_TARGET_KERNEL := $(BUILD_TARGET)/kernel
+kernel_static_lib := $(BUILD_TARGET_KERNEL)/libkernel.a

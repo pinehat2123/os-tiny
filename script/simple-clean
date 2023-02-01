@@ -8,6 +8,10 @@ sub cargo_clean {
     system "cargo clean";
 }
 
+sub build_clean {
+    system "rm -rf build";
+}
+
 
 package main;
 
@@ -15,6 +19,7 @@ package main;
 
 sub clean {
     &UtilsClean::cargo_clean();
+    &UtilsClean::build_clean();
 }
 
 $commander[0]();
