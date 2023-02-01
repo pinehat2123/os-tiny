@@ -24,6 +24,8 @@ include  config/run.mk
 endif
 
 clean:
+# for easy-fs-fuse
+	@cd easy-fs-fuse && cargo clean
 	@${PERL} ./script/simple-clean clean
 
 gitlab:

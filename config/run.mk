@@ -21,19 +21,21 @@ $(kernel_binary): $(kernel_static_lib) $(linker_script)
 
 
 run:
-	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary}
+	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} fs-img
 	@${MAKE} run-inner --no-print-directory
 	@${NEWLINE}
 	@${INFO} "Kernel Run finish."
 	@${MAKE} clean
 
-FS_IMG                    := user/target/$(TARGET)/$(MODE)/fs.img
+FS_IMG                    := target/$(TARGET)/$(MODE)fs.img
 APPS                      := user/src/bin/*
 
 fs-img: $(APPS)
+	@mkdir -p build/apps
 	@cd user && make build TEST=$(TEST)
 	@rm -f $(FS_IMG)
-	@cd easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/target/riscv64gc-unknown-none-elf/release/
+	@cd easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../target/riscv64gc-unknown-none-elf/release/
+	@mv target/riscv64gc-unknown-none-elf/release/fs.img build/apps
 
 run-inner:
 	qemu-system-riscv64 \
@@ -42,11 +44,10 @@ run-inner:
 		-nographic \
 		-bios $(BOOTLOADER) \
 		-device loader,file=$(kernel_binary),addr=80200000\
-		-drive file=$(FS_IMG),if=none,format=raw,id=x0 \
+		-drive file=build/apps/fs.img,if=none,format=raw,id=x0 \
         -device virtio-blk-device,drive=x0 \
 		-device virtio-gpu-device  \
 		-device virtio-keyboard-device  \
-		-device virtio-mouse-device \
-		-serial stdio
+		-device virtio-mouse-device
 
 # -drive file=$(FS_IMG),if=none,format=raw,id=x0
