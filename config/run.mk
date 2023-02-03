@@ -4,7 +4,7 @@ kernel:
 	@${INFO} "DEAL WITH Kernel"
 	@${INFO} "Build/Kernel"
 	@${MKDIR} -p build/kernel
-	@${CARGO} build -p kernel --${BUILD_MODE}
+	@${CARGO} build -p kernel --${BUILD_MODE} --target  $(BUILD_TARGET_ABI)
 	@${INFO} "move to Build/Kernel and \e[35mKernel Static Lib OK\e[0m"
 	@${CP} ${KERNEL_BUILD_DIR}/libkernel.a ${BUILD_TARGET_KERNEL}/
 # @${INFO} "Build/Asm"

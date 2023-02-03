@@ -159,7 +159,6 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     syscall(SYSCALL_CONDVAR_WAIT, [condvar_id, mutex_id, 0])
 }
 
-
 pub fn sys_framebuffer() -> isize {
     syscall(SYSCALL_FRAMEBUFFER, [0, 0, 0])
 }

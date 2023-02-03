@@ -6,12 +6,12 @@
 
 #[macro_use]
 pub mod console;
-mod lang_items;
-mod syscall;
 mod file;
-mod task;
-mod sync;
 mod io;
+mod lang_items;
+mod sync;
+mod syscall;
+mod task;
 
 extern crate alloc;
 #[macro_use]
@@ -19,11 +19,11 @@ extern crate bitflags;
 
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
-use syscall::*;
 pub use file::*;
-pub use task::*;
-pub use sync::*;
 pub use io::*;
+pub use sync::*;
+use syscall::*;
+pub use task::*;
 
 const USER_HEAP_SIZE: usize = 32768;
 

@@ -3,6 +3,7 @@ xtask = "run --package xtask --release --"
 make = "xtask make"
 asm = "xtask asm"
 qemu = "xtask qemu"
+simple = "xtask --name"
 
-[build]
-target = "riscv64gc-unknown-none-elf"
+# [build]
+# target = "riscv64gc-unknown-none-elf"

@@ -9,3 +9,4 @@ kernel_lib_asm            := kernel_lib/src/plantform/arch/riscv64gc/asm/entry.S
 compiled_kernel_lib_asm   := $(BUILD_TARGET_ASM)/entry.o
 
 linker_script_lib         := kernel_lib/src/plantform/arch/riscv64gc/link/linker.ld
+BUILD_TARGET_ABI          := riscv64gc-unknown-none-elf

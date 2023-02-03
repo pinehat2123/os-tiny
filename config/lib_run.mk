@@ -4,7 +4,7 @@ kernel_lib:
 	@${INFO} "DEAL WITH Kernel Lib"
 	@${INFO} "Build/Kernel_Lib"
 	@${MKDIR} -p build/kernel_lib
-	@${CARGO} build -p kernel_lib --${BUILD_MODE}
+	@${CARGO} build -p kernel_lib --${BUILD_MODE} --target ${BUILD_TARGET_ABI}
 	@${INFO} "move to Build/Kernel_Lib and \e[35mKernel Static Lib OK\e[0m"
 	@${CP} ${KERNEL_LIB_BUILD_DIR}/libkernel_lib.a ${BUILD_TARGET_KERNEL_LIB}/
 	@${INFO} "Build/Asm"

@@ -4,7 +4,7 @@ members = [
     "kernel_lib",
     "linker", 
     "xtask", 
-    "easy-fs",
+    "easy-fs", "easy-fs-fuse",
     "console",
     "allocator", 
     "context", 
@@ -16,7 +16,7 @@ members = [
     ]
 default-members = ["xtask"]
 
-exclude = ["mod_mgmt", "easy-fs-fuse"]
+exclude = ["mod_mgmt"]
 
 
 [profile.dev]

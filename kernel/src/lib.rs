@@ -7,7 +7,6 @@
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
 extern crate alloc;
 
-
 #[cfg(test)]
 mod test {}
 
@@ -36,7 +35,6 @@ mod trap;
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
 
-
 use lazy_static::*;
 use sync::UPIntrFreeCell;
 
@@ -52,7 +50,6 @@ fn clear_bss() {
             .fill(0);
     }
 }
-
 
 lazy_static! {
     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
@@ -89,4 +86,3 @@ extern "C" fn rcore_main() -> ! {
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }
-

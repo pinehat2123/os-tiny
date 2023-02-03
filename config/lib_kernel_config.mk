@@ -7,3 +7,4 @@ BUILD_TARGET_ASM          := $(BUILD_TARGET)/asm
 # compiled_kernel_asm       := $(BUILD_TARGET_ASM)/entry.o
 
 linker_script             := kernel/src/plantform/arch/riscv64gc/link/linker.ld
+BUILD_TARGET_ABI          := riscv64gc-unknown-none-elf
