@@ -1,6 +1,6 @@
 # This is `Makefile`
 
-PJ ?= LIb
+PJ ?= LIBs
 
 include config/mkEnv.mk
 
@@ -10,7 +10,7 @@ include config/mkEnv.mk
 		gitlab gitStatus
 
 simple:
-	@${MAKE} clean && cargo build -p kernel --release
+	@${MAKE} clean && cargo build -p kernel --release --target riscv64gc-unknown-none-elf
 
 check:
 	${CROSS_AS} --version;

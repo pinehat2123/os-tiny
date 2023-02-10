@@ -27,6 +27,11 @@ run:
 	@${INFO} "Kernel Run finish."
 	@${MAKE} clean
 
+orun:
+	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} fs-img
+	@${NEWLINE}
+	@${INFO} "Kernel Run finish."
+
 FS_IMG                    := target/$(TARGET)/$(MODE)fs.img
 APPS                      := user/src/bin/*
 
