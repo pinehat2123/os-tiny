@@ -1,9 +1,9 @@
-// TODO mm sync lazy_static virtio_drivers
+// TODO mm safe_cell lazy_static virtio_drivers
 use mm::{
     frame_alloc, frame_dealloc, kernel_token, FrameTracker, PageTable, PhysAddr, PhysPageNum,
     StepByOne, VirtAddr,
 };
-use sync::UPIntrFreeCell;
+use safe_cell::UPIntrFreeCell;
 use alloc::vec::Vec;
 use lazy_static::*;
 use virtio_drivers::Hal;

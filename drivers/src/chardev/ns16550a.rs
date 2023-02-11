@@ -3,7 +3,8 @@
 ///! Ref: ns16450 datasheet: https://datasheetspdf.com/pdf-file/1311818/NationalSemiconductor/NS16450/1
 use crate::chardev::CharDevice;
 // TODO sync task bitflags volatile
-use sync::{Condvar, UPIntrFreeCell};
+use sync::Condvar;
+use safe_cell::UPIntrFreeCell;
 use task::schedule;
 use alloc::collections::VecDeque;
 use bitflags::*;

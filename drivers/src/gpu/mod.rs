@@ -1,6 +1,6 @@
 use crate::bus::virtio::VirtioHal;
 // TODO sync embedded_graphics tinybmp virtio_drivers
-use sync::UPIntrFreeCell;
+use safe_cell::UPIntrFreeCell;
 use alloc::{sync::Arc, vec::Vec};
 use core::any::Any;
 use embedded_graphics::pixelcolor::Rgb888;

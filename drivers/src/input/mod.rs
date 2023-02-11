@@ -1,6 +1,7 @@
 use crate::bus::virtio::VirtioHal;
 // TODO sync task virtio_drivers
-use sync::{Condvar, UPIntrFreeCell};
+use sync::Condvar; 
+use safe_cell::UPIntrFreeCell;
 use task::schedule;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
