@@ -9,7 +9,8 @@ members = [
     "drivers",
     "safe_cell",
     "xtask", 
-    "application/easy-fs", "application/easy-fs-fuse",
+    "easy-fs", 
+    "application/easy-fs-fuse",
     "application/user",
     ]
 default-members = ["xtask"]
@@ -17,9 +18,6 @@ default-members = ["xtask"]
 exclude = [
     "mod_mgmt",
     "other_libs/*",
-    "easy-fs",
-    "easy-fs-fuse",
-    "user"
     ]
 
 
