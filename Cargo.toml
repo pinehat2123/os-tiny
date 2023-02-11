@@ -2,7 +2,12 @@
 members = [
     "kernel", 
     "tconfig",
+    "memory",
+    "sync",
+    "task",
+    "sbi",
     "drivers",
+    "safe_cell",
     "xtask", 
     "application/easy-fs", "application/easy-fs-fuse",
     "application/user",

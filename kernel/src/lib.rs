@@ -17,8 +17,10 @@ mod plantform;
 extern crate bitflags;
 
 extern crate config;
+extern crate mm;
 
 use config::*;
+use mm::*;
 #[path = "boards/qemu.rs"]
 mod board;
 
@@ -27,7 +29,6 @@ mod console;
 mod drivers;
 mod fs;
 mod lang_items;
-mod mm;
 mod sbi;
 mod sync;
 mod syscall;
@@ -40,7 +41,7 @@ use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
 
 use lazy_static::*;
-use sync::UPIntrFreeCell;
+use safe_cell::UPIntrFreeCell;
 
 core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
 

@@ -17,6 +17,11 @@ embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
 woke = "0.0.2"
 config = { path = "../tconfig", package = "tconfig" }
+# sbi = { path = "../sbi", package = "sbi" }
+mm = { path = "../memory", package = "memory" }
+safe_cell = { path = "../safe_cell", package = "safe_cell" }
+# sync = { path = "../sync", package = "sync" }
+# task = { path = "../task", package = "task" }
 
 [dependencies.riscv]
 git = "https://github.com/Andre-HJR/riscv.git"
