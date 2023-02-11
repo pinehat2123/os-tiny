@@ -1,4 +1,5 @@
 mod context;
+// #[deprecated] mod switch;
 
 use crate::config::TRAMPOLINE;
 use crate::syscall::syscall;
@@ -167,3 +168,5 @@ pub fn trap_from_kernel(_trap_cx: &TrapContext) {
 }
 
 pub use context::TrapContext;
+
+// pub use switch::*;

@@ -1,8 +1,6 @@
 # This is `Makefile`
 
-PJ ?= LIBs
-
-include config/mkEnv.mk
+include mkConfig/mkEnv.mk
 
 .PHONY: check \
 		simple \
@@ -17,15 +15,11 @@ check:
 	${CROSS_LD} --version;
 	${CROSS_GDB} --version;
 
-ifeq ($(PJ), LIB)
-include  config/lib_run.mk
-else
-include  config/run.mk
-endif
+include  mkConfig/run.mk
 
 clean:
 # for easy-fs-fuse
-	@cd easy-fs-fuse && cargo clean
+	@cd application/easy-fs-fuse && cargo clean
 	@${PERL} ./script/simple-clean clean
 
 gitlab:

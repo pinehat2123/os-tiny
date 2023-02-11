@@ -1,7 +1,8 @@
 #![no_main]
 #![no_std]
 #![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message)]
-#![deny(warnings, unused_imports)]
+#![deny(warnings, unused_imports, dead_code)]
+#![allow(unused_imports, dead_code)]
 
 //use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE, INPUT_CONDVAR};
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
@@ -15,12 +16,14 @@ mod plantform;
 #[macro_use]
 extern crate bitflags;
 
+extern crate config;
+
+use config::*;
 #[path = "boards/qemu.rs"]
 mod board;
 
 #[macro_use]
 mod console;
-mod config;
 mod drivers;
 mod fs;
 mod lang_items;
@@ -31,6 +34,7 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
+
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;

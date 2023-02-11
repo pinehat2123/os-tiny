@@ -1,23 +1,20 @@
 [workspace]
 members = [
     "kernel", 
+    "tconfig",
+    "drivers",
     "xtask", 
-    "easy-fs", "easy-fs-fuse",
-    "user",
+    "application/easy-fs", "application/easy-fs-fuse",
+    "application/user",
     ]
 default-members = ["xtask"]
 
 exclude = [
     "mod_mgmt",
-    "kernel_lib",
-    "linker", 
-    "console",
-    "allocator", 
-    "context", 
-    "syscall",
-    "signal-defs", "signal-impl", "signal",
-    "task-manage", "sync",
-    "vm", "user_libs",
+    "other_libs/*",
+    "easy-fs",
+    "easy-fs-fuse",
+    "user"
     ]
 
 
