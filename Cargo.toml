@@ -8,6 +8,7 @@ members = [
     "sbi",
     "drivers",
     "safe_cell",
+    "asynchronous",
     "xtask", 
     "easy-fs", 
     "application/easy-fs-fuse",

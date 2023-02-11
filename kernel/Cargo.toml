@@ -15,7 +15,6 @@ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4e
 easy-fs = { path = "../easy-fs" }
 embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
-woke = "0.0.2"
 config = { path = "../tconfig", package = "tconfig" }
 # sbi = { path = "../sbi", package = "sbi" }
 mm = { path = "../memory", package = "memory" }
