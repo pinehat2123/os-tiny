@@ -1,22 +1,24 @@
 [workspace]
 members = [
     "kernel", 
-    "kernel_lib",
-    "linker", 
     "xtask", 
     "easy-fs", "easy-fs-fuse",
+    "user",
+    ]
+default-members = ["xtask"]
+
+exclude = [
+    "mod_mgmt",
+    "kernel_lib",
+    "linker", 
     "console",
     "allocator", 
     "context", 
     "syscall",
-    "vm", 
     "signal-defs", "signal-impl", "signal",
     "task-manage", "sync",
-    "user", "user_libs"
+    "vm", "user_libs",
     ]
-default-members = ["xtask"]
-
-exclude = ["mod_mgmt"]
 
 
 [profile.dev]
