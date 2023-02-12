@@ -12,4 +12,4 @@ mm = { path = "../memory", package = "memory" }
 drivers = { path = "../drivers", package = "drivers" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
 easy-fs = { path = "../easy-fs", package = "easy-fs" }
-task = { path = "../task_1", package = "task_1" }
+task = { path = "../task", package = "task" }

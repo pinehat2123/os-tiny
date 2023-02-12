@@ -14,7 +14,6 @@ members = [
     "sync",
     "syscall",
     "task",
-    "task_1",
     "tconfig",
     "timer",
     "tlib",

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 config  = { path = "../tconfig", package = "tconfig" }
-task  = { path = "../task_1", package = "task_1" }
+task  = { path = "../task", package = "task" }
 timer  = { path = "../timer", package = "timer" }
 syscall  = { path = "../syscall", package = "syscall" }
 

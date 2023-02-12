@@ -8,8 +8,6 @@
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
 extern crate alloc;
 
-#[cfg(target_arch = "riscv64")]
-use log::info;
 
 
 #[cfg(test)]
