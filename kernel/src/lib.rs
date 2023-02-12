@@ -8,6 +8,10 @@
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
 extern crate alloc;
 
+#[cfg(target_arch = "riscv64")]
+use log::info;
+
+
 #[cfg(test)]
 mod test {}
 
@@ -21,6 +25,7 @@ extern crate mm;
 
 use config::*;
 use mm::*;
+
 #[path = "boards/qemu.rs"]
 mod board;
 
@@ -65,17 +70,11 @@ lazy_static! {
 /// 打印 `Hello, World!`，然后关机。
 #[no_mangle]
 extern "C" fn rcore_main() -> ! {
-    // for c in b"Hello, world!" {
-    //     #[allow(deprecated)]
-    //     legacy::console_putchar(*c as _);
-    // }
-    // system_reset(Shutdown, NoReason);
-    // unreachable!()
     clear_bss();
     mm::init();
     UART.init();
-    println!("KERN: init gpu");
-    let _gpu = GPU_DEVICE.clone();
+    // println!("KERN: init gpu");
+    // let _gpu = GPU_DEVICE.clone();
     println!("KERN: init keyboard");
     let _keyboard = KEYBOARD_DEVICE.clone();
     println!("KERN: init mouse");
@@ -84,6 +83,7 @@ extern "C" fn rcore_main() -> ! {
     trap::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    info!("KERN: init device");
     board::device_init();
     fs::list_apps();
     task::add_initproc();

@@ -8,8 +8,8 @@
 // ];
 pub use config::{CLOCK_FREQ, MMIO};
 
-pub type BlockDeviceImpl = crate::drivers::block::VirtIOBlock;
-pub type CharDeviceImpl = crate::drivers::chardev::NS16550a<VIRT_UART>;
+pub type BlockDeviceImpl = crate::block::VirtIOBlock;
+pub type CharDeviceImpl = crate::chardev::NS16550a<VIRT_UART>;
 
 pub const VIRT_PLIC: usize = 0xC00_0000;
 pub const VIRT_UART: usize = 0x1000_0000;
@@ -19,10 +19,10 @@ pub const VIRTGPU_XRES: u32 = 1280;
 pub const VIRTGPU_YRES: u32 = 800;
 
 
-use crate::drivers::block::BLOCK_DEVICE;
-use crate::drivers::chardev::{CharDevice, UART};
-use crate::drivers::plic::{IntrTargetPriority, PLIC};
-use crate::drivers::{KEYBOARD_DEVICE, MOUSE_DEVICE};
+use crate::block::BLOCK_DEVICE;
+use crate::chardev::{CharDevice, UART};
+use crate::plic::{IntrTargetPriority, PLIC};
+use crate::{KEYBOARD_DEVICE, MOUSE_DEVICE};
 
 pub fn device_init() {
     use riscv::register::sie;

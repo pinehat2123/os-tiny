@@ -2,7 +2,7 @@ mod ns16550a;
 
 
 // TODO lazy_static
-use crate::board::CharDeviceImpl;
+use crate::boards::CharDeviceImpl;
 use alloc::sync::Arc;
 use lazy_static::*;
 pub use ns16550a::NS16550a;

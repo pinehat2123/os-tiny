@@ -1,0 +1,16 @@
+[package]
+name = "trap"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+config  = { path = "../tconfig", package = "tconfig" }
+task  = { path = "../task_1", package = "task_1" }
+timer  = { path = "../timer", package = "timer" }
+syscall  = { path = "../syscall", package = "syscall" }
+
+[dependencies.riscv]
+git = "https://github.com/Andre-HJR/riscv.git"
+rev = "031d548a"

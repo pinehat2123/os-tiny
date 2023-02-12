@@ -18,5 +18,5 @@ tinybmp = "0.3.1"
 config = { path = "../tconfig", package = "tconfig" }
 mm = { path = "../memory", package = "memory" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
-# sync = { path = "../sync", package = "sync" }
-# task = { path = "../task", package = "task" }
+sync = { path = "../sync", package = "sync" }
+task = { path = "../task", package = "task" }

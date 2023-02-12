@@ -25,6 +25,9 @@ safe_cell = { path = "../safe_cell", package = "safe_cell" }
 [dependencies.riscv]
 git = "https://github.com/Andre-HJR/riscv.git"
 rev = "031d548a"
+[dependencies.log]
+version = "0.4"
+features = []
 
 
 # [dependencies.sbi-rt]

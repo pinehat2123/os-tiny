@@ -1,4 +1,6 @@
 #![no_std]
+extern crate alloc;
+
 pub mod block;
 pub mod bus;
 pub mod chardev;
@@ -12,5 +14,5 @@ pub use bus::*;
 pub use chardev::UART;
 pub use gpu::*;
 pub use input::*;
-pub use board::*;
+pub use boards::*;
 

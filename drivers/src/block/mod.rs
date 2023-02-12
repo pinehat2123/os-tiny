@@ -4,7 +4,7 @@ pub use virtio_blk::VirtIOBlock;
 
 // TODO board easy_fs lazy_static
 extern crate easy_fs;
-use crate::board::BlockDeviceImpl;
+use crate::boards::BlockDeviceImpl;
 use alloc::sync::Arc;
 use easy_fs::BlockDevice;
 use lazy_static::*;
@@ -26,5 +26,5 @@ pub fn block_device_test() {
         block_device.read_block(i as usize, &mut read_buffer);
         assert_eq!(write_buffer, read_buffer);
     }
-    println!("block device test passed!");
+    // println!("block device test passed!");
 }

@@ -1,23 +1,32 @@
 [workspace]
 members = [
-    "kernel", 
-    "tconfig",
-    "memory",
-    "sync",
-    "task",
-    "sbi",
-    "drivers",
-    "safe_cell",
-    "asynchronous",
-    "xtask", 
-    "easy-fs", 
     "application/easy-fs-fuse",
     "application/user",
+    "asynchronous",
+    "drivers",
+    "easy-fs", 
+    "fs",
+    "kernel", 
+    "memory",
+    # mod_mgmt
+    "safe_cell",
+    "sbi",
+    "sync",
+    "syscall",
+    "task",
+    "task_1",
+    "tconfig",
+    "timer",
+    "tlib",
+    "trap",
+    "xtask", 
     ]
 default-members = ["xtask"]
 
 exclude = [
+    "mkConfig",
     "mod_mgmt",
+    "script",
     "other_libs/*",
     ]
 
