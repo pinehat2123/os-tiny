@@ -1,4 +1,4 @@
-use crate::UPIntrFreeCell;
+use safe_cell::UPIntrFreeCell;
 use task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock};
 use alloc::{collections::VecDeque, sync::Arc};
 

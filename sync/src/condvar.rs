@@ -1,4 +1,4 @@
-use crate::{Mutex, UPIntrFreeCell};
+use safe_cell::{Mutex, UPIntrFreeCell};
 use task::{
     block_current_and_run_next, block_current_task, current_task, wakeup_task, TaskContext,
     TaskControlBlock,

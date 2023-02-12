@@ -1,4 +1,4 @@
-use crate::UPIntrFreeCell;
+use safe_cell::UPIntrFreeCell;
 use task::TaskControlBlock;
 use task::{block_current_and_run_next, suspend_current_and_run_next};
 use task::{current_task, wakeup_task};
