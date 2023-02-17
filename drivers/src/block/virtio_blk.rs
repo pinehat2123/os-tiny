@@ -4,7 +4,8 @@ use crate::bus::virtio::VirtioHal;
 use sync::Condvar;
 use safe_cell::UPIntrFreeCell;
 use task::schedule;
-use crate::DEV_NON_BLOCKING_ACCESS;
+// use crate::DEV_NON_BLOCKING_ACCESS;
+use config::DEV_NON_BLOCKING_ACCESS;
 use alloc::collections::BTreeMap;
 use virtio_drivers::{BlkResp, RespStatus, VirtIOBlk, VirtIOHeader};
 
