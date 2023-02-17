@@ -1,5 +1,5 @@
 use crate::bus::virtio::VirtioHal;
-// TODO sync embedded_graphics tinybmp virtio_drivers
+// TODO safe_cell embedded_graphics tinybmp virtio_drivers
 use safe_cell::UPIntrFreeCell;
 use alloc::{sync::Arc, vec::Vec};
 use core::any::Any;

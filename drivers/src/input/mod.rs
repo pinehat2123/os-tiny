@@ -1,5 +1,5 @@
 use crate::bus::virtio::VirtioHal;
-// TODO sync task virtio_drivers
+// TODO sync safe_cell task virtio_drivers
 use sync::Condvar; 
 use safe_cell::UPIntrFreeCell;
 use task::schedule;
