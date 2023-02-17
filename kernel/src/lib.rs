@@ -59,10 +59,12 @@ fn clear_bss() {
     }
 }
 
-lazy_static! {
-    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
-        unsafe { UPIntrFreeCell::new(false) };
-}
+// lazy_static! {
+//     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+//         unsafe { UPIntrFreeCell::new(false) };
+// }
+
+use config::DEV_NON_BLOCKING_ACCESS;
 /// 非常简单的 Supervisor 裸机程序。
 ///
 /// 打印 `Hello, World!`，然后关机。
@@ -81,7 +83,6 @@ extern "C" fn rcore_main() -> ! {
     trap::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
-    info!("KERN: init device");
     board::device_init();
     fs::list_apps();
     task::add_initproc();
