@@ -2,6 +2,7 @@
 members = [
     "application/easy-fs-fuse",
     "application/user",
+    "application/ring_scheduler",
     "asynchronous",
     "drivers",
     "easy-fs", 
@@ -35,3 +36,6 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+
+[patch.crates-io]
+riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a" }
