@@ -1,5 +1,5 @@
 //! 内核执行器实现
-use crate::asynchronous::shared::TaskState;
+use super::shared::TaskState;
 use crate::{
     hart::KernelHartInfo,
     syscall::get_swap_cx,

@@ -38,6 +38,7 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
+mod async_rt;
 
 
 use crate::drivers::chardev::CharDevice;
@@ -59,20 +60,15 @@ fn clear_bss() {
     }
 }
 
-// lazy_static! {
-//     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
-//         unsafe { UPIntrFreeCell::new(false) };
-// }
-
 use config::DEV_NON_BLOCKING_ACCESS;
-/// 非常简单的 Supervisor 裸机程序。
-///
-/// 打印 `Hello, World!`，然后关机。
+
+// 内核的入口
 #[no_mangle]
 extern "C" fn rcore_main() -> ! {
     clear_bss();
     mm::init();
     UART.init();
+    // 这里不需要初始化 GUI 的部分
     // println!("KERN: init gpu");
     // let _gpu = GPU_DEVICE.clone();
     println!("KERN: init keyboard");

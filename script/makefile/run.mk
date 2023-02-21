@@ -1,4 +1,4 @@
-include mkConfig/config.mk
+include script/makefile/config.mk
 .PHONY: kernel run run-inner $(kernel_binary)
 kernel: 
 	@${INFO} "DEAL WITH Kernel"

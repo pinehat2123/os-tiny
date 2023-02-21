@@ -38,6 +38,12 @@
 		"configurations": [
 		],
 		"compounds": []
-	}
+	},
+	"extensions": {
+		"recommendations": [
+			"bungcip.better-toml",
+			"rust-lang.rust-analyzer"
+		]
+	},
 
 }

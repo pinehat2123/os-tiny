@@ -3,29 +3,16 @@ members = [
     "application/easy-fs-fuse",
     "application/user",
     "application/ring_scheduler",
-    "asynchronous",
-    "drivers",
     "easy-fs", 
-    "fs",
     "kernel", 
     "memory",
-    # mod_mgmt
     "safe_cell",
-    "sbi",
-    "sync",
-    "syscall",
-    "task",
     "tconfig",
-    "timer",
-    "tlib",
-    "trap",
-    "xtask", 
     ]
-default-members = ["xtask"]
+default-members = ["kernel"]
 
 exclude = [
     "mkConfig",
-    "mod_mgmt",
     "script",
     "other_libs/*",
     ]

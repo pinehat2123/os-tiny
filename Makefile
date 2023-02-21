@@ -1,6 +1,6 @@
 # This is `Makefile`
 
-include mkConfig/mkEnv.mk
+include script/makefile/mkEnv.mk
 
 .PHONY: check \
 		simple \
@@ -15,7 +15,7 @@ check:
 	${CROSS_LD} --version;
 	${CROSS_GDB} --version;
 
-include  mkConfig/run.mk
+include  script/makefile/run.mk
 
 clean:
 # for easy-fs-fuse
