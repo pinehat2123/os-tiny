@@ -8,8 +8,6 @@
 use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
 extern crate alloc;
 
-
-
 #[cfg(test)]
 mod test {}
 
@@ -29,6 +27,7 @@ mod board;
 
 #[macro_use]
 mod console;
+mod async_rt;
 mod drivers;
 mod fs;
 mod lang_items;
@@ -38,8 +37,6 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-mod async_rt;
-
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;

@@ -1,9 +1,9 @@
 use crate::{PhysAddr, PhysPageNum};
-use config::MEMORY_END;
-use safe_cell::UPIntrFreeCell;
 use alloc::vec::Vec;
+use config::MEMORY_END;
 use core::fmt::{self, Debug, Formatter};
 use lazy_static::*;
+use safe_cell::UPIntrFreeCell;
 
 pub struct FrameTracker {
     pub ppn: PhysPageNum,

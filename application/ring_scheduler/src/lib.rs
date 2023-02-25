@@ -126,4 +126,3 @@ pub struct PageList {
     data: [&'static u8; 2],   // 数据段
     text: [&'static u8; 2],   // 代码段
 }
-

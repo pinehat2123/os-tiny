@@ -42,13 +42,6 @@ type SharedPayloadRaw = (
 
 impl SharedPayload {
     /// 根据基地址加载共享调度器
-    ///
-    /// # Example:
-    ///
-    /// ```
-    /// # const BASE: usize = 0x8600_000;
-    /// let shared_load = unsafe { SharedPayload::load(BASE); }
-    /// ```
     pub unsafe fn load(base: usize) -> Self {
         let mut payload_usize = *(base as *const SharedPayloadAsUsize);
         // println!(

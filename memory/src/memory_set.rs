@@ -2,14 +2,14 @@ use crate::{frame_alloc, FrameTracker};
 use crate::{PTEFlags, PageTable, PageTableEntry};
 use crate::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use crate::{StepByOne, VPNRange};
-use config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE};
-use safe_cell::UPIntrFreeCell;
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE};
 use core::arch::asm;
 use lazy_static::*;
 use riscv::register::satp;
+use safe_cell::UPIntrFreeCell;
 
 extern "C" {
     fn stext();

@@ -1,5 +1,5 @@
-use config::KERNEL_HEAP_SIZE;
 use buddy_system_allocator::LockedHeap;
+use config::KERNEL_HEAP_SIZE;
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();

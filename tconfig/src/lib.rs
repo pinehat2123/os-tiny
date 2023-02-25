@@ -1,9 +1,7 @@
 #![no_std]
 #[allow(unused)]
-
 use lazy_static::*;
 use safe_cell::UPIntrFreeCell;
-
 
 pub const USER_STACK_SIZE: usize = 4096 * 2;
 pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
