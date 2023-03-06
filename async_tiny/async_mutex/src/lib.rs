@@ -1,12 +1,11 @@
 #![no_std]
 use core::{
     cell::UnsafeCell,
-    fmt::{Debug, Result, Formatter},
+    fmt::{Debug, Formatter, Result},
     ops::{Deref, DerefMut},
     sync::atomic::{AtomicUsize, Ordering},
 };
 use event::Event;
-
 
 pub struct AsyncMutex<T: ?Sized> {
     state: AtomicUsize,
@@ -25,12 +24,11 @@ impl<T> AsyncMutex<T> {
             data: UnsafeCell::new(data),
         }
     }
-    
+
     pub fn into_inner(self) -> T {
         self.data.into_inner()
     }
 }
-
 
 impl<T: ?Sized> AsyncMutex<T> {
     #[inline]
@@ -126,7 +124,7 @@ impl<T: ?Sized> AsyncMutex<T> {
     }
 }
 
-impl <T: Debug + ?Sized> Debug for AsyncMutex<T> {
+impl<T: Debug + ?Sized> Debug for AsyncMutex<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         struct Locked;
         impl Debug for Locked {
@@ -137,7 +135,10 @@ impl <T: Debug + ?Sized> Debug for AsyncMutex<T> {
 
         match self.try_lock() {
             None => f.debug_struct("AsyncMutex").field("data", &Locked).finish(),
-            Some(guard) => f.debug_struct("AsyncMutex").field("data", &&*guard).finish(),
+            Some(guard) => f
+                .debug_struct("AsyncMutex")
+                .field("data", &&*guard)
+                .finish(),
         }
     }
 }
@@ -156,8 +157,8 @@ impl<T: Default + ?Sized> Default for AsyncMutex<T> {
 
 pub struct AsyncMutexGuard<'a, T: ?Sized>(&'a AsyncMutex<T>);
 
-unsafe impl<T: Send + ?Sized> Send  for AsyncMutexGuard<'_, T> {}
-unsafe impl<T: Sync + ?Sized> Sync  for AsyncMutexGuard<'_, T> {}
+unsafe impl<T: Send + ?Sized> Send for AsyncMutexGuard<'_, T> {}
+unsafe impl<T: Sync + ?Sized> Sync for AsyncMutexGuard<'_, T> {}
 
 impl<'a, T: ?Sized> AsyncMutexGuard<'a, T> {
     pub fn source(guard: &AsyncMutexGuard<'a, T>) -> &'a AsyncMutex<T> {
