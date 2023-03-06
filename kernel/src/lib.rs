@@ -59,7 +59,6 @@ fn clear_bss() {
 
 use config::DEV_NON_BLOCKING_ACCESS;
 
-
 // 内核的入口
 #[no_mangle]
 extern "C" fn rcore_main() -> ! {
