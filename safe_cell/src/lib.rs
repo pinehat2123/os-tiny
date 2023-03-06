@@ -4,6 +4,59 @@ use core::ops::{Deref, DerefMut};
 use lazy_static::*;
 use riscv::register::sstatus;
 
+pub use rv_lock::{Lock, LockGuard};
+pub mod rv_lock {
+    use core::{
+        arch::asm,
+        ops::{Deref, DerefMut},
+    };
+    use spin::{Mutex, MutexGuard};
+
+    #[derive(Default)]
+    pub struct Lock<T>(pub(self) Mutex<T>);
+
+    pub struct LockGuard<'a, T> {
+        guard: Option<MutexGuard<'a, T>>,
+        sstatus: usize,
+    }
+
+    impl<T> Lock<T> {
+        pub const fn new(obj: T) -> Self {
+            Self(Mutex::new(obj))
+        }
+
+        pub fn lock(&self) -> LockGuard<'_, T> {
+            let sstatus: usize = 0usize;
+            unsafe {
+                asm!("csrrci {0}, sstatus, 1 << 1", in(reg) (sstatus));
+            }
+            LockGuard {
+                guard: Some(self.0.lock()),
+                sstatus,
+            }
+        }
+    }
+
+    impl<'a, T> Drop for LockGuard<'a, T> {
+        fn drop(&mut self) {
+            self.guard.take();
+            unsafe { asm!("csrs sstatus, {0}", lateout(reg) self.sstatus) };
+        }
+    }
+
+    impl<'a, T> Deref for LockGuard<'a, T> {
+        type Target = T;
+        fn deref(&self) -> &Self::Target {
+            self.guard.as_ref().unwrap().deref()
+        }
+    }
+
+    impl<'a, T> DerefMut for LockGuard<'a, T> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            self.guard.as_mut().unwrap().deref_mut()
+        }
+    }
+}
 /*
 /// Wrap a static data structure inside it so that we are
 /// able to access it without any `unsafe`.
