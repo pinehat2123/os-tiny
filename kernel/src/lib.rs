@@ -78,6 +78,7 @@ extern "C" fn rcore_main() -> ! {
     timer::set_next_trigger();
     board::device_init();
     fs::list_apps();
+    async_rt::init();
     task::add_initproc();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
