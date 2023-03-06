@@ -44,7 +44,8 @@ use crate::drivers::chardev::UART;
 use lazy_static::*;
 use safe_cell::UPIntrFreeCell;
 
-core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
+// core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
+core::arch::global_asm!(include_str!("entry.S"));
 
 fn clear_bss() {
     extern "C" {
