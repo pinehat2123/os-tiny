@@ -2,11 +2,12 @@
 members = [
     "application/easy-fs-fuse",
     "application/user",
-    "application/ring_scheduler",
+    "ring_scheduler",
     "easy-fs", 
     "kernel", 
     "memory",
     "safe_cell",
+    "event",
     "tconfig",
     ]
 default-members = ["kernel"]
