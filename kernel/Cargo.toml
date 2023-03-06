@@ -16,11 +16,8 @@ easy-fs = { path = "../easy-fs" }
 embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
 config = { path = "../tconfig", package = "tconfig" }
-# sbi = { path = "../sbi", package = "sbi" }
 mm = { path = "../memory", package = "memory" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
-# sync = { path = "../sync", package = "sync" }
-# task = { path = "../task", package = "task" }
 
 [dependencies.riscv]
 git = "https://github.com/Andre-HJR/riscv.git"
@@ -28,15 +25,6 @@ rev = "031d548a"
 [dependencies.log]
 version = "0.4"
 features = []
-
-
-# [dependencies.sbi-rt]
-# version = "^0.0.2"
-# features = ["legacy"]
-
-[dependencies.linker]
-path = "../other_libs/linker"
-
 
 [build-dependencies.linker]
 path = "../other_libs/linker"

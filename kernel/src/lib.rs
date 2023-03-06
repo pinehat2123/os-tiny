@@ -11,7 +11,7 @@ extern crate alloc;
 #[cfg(test)]
 mod test {}
 
-mod plantform;
+mod boot;
 
 #[macro_use]
 extern crate bitflags;
@@ -44,7 +44,6 @@ use crate::drivers::chardev::UART;
 use lazy_static::*;
 use safe_cell::UPIntrFreeCell;
 
-// core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
 core::arch::global_asm!(include_str!("entry.S"));
 
 fn clear_bss() {
@@ -59,6 +58,7 @@ fn clear_bss() {
 }
 
 use config::DEV_NON_BLOCKING_ACCESS;
+
 
 // 内核的入口
 #[no_mangle]
@@ -78,8 +78,8 @@ extern "C" fn rcore_main() -> ! {
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     board::device_init();
-    fs::list_apps();
     async_rt::init();
+    fs::list_apps();
     task::add_initproc();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
