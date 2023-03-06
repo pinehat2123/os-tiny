@@ -2,6 +2,9 @@
 members = [
     "application/easy-fs-fuse",
     "application/user",
+    "async_tiny/async_mutex",
+    "async_tiny/async_virtio_driver",
+    "async_tiny/async_easy_fs",
     "ring_scheduler",
     "easy-fs", 
     "kernel", 
