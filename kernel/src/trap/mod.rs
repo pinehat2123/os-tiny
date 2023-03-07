@@ -1,5 +1,4 @@
 mod context;
-// #[deprecated] mod switch;
 
 use crate::config::TRAMPOLINE;
 use crate::syscall::syscall;
@@ -62,7 +61,7 @@ pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
     let scause = scause::read();
     let stval = stval::read();
-    // println!("into {:?}", scause.cause());
+    //println!("into {:?}", scause.cause());
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             // jump to next instruction anyway
@@ -168,5 +167,3 @@ pub fn trap_from_kernel(_trap_cx: &TrapContext) {
 }
 
 pub use context::TrapContext;
-
-// pub use switch::*;

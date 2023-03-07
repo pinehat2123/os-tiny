@@ -1,0 +1,13 @@
+## tornado-user/.cargo/config.toml-COMMENT: 2022-11-04 Fri Andre :] change the riscv64imac-unknown-none-elf -> riscv64gc-unknown-none-elf
+## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-linux-gnu:error
+## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-none-elfhf:error
+[build]
+target = "riscv64gc-unknown-none-elf"
+
+## tornado-user/.cargo/config.toml-COMMENT: 2022-11-04 Fri Andre :] change the riscv64imac-unknown-none-elf -> riscv64gc-unknown-none-elf
+## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-linux-gnu: error
+## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-none-elfhf:error
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+    "-C", "link-arg=-Tlinker.ld",
+]

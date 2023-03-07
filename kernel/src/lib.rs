@@ -1,5 +1,5 @@
-#![no_main]
 #![no_std]
+#![no_main]
 #![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message)]
 #![deny(warnings, unused_imports, dead_code)]
 #![allow(unused_imports, dead_code)]
@@ -37,6 +37,7 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
+mod hart {}
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
@@ -57,7 +58,10 @@ fn clear_bss() {
     }
 }
 
-use config::DEV_NON_BLOCKING_ACCESS;
+lazy_static! {
+    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+        unsafe { UPIntrFreeCell::new(false) };
+}
 
 // 内核的入口
 #[no_mangle]

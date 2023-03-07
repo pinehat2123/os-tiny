@@ -1,7 +1,6 @@
 #![no_std]
 #[allow(unused)]
 use lazy_static::*;
-use safe_cell::UPIntrFreeCell;
 
 pub const USER_STACK_SIZE: usize = 4096 * 2;
 pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
@@ -24,7 +23,3 @@ pub const MMIO: &[(usize, usize)] = &[
     (0x10000000, 0x9000),  // VIRT_UART0 with GPU  in virt machine
 ];
 
-lazy_static! {
-    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
-        unsafe { UPIntrFreeCell::new(false) };
-}
