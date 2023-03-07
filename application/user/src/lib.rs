@@ -1,11 +1,11 @@
 #![no_std]
-#![feature(linkage)]
-#![feature(panic_info_message)]
-#![feature(alloc_error_handler)]
-#![feature(core_intrinsics)]
+#![feature(linkage,panic_info_message, alloc_error_handler, core_intrinsics, maybe_uninit_uninit_array, const_maybe_uninit_uninit_array)]
+
 
 #[macro_use]
 pub mod console;
+#[allow(dead_code)]
+mod async_lib;
 mod lang_items;
 mod syscall;
 

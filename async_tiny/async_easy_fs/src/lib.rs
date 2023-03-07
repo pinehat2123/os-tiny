@@ -14,10 +14,10 @@ mod config {
     pub const BLOCK_SIZE: usize = 512;
     pub const CACHE_SIZE: usize = 100;
 }
-pub use config::*;
 use bitmap::Bitmap;
 use block_cache::{block_cache_sync_all, get_block_cache};
 pub use block_dev::BlockDevice;
+pub use config::*;
 pub use efs::EasyFileSystem;
 use layout::*;
 pub use vfs::Inode;

@@ -22,4 +22,3 @@ pub const MMIO: &[(usize, usize)] = &[
     (0xc000000, 0x210000), // VIRT_PLIC in virt machine
     (0x10000000, 0x9000),  // VIRT_UART0 with GPU  in virt machine
 ];
-

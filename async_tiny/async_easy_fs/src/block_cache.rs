@@ -149,20 +149,35 @@ mod cache {
 }
 pub(crate) use cache::*;
 
-pub struct AsyncBlockCache <C: Cache<N, Key = usize, Value = [u8; B]> + Send + Sync, const B: usize, const N: usize,> {
+pub struct AsyncBlockCache<
+    C: Cache<N, Key = usize, Value = [u8; B]> + Send + Sync,
+    const B: usize,
+    const N: usize,
+> {
     block_id: usize,
     block_device: Arc<dyn AsyncBlockDevice + Send + Sync>,
     cache: AsyncMutex<C>,
     modified: bool,
 }
 
-impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>, crate::BLOCK_SIZE, crate::CACHE_SIZE> {
+impl
+    AsyncBlockCache<
+        LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>,
+        crate::BLOCK_SIZE,
+        crate::CACHE_SIZE,
+    >
+{
     pub fn init(block_id: usize, device: Arc<dyn AsyncBlockDevice + Send + Sync>) -> Self {
-        let mut data: [MaybeUninit<Node<usize, [u8; crate::BLOCK_SIZE]>>; crate::CACHE_SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
+        let mut data: [MaybeUninit<Node<usize, [u8; crate::BLOCK_SIZE]>>; crate::CACHE_SIZE] =
+            unsafe { MaybeUninit::uninit().assume_init() };
         for elem in &mut data[..] {
             *elem = MaybeUninit::new(Node::new(0, [0; crate::BLOCK_SIZE]));
         }
-        let nodes = unsafe { core::mem::transmute::<_, [Node<usize, [u8; crate::BLOCK_SIZE]>; crate::CACHE_SIZE] > (data) };
+        let nodes = unsafe {
+            core::mem::transmute::<_, [Node<usize, [u8; crate::BLOCK_SIZE]>; crate::CACHE_SIZE]>(
+                data,
+            )
+        };
         let lfu_cache = LFUCache::empty(nodes);
         Self {
             block_id,
@@ -170,7 +185,7 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
             cache: AsyncMutex::new(lfu_cache),
             modified: false,
         }
-    }    
+    }
 
     /// 异步方式从块缓存中读取一个块
     pub async fn read_block(&self, block_id: usize) -> [u8; BLOCK_SIZE] {
@@ -227,7 +242,7 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //     block_device: Arc<dyn BlockDevice>,
 //     modified: bool,
 // }
-// 
+//
 // impl BlockCache {
 //     /// Load a new BlockCache from disk.
 //     pub fn new(block_id: usize, block_device: Arc<dyn BlockDevice>) -> Self {
@@ -241,11 +256,11 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //             modified: false,
 //         }
 //     }
-// 
+//
 //     fn addr_of_offset(&self, offset: usize) -> usize {
 //         &self.cache[offset] as *const _ as usize
 //     }
-// 
+//
 //     pub fn get_ref<T>(&self, offset: usize) -> &T
 //     where
 //         T: Sized,
@@ -255,7 +270,7 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //         let addr = self.addr_of_offset(offset);
 //         unsafe { &*(addr as *const T) }
 //     }
-// 
+//
 //     pub fn get_mut<T>(&mut self, offset: usize) -> &mut T
 //     where
 //         T: Sized,
@@ -266,15 +281,15 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //         let addr = self.addr_of_offset(offset);
 //         unsafe { &mut *(addr as *mut T) }
 //     }
-// 
+//
 //     pub fn read<T, V>(&self, offset: usize, f: impl FnOnce(&T) -> V) -> V {
 //         f(self.get_ref(offset))
 //     }
-// 
+//
 //     pub fn modify<T, V>(&mut self, offset: usize, f: impl FnOnce(&mut T) -> V) -> V {
 //         f(self.get_mut(offset))
 //     }
-// 
+//
 //     pub fn sync(&mut self) {
 //         if self.modified {
 //             self.modified = false;
@@ -282,26 +297,26 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //         }
 //     }
 // }
-// 
+//
 // impl Drop for BlockCache {
 //     fn drop(&mut self) {
 //         self.sync()
 //     }
 // }
-// 
+//
 // const BLOCK_CACHE_SIZE: usize = 16;
-// 
+//
 // pub struct BlockCacheManager {
 //     queue: VecDeque<(usize, Arc<Mutex<BlockCache>>)>,
 // }
-// 
+//
 // impl BlockCacheManager {
 //     pub fn new() -> Self {
 //         Self {
 //             queue: VecDeque::new(),
 //         }
 //     }
-// 
+//
 //     pub fn get_block_cache(
 //         &mut self,
 //         block_id: usize,
@@ -334,12 +349,12 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //         }
 //     }
 // }
-// 
+//
 // lazy_static! {
 //     pub static ref BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> =
 //         Mutex::new(BlockCacheManager::new());
 // }
-// 
+//
 // pub fn get_block_cache(
 //     block_id: usize,
 //     block_device: Arc<dyn BlockDevice>,
@@ -348,11 +363,11 @@ impl AsyncBlockCache<LFUCache<usize, [u8; crate::BLOCK_SIZE], crate::CACHE_SIZE>
 //         .lock()
 //         .get_block_cache(block_id, block_device)
 // }
-// 
+//
 // pub fn block_cache_sync_all() {
 //     let manager = BLOCK_CACHE_MANAGER.lock();
 //     for (_, cache) in manager.queue.iter() {
 //         cache.lock().sync();
 //     }
 // }
-// 
+//
