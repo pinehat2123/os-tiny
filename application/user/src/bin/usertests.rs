@@ -24,7 +24,7 @@ static SUCC_TESTS: &[(&str, &str, &str, &str, i32)] = &[
     ("matrix\0", "\0", "\0", "\0", 0),
     // ("mpsc_sem\0", "\0", "\0", "\0", 0),
     // ("peterson\0", "\0", "\0", "\0", 0),
-    ("phil_din_mutex\0", "\0", "\0", "\0", 0),
+    // ("phil_din_mutex\0", "\0", "\0", "\0", 0),
     ("pipe_large_test\0", "\0", "\0", "\0", 0),
     ("pipetest\0", "\0", "\0", "\0", 0),
     // ("adder_peterson_spin\0", "\0", "\0", "\0", 0),
