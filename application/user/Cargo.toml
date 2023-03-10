@@ -17,6 +17,7 @@ virtio-input-decoder = "0.1.4"
 woke = "0.0.2"
 spin = "0.5.2"
 r0 = "1"
+syscall_macro = { path = "../../syscall", package = "syscall" }
 event = { path = "../../event", package = "event" }
 async-mutex = { path = "../../async_tiny/async_mutex", package = "async_mutex"}
 
