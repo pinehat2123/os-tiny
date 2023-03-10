@@ -15,6 +15,7 @@ mod async_lib;
 mod lang_items;
 mod syscall;
 
+use core::arch::asm;
 extern crate alloc;
 #[macro_use]
 extern crate bitflags;
@@ -26,6 +27,9 @@ use syscall::*;
 const USER_HEAP_SIZE: usize = 32768;
 
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
+
+static mut SHARED_PAYLOAD_BASE: usize = 0;
+static mut ADDRESS_SPACE_ID: usize = 0;
 
 #[global_allocator]
 static HEAP: LockedHeap = LockedHeap::empty();
@@ -39,6 +43,11 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 #[link_section = ".text.entry"]
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     unsafe {
+        // 从 gp 寄存器里面取出 shared_raw_table 的地址
+        asm!("mv {}, gp", out(reg) SHARED_PAYLOAD_BASE, options(nomem, nostack));
+
+        // 从 tp 寄存器里面取出该用户态的地址空间编号
+        asm!("mv {}, tp", out(reg) ADDRESS_SPACE_ID, options(nomem, nostack));
         HEAP.lock()
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
