@@ -11,3 +11,4 @@ riscv = "0.10.1"
 lazy_static = { version = "1", features = ["spin_no_std"] }
 r0 = "1.0"
 buddy_system_allocator = "0.6"
+syscall = { path = "../syscall", package = "syscall"}
