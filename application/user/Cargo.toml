@@ -20,6 +20,7 @@ r0 = "1"
 syscall_macro = { path = "../../syscall", package = "syscall" }
 event = { path = "../../event", package = "event" }
 async-mutex = { path = "../../async_tiny/async_mutex", package = "async_mutex"}
+config = { path = "../../tconfig", package = "tconfig" }
 
 [profile.release]
 debug = true
