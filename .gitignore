@@ -4,3 +4,4 @@ target
 tools
 build
 other_libs
+.pre_commit
