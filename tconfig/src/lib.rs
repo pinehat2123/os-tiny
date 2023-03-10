@@ -14,6 +14,8 @@ pub const TRAP_CONTEXT_BASE: usize = TRAMPOLINE - PAGE_SIZE;
 
 // pub use drivers::board::{CLOCK_FREQ, MMIO};
 
+pub const BLOCK_SIZE: usize = 512;
+
 pub const CLOCK_FREQ: usize = 12500000;
 
 pub const MMIO: &[(usize, usize)] = &[
