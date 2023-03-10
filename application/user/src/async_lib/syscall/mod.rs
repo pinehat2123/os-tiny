@@ -129,7 +129,7 @@ pub fn sys_enroll_read(block_id: usize, buf: &mut [u8]) -> isize {
     }
 }
 
-pub fn sys_error_write(block_id: usize, buf: &[u8]) -> isize {
+pub fn sys_enroll_write(block_id: usize, buf: &[u8]) -> isize {
     assert!(BLOCK_SIZE == buf.len());
     unsafe {
         syscall3(

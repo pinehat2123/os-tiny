@@ -2,6 +2,8 @@
 mod syscall;
 #[allow(dead_code)]
 mod task;
+#[allow(dead_code)]
+mod io;
 
 static mut SHARED_PAYLOAD_BASE: usize = 0;
 static mut ADDRESS_SPACE_ID: usize = 0;
@@ -54,7 +56,11 @@ pub fn execute_async() {
     );
 }
 
-use syscall::sys_yield;
+use syscall::{sys_exit, sys_yield};
+
+pub fn exit(exit_code: i32) -> isize {
+    sys_exit(exit_code)
+}
 
 pub fn do_yield(next_asid: usize) -> isize {
     sys_yield(next_asid)
