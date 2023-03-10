@@ -18,6 +18,7 @@ tinybmp = "0.3.1"
 config = { path = "../tconfig", package = "tconfig" }
 mm = { path = "../memory", package = "memory" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
+syscall_macro = { path = "../syscall", package = "syscall" }
 
 [dependencies.riscv]
 git = "https://github.com/Andre-HJR/riscv.git"
