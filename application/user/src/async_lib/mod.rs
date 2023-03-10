@@ -56,7 +56,8 @@ pub fn execute_async() {
     );
 }
 
-use syscall::{sys_exit, sys_yield};
+use syscall::{sys_exit, sys_yield, sys_test_rest_timer, sys_read_timer};
+
 
 pub fn exit(exit_code: i32) -> isize {
     sys_exit(exit_code)
@@ -64,4 +65,12 @@ pub fn exit(exit_code: i32) -> isize {
 
 pub fn do_yield(next_asid: usize) -> isize {
     sys_yield(next_asid)
+}
+
+pub fn reset_timer() -> isize {
+    sys_test_rest_timer()
+}
+
+pub fn read_timer() -> isize {
+    sys_read_timer()
 }

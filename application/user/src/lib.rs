@@ -11,7 +11,7 @@
 #[macro_use]
 pub mod console;
 #[allow(dead_code)]
-mod async_lib;
+pub mod async_lib;
 mod lang_items;
 mod syscall;
 
