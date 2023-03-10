@@ -59,7 +59,7 @@ pub mod syscall_number {
 macro_rules! syscall {
     ($($name:ident($a:ident, $($b:ident, $($c:ident, $($d:ident, $($e:ident, $($f:ident, $($g:ident, $($h:ident, )?)?)?)?)?)?)?);)+) => {
         $(
-            pub unsafe fn $name($a: usize, $($b: usize, $($c: usize, $($d: usize, $($e: usize, $($f: usize, $($g: usize, $($h: usize, )?)?)?)?)?)?)?) -> usize {
+            pub unsafe fn $name($a: usize, $($b: usize, $($c: usize, $($d: usize, $($e: usize, $($f: usize, $($g: usize, $($h: usize, )?)?)?)?)?)?)?) -> isize {
                 let _ret: usize;
 
                 core::arch::asm!(

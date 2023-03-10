@@ -56,6 +56,6 @@ pub fn execute_async() {
 
 use syscall::sys_yield;
 
-pub fn do_yield(next_asid: usize) -> usize {
+pub fn do_yield(next_asid: usize) -> isize {
     sys_yield(next_asid)
 }

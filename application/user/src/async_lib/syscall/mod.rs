@@ -35,11 +35,11 @@ use syscall_macro::{
 
 use config::BLOCK_SIZE;
 
-pub fn sys_exit(exit_code: i32) -> usize {
+pub fn sys_exit(exit_code: i32) -> isize {
     unsafe { syscall1(MODULE_PROCESS, FUNC_PROCESS_EXIT, exit_code as usize) }
 }
 
-pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> usize {
+pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> isize {
     let (f_buf, f_len) = file_name
         .map(|s| (s.as_ptr() as usize, s.len()))
         .unwrap_or((0, 0));
@@ -65,11 +65,11 @@ pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>
     }
 }
 
-pub fn sys_yield(next_asid: usize) -> usize {
+pub fn sys_yield(next_asid: usize) -> isize {
     unsafe { syscall1(MODULE_TASK, FUNC_SWITCH_TASK, next_asid) }
 }
 
-pub fn sys_test_write(buf: &[u8]) -> usize {
+pub fn sys_test_write(buf: &[u8]) -> isize {
     // syscall_3(
     //     MODULE_TEST_INTERFACE,
     //     FUNC_TEST_WRITE,
@@ -86,17 +86,17 @@ pub fn sys_test_write(buf: &[u8]) -> usize {
     }
 }
 
-pub fn sys_test_write_one(data: usize) -> usize {
+pub fn sys_test_write_one(data: usize) -> isize {
     // syscall_2(MODULE_TEST_INTERFACE, FUNC_TEST_WRITE_ONE, [0, data])
     unsafe { syscall2(MODULE_TEST_INTERFACE, FUNC_TEST_WRITE_ONE, 0, data) }
 }
 
-pub fn sys_test_read_one() -> usize {
+pub fn sys_test_read_one() -> isize {
     // syscall_1(MODULE_TEST_INTERFACE, FUNC_TEST_READ_ONE, 0)
     unsafe { syscall1(MODULE_TEST_INTERFACE, FUNC_TEST_READ_ONE, 0) }
 }
 
-pub fn sys_test_read_line(buf: &mut [u8]) -> usize {
+pub fn sys_test_read_line(buf: &mut [u8]) -> isize {
     unsafe {
         syscall3(
             MODULE_TEST_INTERFACE,
@@ -108,15 +108,15 @@ pub fn sys_test_read_line(buf: &mut [u8]) -> usize {
     }
 }
 
-pub fn sys_test_rest_timer() -> usize {
+pub fn sys_test_rest_timer() -> isize {
     unsafe { syscall0(MODULE_TEST_INTERFACE, FUNC_TEST_RESET_TIMER) }
 }
 
-pub fn sys_read_timer() -> usize {
+pub fn sys_read_timer() -> isize {
     unsafe { syscall0(MODULE_TEST_INTERFACE, FUNC_TEST_READ_TIMER) }
 }
 
-pub fn sys_enroll_read(block_id: usize, buf: &mut [u8]) -> usize {
+pub fn sys_enroll_read(block_id: usize, buf: &mut [u8]) -> isize {
     assert!(BLOCK_SIZE == buf.len());
     unsafe {
         syscall3(
@@ -129,7 +129,7 @@ pub fn sys_enroll_read(block_id: usize, buf: &mut [u8]) -> usize {
     }
 }
 
-pub fn sys_error_write(block_id: usize, buf: &[u8]) -> usize {
+pub fn sys_error_write(block_id: usize, buf: &[u8]) -> isize {
     assert!(BLOCK_SIZE == buf.len());
     unsafe {
         syscall3(
@@ -142,6 +142,6 @@ pub fn sys_error_write(block_id: usize, buf: &[u8]) -> usize {
     }
 }
 
-pub fn sys_kernel_check() -> usize {
+pub fn sys_kernel_check() -> isize {
     unsafe { syscall0(MODULE_TASK, FUNC_CHECK) }
 }

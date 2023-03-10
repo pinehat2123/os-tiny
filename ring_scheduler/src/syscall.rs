@@ -65,7 +65,7 @@ use syscall::{
     },
 };
 
-pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> usize {
+pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> isize {
     // pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> SyscallResult {
     let (f_buf, f_len) = file_name
         .map(|s| (s.as_ptr() as usize, s.len()))
@@ -94,7 +94,7 @@ pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>
     */
 }
 
-pub fn sys_test_write(buf: &[u8]) -> usize {
+pub fn sys_test_write(buf: &[u8]) -> isize {
     // pub fn sys_test_write(buf: &[u8]) -> SyscallResult {
     unsafe {
         syscall3(
