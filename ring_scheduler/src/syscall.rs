@@ -1,10 +1,10 @@
 //! 系统调用，用于调试
-const MODULE_TEST_INTERFACE: usize = 0x233666;
-const MODULE_PROCESS: usize = 0x114514;
-
-const FUNC_PROCESS_PANIC: usize = 0x11451419;
-
-const FUNC_TEST_WRITE: usize = 0x666233;
+// const MODULE_TEST_INTERFACE: usize = 0x233666;
+// const MODULE_PROCESS: usize = 0x114514;
+// 
+// const FUNC_PROCESS_PANIC: usize = 0x11451419;
+// 
+// const FUNC_TEST_WRITE: usize = 0x666233;
 
 // syscall macro
 // macro_rules! syscall {
@@ -12,7 +12,7 @@ const FUNC_TEST_WRITE: usize = 0x666233;
 //         $(
 //             pub unsafe fn $name($a: usize, $($b: usize, $($c: usize, $($d: usize, $($e: usize, $($f: usize, $($g: usize, $($h: usize)?)?)?)?)?)?)?) -> usize {
 //                 let _ret: usize;
-// 
+//
 //                 core::arch::asm!(
 //                     "ecall",
 //                     in("a7") $a,
@@ -40,13 +40,13 @@ const FUNC_TEST_WRITE: usize = 0x666233;
 //                     lateout("a0") _ret,
 //                     options(nostack),
 //                 );
-// 
+//
 //                 1106
 //             }
 //         )+
 //     };
 // }
-// 
+//
 // syscall! {
 //     syscall0(a,z, );
 //     syscall1(a, b, z, );
@@ -57,17 +57,33 @@ const FUNC_TEST_WRITE: usize = 0x666233;
 //     syscall6(a, b, c, d, e, f, g, z, );
 // }
 
-use syscall::{syscall3, syscall6};
+use syscall::{syscall3, syscall6,
+    syscall_number::{
+        test::{MODULE_TEST_INTERFACE, FUNC_TEST_WRITE},
+        user::{MODULE_PROCESS, FUNC_PROCESS_PANIC}
+    }
+};
 
 pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> usize {
-// pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> SyscallResult {
+    // pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> SyscallResult {
     let (f_buf, f_len) = file_name
         .map(|s| (s.as_ptr() as usize, s.len()))
         .unwrap_or((0, 0));
     let (m_buf, m_len) = msg
         .map(|s| (s.as_ptr() as usize, s.len()))
         .unwrap_or((0, 0));
-    unsafe { syscall6(MODULE_PROCESS, FUNC_PROCESS_PANIC, line as usize, col as usize, f_buf, f_len, m_buf, m_len) }
+    unsafe {
+        syscall6(
+            MODULE_PROCESS,
+            FUNC_PROCESS_PANIC,
+            line as usize,
+            col as usize,
+            f_buf,
+            f_len,
+            m_buf,
+            m_len,
+        )
+    }
     /*
     syscall_6(
         MODULE_PROCESS,
@@ -78,8 +94,16 @@ pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>
 }
 
 pub fn sys_test_write(buf: &[u8]) -> usize {
-// pub fn sys_test_write(buf: &[u8]) -> SyscallResult {
-    unsafe { syscall3(MODULE_TEST_INTERFACE, FUNC_TEST_WRITE, 0, buf.as_ptr() as usize, buf.len()) }
+    // pub fn sys_test_write(buf: &[u8]) -> SyscallResult {
+    unsafe {
+        syscall3(
+            MODULE_TEST_INTERFACE,
+            FUNC_TEST_WRITE,
+            0,
+            buf.as_ptr() as usize,
+            buf.len(),
+        )
+    }
     /*
     syscall_3(
         MODULE_TEST_INTERFACE,

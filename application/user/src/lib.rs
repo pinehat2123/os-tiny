@@ -1,6 +1,12 @@
 #![no_std]
-#![feature(linkage,panic_info_message, alloc_error_handler, core_intrinsics, maybe_uninit_uninit_array, const_maybe_uninit_uninit_array)]
-
+#![feature(
+    linkage,
+    panic_info_message,
+    alloc_error_handler,
+    core_intrinsics,
+    maybe_uninit_uninit_array,
+    const_maybe_uninit_uninit_array
+)]
 
 #[macro_use]
 pub mod console;
