@@ -89,8 +89,7 @@ macro_rules! syscall {
                     lateout("a0") _ret,
                     options(nostack),
                 );
-
-                1106
+                _ret
             }
         )+
     };
@@ -106,21 +105,8 @@ syscall! {
     syscall6(a, b, c, d, e, f, g, z, );
 }
 
-fn syscall_3(id: usize, args: [usize; 3]) -> isize {
-    let mut ret: isize;
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a0") args[0],
-            in("a1") args[1],
-            in("a2") args[2],
-            in("a7") id,
-            lateout("a0") ret,
-            options(nostack),
-        );
-    }
-    ret
-    // todo: [error] unsafe { syscall2(id, args[0], args[1], args[2]) }
+fn syscall_3_helper(id: usize, args: [usize; 3]) -> isize {
+    unsafe { syscall2(id, args[0], args[1], args[2]) }
 }
 
-pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3(id, args) }
+pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3_helper(id, args) }
