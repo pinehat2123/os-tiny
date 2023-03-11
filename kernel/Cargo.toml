@@ -19,6 +19,7 @@ config = { path = "../tconfig", package = "tconfig" }
 mm = { path = "../memory", package = "memory" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
 syscall_macro = { path = "../syscall", package = "syscall" }
+ge = { path = "../utils/ge", package = "ge" }
 
 [dependencies.riscv]
 git = "https://github.com/Andre-HJR/riscv.git"
