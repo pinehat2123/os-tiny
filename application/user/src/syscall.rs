@@ -28,7 +28,6 @@ use syscall_macro::syscall_number::kernel::*;
 // const SYSCALL_CONDVAR_WAIT: usize = 1032;
 use syscall_macro::syscall;
 
-
 pub fn sys_dup(fd: usize) -> isize {
     syscall(SYSCALL_DUP, [fd, 0, 0])
 }

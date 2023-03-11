@@ -109,4 +109,6 @@ fn syscall_3_helper(id: usize, args: [usize; 3]) -> isize {
     unsafe { syscall2(id, args[0], args[1], args[2]) }
 }
 
-pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3_helper(id, args) }
+pub fn syscall(id: usize, args: [usize; 3]) -> isize {
+    syscall_3_helper(id, args)
+}
