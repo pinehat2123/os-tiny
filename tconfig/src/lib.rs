@@ -18,6 +18,8 @@ pub const BLOCK_SIZE: usize = 512;
 
 pub const CLOCK_FREQ: usize = 12500000;
 
+pub const SHAREDPAYLOAD_BASE: usize = 0x8600_0000;
+
 pub const MMIO: &[(usize, usize)] = &[
     (0x0010_0000, 0x00_2000), // VIRT_TEST/RTC  in virt machine
     (0x2000000, 0x10000),
