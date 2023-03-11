@@ -60,7 +60,7 @@ macro_rules! syscall {
     ($($name:ident($a:ident, $($b:ident, $($c:ident, $($d:ident, $($e:ident, $($f:ident, $($g:ident, $($h:ident, )?)?)?)?)?)?)?);)+) => {
         $(
             pub unsafe fn $name($a: usize, $($b: usize, $($c: usize, $($d: usize, $($e: usize, $($f: usize, $($g: usize, $($h: usize, )?)?)?)?)?)?)?) -> isize {
-                let _ret: usize;
+                let _ret: isize;
 
                 core::arch::asm!(
                     "ecall",
@@ -105,3 +105,22 @@ syscall! {
     syscall5(a, b, c, d, e, f, z, );
     syscall6(a, b, c, d, e, f, g, z, );
 }
+
+fn syscall_3(id: usize, args: [usize; 3]) -> isize {
+    let mut ret: isize;
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a0") args[0],
+            in("a1") args[1],
+            in("a2") args[2],
+            in("a7") id,
+            lateout("a0") ret,
+            options(nostack),
+        );
+    }
+    ret
+    // todo: [error] unsafe { syscall2(id, args[0], args[1], args[2]) }
+}
+
+pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3(id, args) }
