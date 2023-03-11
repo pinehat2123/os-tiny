@@ -1,140 +1,154 @@
-//! 内核执行器实现
-use super::shared::TaskState;
-use crate::{
-    hart::KernelHartInfo,
-    syscall::get_swap_cx,
-    task::{KernelTaskRepr, TaskResult},
-    trap::switch_to_user,
-};
-use alloc::sync::Arc;
-use core::{
-    mem,
-    task::{Context, Poll},
-};
-#[allow(unused)]
-use riscv::register::sie;
-use woke::waker_ref;
+use crate::{hart::KernelHartInfo, memory::AddressSpaceId, task::async_task::TaskResult};
+use core::{mem, ptr::NonNull};
 
-/// 内核执行器实现
-///
-/// 如果是当前上下文，就解释运行，如果不是，就切换上下文。
-///
-/// 切换上下文时，要把上下文保存好，最终还是要回到切换的地方继续运行。
-pub fn run_until_idle(
-    peek_task: impl Fn() -> TaskResult,
-    delete_task: impl Fn(usize) -> bool,
-    set_task_state: impl Fn(usize, TaskState),
-) {
-    loop {
-        // unsafe {
-        //     sstatus::set_sie();
-        // }
-        ext_intr_off();
-        let task = peek_task();
-        ext_intr_on();
-        // println!(">>> kernel executor: next task = {:x?}", task);
-        match task {
-            TaskResult::Task(task_repr) => {
-                // 在相同的（内核）地址空间里面
-                ext_intr_off();
-                set_task_state(task_repr, TaskState::Sleeping);
-                ext_intr_on();
-                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
-                // 注册 waker
-                let waker = waker_ref(&task);
-                let mut context = Context::from_waker(&*waker);
-                let ret = task.task().future.lock().as_mut().poll(&mut context);
-                if let Poll::Pending = ret {
-                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
-                } else {
-                    // 否则，释放task的内存
-                    ext_intr_off();
-                    delete_task(task_repr);
-                    ext_intr_on();
-                } // 隐含一个drop(task)
-            }
-            TaskResult::ShouldYield(next_asid) => {
-                // 不释放这个任务的内存，执行切换地址空间的系统调用
-                mem::forget(task);
-                let next_satp = KernelHartInfo::user_satp(next_asid).expect("get satp with asid");
-                let swap_cx = unsafe { get_swap_cx(&next_satp, next_asid) };
-                switch_to_user(swap_cx, next_satp.inner(), next_asid)
-            }
-            TaskResult::NoWakeTask => {
-                // 没有醒着的任务，直接跳过
-            }
-            TaskResult::Finished => break,
-        }
-        // unsafe {
-        //     sstatus::clear_sie();
-        // }
-    }
+/// 任务当前的状态
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum TaskState {
+    Ready = 0,
+    Sleeping = 1,
 }
 
-/// 用于内核第一次升到用户态
-///
-/// note: 需要确保共享调度器中只有一个任务
-///
-/// 不一定会用到，但先留着
-#[allow(unused)]
-pub fn run_one(
-    add_task: impl Fn(usize) -> bool,
-    peek_task: impl Fn() -> TaskResult,
-    delete_task: impl Fn(usize) -> bool,
-    set_task_state: impl Fn(usize, TaskState),
-) {
-    loop {
-        ext_intr_off();
-        let task = peek_task();
-        ext_intr_on();
-        println!(">>> run one: next task = {:x?}", task);
-        match task {
-            TaskResult::Task(task_repr) => {
-                ext_intr_off();
-                set_task_state(task_repr, TaskState::Sleeping);
-                ext_intr_on();
-                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
-                // 注册 waker
-                let waker = waker_ref(&task);
-                let mut context = Context::from_waker(&*waker);
-                // poll 操作之前在共享调度器中删除这个任务
-                ext_intr_off();
-                delete_task(task_repr);
-                ext_intr_on();
-                let ret = task.task().future.lock().as_mut().poll(&mut context);
-                if let Poll::Pending = ret {
-                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
-                    ext_intr_off();
-                    add_task(task_repr); // 重新把这个任务放进共享调度器
-                    ext_intr_on();
-                } else {
-                    // 否则，释放task的内存
-                    unreachable!() // 该任务不可能返回 Ready(T)
-                }
+pub extern "C" fn kernel_should_switch(address_space_id: AddressSpaceId) -> bool {
+    // 如果当前和下一个任务间地址空间变化了，就说明应当切换上下文
+    KernelHartInfo::current_address_space_id() != address_space_id
+}
+
+/// 共享调度器
+#[repr(C)]
+pub struct SharedPayload {
+    pub(crate) shared_scheduler: NonNull<()>,
+    shared_add_task: unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool,
+    shared_peek_task:
+        unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult,
+    shared_delete_task: unsafe extern "C" fn(NonNull<()>, usize) -> bool,
+    pub(crate) shared_set_task_state: unsafe extern "C" fn(NonNull<()>, usize, TaskState),
+}
+
+unsafe impl Send for SharedPayload {}
+unsafe impl Sync for SharedPayload {}
+
+type SharedPayloadAsUsize = [usize; 7]; // 编译时基地址，初始化函数，共享调度器地址，添加函数，弹出函数
+type InitFunction = unsafe extern "C" fn() -> PageList;
+type SharedPayloadRaw = (
+    usize, // 编译时基地址，转换后类型占位，不使用
+    usize, // 初始化函数，执行完之后，内核将函数指针置空
+    NonNull<()>,
+    unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool, // 添加任务
+    unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult, // 弹出任务
+    unsafe extern "C" fn(NonNull<()>, usize) -> bool, // 删除任务
+    unsafe extern "C" fn(NonNull<()>, usize, TaskState), // 改变任务的状态
+);
+
+impl SharedPayload {
+    /// 根据基地址加载共享调度器
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # const BASE: usize = 0x8600_000;
+    /// let shared_load = unsafe { SharedPayload::load(BASE); }
+    /// ```
+    pub unsafe fn load(base: usize) -> Self {
+        let mut payload_usize = *(base as *const SharedPayloadAsUsize);
+        // println!(
+        //     "[kernel:shared] Raw table base: {:p}",
+        //     base as *const SharedPayloadAsUsize
+        // );
+        // println!("[kernel:shared] Content: {:x?}", payload_usize);
+        let compiled_offset = payload_usize[0];
+        for (i, idx) in payload_usize.iter_mut().enumerate() {
+            if i == 0 {
+                continue;
             }
-            TaskResult::NoWakeTask => {}
-            _ => unreachable!(),
+            *idx = idx.wrapping_sub(compiled_offset).wrapping_add(base);
+            if *idx == 0 {
+                panic!("shared scheduler used effective address of zero")
+            }
+        }
+        // println!("[kernel:shared] After patched: {:x?}", payload_usize);
+        let payload_init: InitFunction = mem::transmute(payload_usize[1]);
+        let _page_list = payload_init(); // 初始化载荷，包括零初始化段的清零等等
+        payload_usize[1] = 0; // 置空初始化函数
+                              // println!("[kernel:shared] Init, page list: {:x?}", page_list); // 应当在分页系统中使用上，本次比赛设计暂时不深入
+        let raw_table: SharedPayloadRaw = mem::transmute(payload_usize);
+        Self {
+            shared_scheduler: raw_table.2,
+            shared_add_task: raw_table.3,
+            shared_peek_task: raw_table.4,
+            shared_delete_task: raw_table.5,
+            shared_set_task_state: raw_table.6,
         }
     }
-}
 
-/// 唤醒机制
-impl woke::Woke for KernelTaskRepr {
-    fn wake_by_ref(task: &Arc<Self>) {
-        unsafe { task.do_wake() }
+    /// 往共享调度器中添加任务
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # const BASE: usize = 0x8600_000;
+    /// unsafe {
+    ///     let shared_load = SharedPayload::new(BASE);
+    ///     let asid = AddressSpaceId::from_raw(0);
+    ///     shared_load.add_task(0, asid, task.task_repr());
+    /// }
+    /// ```
+    pub unsafe fn add_task(
+        &self,
+        hart_id: usize,
+        address_space_id: AddressSpaceId,
+        task_repr: usize,
+    ) -> bool {
+        let f = self.shared_add_task;
+        // hart_id, address_space_id, task_repr);
+        f(self.shared_scheduler, hart_id, address_space_id, task_repr)
+    }
+
+    /// 从共享调度器中得到下一个任务
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// todo!()
+    /// ```
+    pub unsafe fn peek_task(
+        &self,
+        should_yield: extern "C" fn(AddressSpaceId) -> bool,
+    ) -> TaskResult {
+        let f = self.shared_peek_task;
+        f(self.shared_scheduler, should_yield)
+    }
+
+    /// 从共享调度器中删除任务
+    ///
+    /// ```
+    /// unsafe{
+    ///     assert!(shared_load.delete_task(task.task_repr()));        
+    /// }
+    /// ```
+    pub unsafe fn delete_task(&self, task_repr: usize) -> bool {
+        let f = self.shared_delete_task;
+        f(self.shared_scheduler, task_repr)
+    }
+
+    /// 设置一个任务的状态
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// todo!()
+    /// ```
+    pub unsafe fn set_task_state(&self, task_repr: usize, new_state: TaskState) {
+        let f = self.shared_set_task_state;
+        f(self.shared_scheduler, task_repr, new_state)
     }
 }
 
-/// 打开外部中断
-pub fn ext_intr_on() {
-    unsafe {
-        sie::set_sext();
-    }
-}
-
-/// 关闭外部中断
-pub fn ext_intr_off() {
-    unsafe {
-        sie::clear_sext();
-    }
+/// 共享载荷各个段的范围，方便内存管理的权限设置
+#[derive(Debug)]
+#[repr(C)]
+struct PageList {
+    rodata: [usize; 2], // 只读数据段
+    data: [usize; 2],   // 数据段
+    text: [usize; 2],   // 代码段
 }

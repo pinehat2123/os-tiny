@@ -37,7 +37,10 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-mod hart {}
+#[cfg(feature = "async_tiny")]
+mod memory;
+#[cfg(feature = "async_tiny")]
+mod hart;
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
