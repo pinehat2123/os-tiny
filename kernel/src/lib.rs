@@ -30,17 +30,17 @@ mod console;
 mod async_rt;
 mod drivers;
 mod fs;
+#[cfg(feature = "async_tiny")]
+mod hart;
 mod lang_items;
+#[cfg(feature = "async_tiny")]
+mod memory;
 mod sbi;
 mod sync;
 mod syscall;
 mod task;
 mod timer;
 mod trap;
-#[cfg(feature = "async_tiny")]
-mod memory;
-#[cfg(feature = "async_tiny")]
-mod hart;
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;

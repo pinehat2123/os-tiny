@@ -1,3 +1,5 @@
+#[cfg(feature = "async_tiny")]
+pub mod async_task;
 mod context;
 mod id;
 mod manager;
@@ -7,8 +9,6 @@ mod signal;
 mod switch;
 #[allow(clippy::module_inception)]
 mod task;
-#[cfg(feature = "async_tiny")]
-pub mod async_task;
 
 use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};

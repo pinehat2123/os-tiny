@@ -21,7 +21,6 @@ pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
 #[cfg(feature = "async_tiny")]
 pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 
-
 use crate::console;
 
 pub fn init() {

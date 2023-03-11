@@ -260,7 +260,10 @@ impl MemorySet {
     ///
     /// 如果当前页表就是自身，则不会替换，但仍然会刷新 TLB。
     pub fn activate(&self) {
-        println!("[kernel] activating memory set in asid {:?}", self.address_space_id);
+        println!(
+            "[kernel] activating memory set in asid {:?}",
+            self.address_space_id
+        );
         self.mapping.activate_on(self.address_space_id);
     }
     /// 获得当前映射的 [`Satp`]

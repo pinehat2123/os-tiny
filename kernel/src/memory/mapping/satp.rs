@@ -1,6 +1,6 @@
 //! satp寄存器抽象，可用于地址转换
-use super::{page_table::PageTable, page_table_entry::PageTableEntry};
 use super::super::{PhysicalPageNumber, VirtualPageNumber};
+use super::{page_table::PageTable, page_table_entry::PageTableEntry};
 use bit_field::BitField;
 use riscv::register::satp::Mode;
 

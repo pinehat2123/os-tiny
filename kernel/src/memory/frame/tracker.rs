@@ -1,5 +1,5 @@
-use super::allocator::FRAME_ALLOCATOR;
 use super::super::{config::PAGE_SIZE, PhysicalAddress, PhysicalPageNumber};
+use super::allocator::FRAME_ALLOCATOR;
 
 /// 这个结构体就像一个Handle，Drop之后会释放PPN表示的物理帧
 #[derive(Debug)]

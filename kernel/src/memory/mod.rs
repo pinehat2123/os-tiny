@@ -1,13 +1,13 @@
 //! 内存管理模块
 mod address;
+mod algorithm;
 mod config;
 mod frame;
 mod heap;
 mod mapping;
-mod algorithm;
 
-pub use address::{PhysicalAddress, PhysicalPageNumber, VirtualAddress, VirtualPageNumber};
 pub use self::config::*;
+pub use address::{PhysicalAddress, PhysicalPageNumber, VirtualAddress, VirtualPageNumber};
 pub use frame::{frame_alloc, FrameTracker};
 pub use mapping::{Flags, MapType, Mapping, MemorySet, Satp, Segment};
 

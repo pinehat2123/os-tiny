@@ -1,12 +1,12 @@
 //! 内存映射具体实现
+use super::super::{
+    config::PAGE_SIZE, frame::FrameTracker, frame_alloc, AddressSpaceId, PhysicalAddress,
+    PhysicalPageNumber, VirtualAddress, VirtualPageNumber,
+};
 use super::{
     page_table::{PageTable, PageTableTracker},
     page_table_entry::PageTableEntry,
     Flags, MapType, Segment,
-};
-use super::super::{
-    config::PAGE_SIZE, frame::FrameTracker, frame_alloc, AddressSpaceId, PhysicalAddress,
-    PhysicalPageNumber, VirtualAddress, VirtualPageNumber,
 };
 use alloc::{collections::VecDeque, vec::Vec};
 use bit_field::BitField;
