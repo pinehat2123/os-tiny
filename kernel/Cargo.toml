@@ -35,6 +35,7 @@ features = []
 path = "../other_libs/linker"
 
 [features]
+default = ["async_tiny"]
 async_tiny = []
 
 [lib]

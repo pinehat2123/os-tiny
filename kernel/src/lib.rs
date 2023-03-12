@@ -90,6 +90,8 @@ extern "C" fn rcore_main() -> ! {
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     board::device_init();
+    println!("KERN: init async");
+    #[cfg(feature = "async_tiny")]
     async_rt::init();
     fs::list_apps();
     task::add_initproc();

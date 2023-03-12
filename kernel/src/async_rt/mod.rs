@@ -16,13 +16,25 @@ mod executor;
 #[cfg(feature = "async_tiny")]
 mod shared;
 
+use config::SHAREDPAYLOAD_BASE;
 #[cfg(feature = "async_tiny")]
 pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
 #[cfg(feature = "async_tiny")]
 pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 
-use crate::console;
-
+#[cfg(feature = "async_tiny")]
 pub fn init() {
-    println!("async_rt INIT");
+    use crate::console;
+    println!("No Implement");
+    // let _shared_payload = unsafe { SharedPayload::load(SHAREDPAYLOAD_BASE) };
+    // run_until_idle(
+    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
+    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
+    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
+    // );
+    // run_until_idle(
+    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
+    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
+    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
+    // );
 }
