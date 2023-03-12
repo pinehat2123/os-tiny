@@ -2,9 +2,9 @@
 use super::shared::TaskState;
 use crate::{
     hart::KernelHartInfo,
-    syscall::get_swap_cx,
+    syscall::async_tiny::get_swap_cx,
     task::async_task::{KernelTaskRepr, TaskResult},
-    trap::switch_to_user,
+    trap::async_tiny::switch_to_user,
 };
 use alloc::sync::Arc;
 use core::{

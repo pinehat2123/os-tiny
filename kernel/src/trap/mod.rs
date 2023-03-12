@@ -1,5 +1,8 @@
 mod context;
 
+#[cfg(feature = "async_tiny")]
+pub mod async_tiny;
+
 use crate::config::TRAMPOLINE;
 use crate::syscall::syscall;
 use crate::task::{

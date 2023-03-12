@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message)]
+#![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message, linked_list_remove)]
 #![deny(warnings, unused_imports, dead_code)]
 #![allow(unused_imports, dead_code)]
 

@@ -4,6 +4,8 @@ mod process;
 mod sync;
 mod thread;
 use fs::*;
+#[cfg(feature = "async_tiny")]
+pub mod async_tiny;
 
 use process::*;
 use sync::*;
