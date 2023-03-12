@@ -22,6 +22,7 @@ pub use page_table::{
     translated_byte_buffer, translated_ref, translated_refmut, translated_str, PageTable,
     PageTableEntry, UserBuffer, UserBufferIterator,
 };
+pub use heap_allocator::HEAP_ALLOCATOR;
 
 pub fn init() {
     heap_allocator::init_heap();
