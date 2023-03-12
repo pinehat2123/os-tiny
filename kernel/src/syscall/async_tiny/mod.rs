@@ -1,9 +1,11 @@
 use super::super::{
-    memory::{self, Satp, AddressSpaceId, VirtualAddress, VirtualPageNumber, KERNEL_MAP_OFFSET, SWAP_FRAME_VA, swap_contex_va },
     hart::KernelHartInfo,
+    memory::{
+        self, swap_contex_va, AddressSpaceId, Satp, VirtualAddress, VirtualPageNumber,
+        KERNEL_MAP_OFFSET, SWAP_FRAME_VA,
+    },
     trap::async_tiny::{self, SwapContext},
 };
-
 
 pub unsafe fn get_swap_cx<'cx>(satp: &'cx Satp, asid: usize) -> &'cx mut SwapContext {
     let swap_cx_va = VirtualAddress(memory::swap_contex_va(asid));
