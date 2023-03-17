@@ -1,0 +1,97 @@
+From 4f1d00a19fa5a1d708d900188c8fba23052dfea2 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 03:16:14 -0500
+Subject: [PATCH 62/80] error fix.
+
+---
+ application/user/src/async_lib/io/mod.rs      | 37 +++++++++++++++++++
+ application/user/src/async_lib/mod.rs         |  8 +++-
+ application/user/src/async_lib/syscall/mod.rs |  2 +-
+ 3 files changed, 45 insertions(+), 2 deletions(-)
+ create mode 100644 application/user/src/async_lib/io/mod.rs
+
+diff --git a/application/user/src/async_lib/io/mod.rs b/application/user/src/async_lib/io/mod.rs
+new file mode 100644
+index 0000000..a1e74c3
+--- /dev/null
++++ b/application/user/src/async_lib/io/mod.rs
+@@ -0,0 +1,37 @@
++use super::syscall::sys_enroll_read;
++use super::syscall::sys_enroll_write;
++
++use core::future::Future;
++use core::pin::Pin;
++use core::task::{Context, Poll};
++pub struct PollTwice {
++    first: bool,
++}
++
++impl PollTwice {
++    pub fn new() -> Self {
++        Self { first: true }
++    }
++}
++
++impl Future for PollTwice {
++    type Output = ();
++    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
++        if self.first {
++            self.first = false;
++            Poll::Pending
++        } else {
++            Poll::Ready(())
++        }
++    }
++}
++
++pub fn read_block(block_id: usize, buf: &mut [u8]) -> PollTwice {
++    let _sys_ret = sys_enroll_read(block_id, buf);
++    PollTwice::new()
++}
++
++pub fn write_block(block_id: usize, buf: &[u8]) -> PollTwice {
++    let _sys_ret = sys_enroll_write(block_id, buf);
++    PollTwice::new()
++}
+diff --git a/application/user/src/async_lib/mod.rs b/application/user/src/async_lib/mod.rs
+index 9fa2fe4..6b94cc9 100644
+--- a/application/user/src/async_lib/mod.rs
++++ b/application/user/src/async_lib/mod.rs
+@@ -2,6 +2,8 @@
+ mod syscall;
+ #[allow(dead_code)]
+ mod task;
++#[allow(dead_code)]
++mod io;
+ 
+ static mut SHARED_PAYLOAD_BASE: usize = 0;
+ static mut ADDRESS_SPACE_ID: usize = 0;
+@@ -54,7 +56,11 @@ pub fn execute_async() {
+     );
+ }
+ 
+-use syscall::sys_yield;
++use syscall::{sys_exit, sys_yield};
++
++pub fn exit(exit_code: i32) -> isize {
++    sys_exit(exit_code)
++}
+ 
+ pub fn do_yield(next_asid: usize) -> isize {
+     sys_yield(next_asid)
+diff --git a/application/user/src/async_lib/syscall/mod.rs b/application/user/src/async_lib/syscall/mod.rs
+index d65cb67..e4d3668 100644
+--- a/application/user/src/async_lib/syscall/mod.rs
++++ b/application/user/src/async_lib/syscall/mod.rs
+@@ -129,7 +129,7 @@ pub fn sys_enroll_read(block_id: usize, buf: &mut [u8]) -> isize {
+     }
+ }
+ 
+-pub fn sys_error_write(block_id: usize, buf: &[u8]) -> isize {
++pub fn sys_enroll_write(block_id: usize, buf: &[u8]) -> isize {
+     assert!(BLOCK_SIZE == buf.len());
+     unsafe {
+         syscall3(
+-- 
+2.34.1
+

@@ -1,0 +1,39 @@
+From b9db8db4d4d7285be9fc3c8aacde90291c4df2ef Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 06:20:23 -0500
+Subject: [PATCH 38/80] add some fun
+
+---
+ kernel/src/async_rt/mod.rs | 6 +++++-
+ kernel/src/lib.rs          | 1 +
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/src/async_rt/mod.rs b/kernel/src/async_rt/mod.rs
+index b9e5d4c..6ba5046 100644
+--- a/kernel/src/async_rt/mod.rs
++++ b/kernel/src/async_rt/mod.rs
+@@ -5,4 +5,8 @@
+ // pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
+ // pub use shared::{kernel_should_switch, SharedPayload, TaskState};
+ 
+-pub fn init() {}
++use crate::console;
++
++pub fn init() {
++    println!("async_rt INIT");
++}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 7afe384..d791012 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -78,6 +78,7 @@ extern "C" fn rcore_main() -> ! {
+     timer::set_next_trigger();
+     board::device_init();
+     fs::list_apps();
++    async_rt::init();
+     task::add_initproc();
+     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
+     task::run_tasks();
+-- 
+2.34.1
+

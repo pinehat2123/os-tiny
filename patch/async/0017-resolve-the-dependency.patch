@@ -1,0 +1,21 @@
+From 5a8a189f670833497ab1b67a128ddb94b0e88112 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:29:05 -0500
+Subject: [PATCH 17/80] resolve the dependency
+
+---
+ tconfig/Cargo.toml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/tconfig/Cargo.toml b/tconfig/Cargo.toml
+index 9736e26..255a5f3 100644
+--- a/tconfig/Cargo.toml
++++ b/tconfig/Cargo.toml
+@@ -6,4 +6,3 @@ edition = "2021"
+ # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+ 
+ [dependencies]
+-# drivers = { path = "../drivers", package = "drivers" }
+-- 
+2.34.1
+

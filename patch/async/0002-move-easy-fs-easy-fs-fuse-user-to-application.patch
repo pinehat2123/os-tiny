@@ -1,0 +1,6218 @@
+From 4db06a7c6320c0b8c8d861daa0b591ea47eee428 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 11:37:30 -0500
+Subject: [PATCH 02/80] move easy-fs easy-fs-fuse user to application
+
+---
+ application/easy-fs-fuse/Cargo.toml           |  16 +
+ application/easy-fs-fuse/rust-toolchain.toml  |   5 +
+ application/easy-fs-fuse/src/main.rs          | 155 +++++++
+ application/easy-fs/Cargo.toml                |  18 +
+ application/easy-fs/src/bitmap.rs             |  69 +++
+ application/easy-fs/src/block_cache.rs        | 142 ++++++
+ application/easy-fs/src/block_dev.rs          |   7 +
+ application/easy-fs/src/efs.rs                | 147 +++++++
+ application/easy-fs/src/layout.rs             | 409 ++++++++++++++++++
+ application/easy-fs/src/lib.rs                |  18 +
+ application/easy-fs/src/vfs.rs                | 186 ++++++++
+ application/user/.cargo/config.toml           |   7 +
+ application/user/.gitignore                   |   1 +
+ application/user/Cargo.toml                   |  19 +
+ application/user/Makefile                     |  29 ++
+ application/user/src/bin/adder.rs             |  57 +++
+ application/user/src/bin/adder_atomic.rs      |  74 ++++
+ .../user/src/bin/adder_mutex_blocking.rs      |  61 +++
+ application/user/src/bin/adder_mutex_spin.rs  |  62 +++
+ .../user/src/bin/adder_peterson_spin.rs       |  95 ++++
+ .../user/src/bin/adder_peterson_yield.rs      |  94 ++++
+ application/user/src/bin/adder_simple_spin.rs |  70 +++
+ .../user/src/bin/adder_simple_yield.rs        |  72 +++
+ application/user/src/bin/barrier_condvar.rs   |  83 ++++
+ application/user/src/bin/barrier_fail.rs      |  33 ++
+ application/user/src/bin/cat.rs               |  32 ++
+ application/user/src/bin/cmdline_args.rs      |  16 +
+ application/user/src/bin/condsync_condvar.rs  |  59 +++
+ application/user/src/bin/condsync_sem.rs      |  64 +++
+ application/user/src/bin/count_lines.rs       |  30 ++
+ application/user/src/bin/eisenberg.rs         | 138 ++++++
+ application/user/src/bin/exit.rs              |  30 ++
+ application/user/src/bin/fantastic_text.rs    |  44 ++
+ application/user/src/bin/filetest_simple.rs   |  29 ++
+ application/user/src/bin/forktest.rs          |  34 ++
+ application/user/src/bin/forktest2.rs         |  34 ++
+ application/user/src/bin/forktest_simple.rs   |  28 ++
+ application/user/src/bin/forktree.rs          |  45 ++
+ application/user/src/bin/gui_rect.rs          |  71 +++
+ application/user/src/bin/gui_simple.rs        |  23 +
+ application/user/src/bin/gui_snake.rs         | 351 +++++++++++++++
+ application/user/src/bin/gui_uart.rs          | 125 ++++++
+ application/user/src/bin/hello_world.rs       |  11 +
+ application/user/src/bin/huge_write.rs        |  33 ++
+ application/user/src/bin/huge_write_mt.rs     |  56 +++
+ application/user/src/bin/infloop.rs           |  10 +
+ application/user/src/bin/initproc.rs          |  30 ++
+ application/user/src/bin/inputdev_event.rs    |  25 ++
+ application/user/src/bin/matrix.rs            |  69 +++
+ application/user/src/bin/mpsc_sem.rs          |  73 ++++
+ application/user/src/bin/peterson.rs          |  80 ++++
+ application/user/src/bin/phil_din_mutex.rs    | 107 +++++
+ application/user/src/bin/pipe_large_test.rs   |  71 +++
+ application/user/src/bin/pipetest.rs          |  44 ++
+ application/user/src/bin/priv_csr.rs          |  17 +
+ application/user/src/bin/priv_inst.rs         |  17 +
+ application/user/src/bin/race_adder_arg.rs    |  56 +++
+ application/user/src/bin/random_num.rs        |  16 +
+ application/user/src/bin/run_pipe_test.rs     |  21 +
+ application/user/src/bin/sleep.rs             |  30 ++
+ application/user/src/bin/sleep_simple.rs      |  23 +
+ application/user/src/bin/stack_overflow.rs    |  20 +
+ .../user/src/bin/stackful_coroutine.rs        | 350 +++++++++++++++
+ .../user/src/bin/stackless_coroutine.rs       | 129 ++++++
+ application/user/src/bin/store_fault.rs       |  15 +
+ application/user/src/bin/sync_sem.rs          |  45 ++
+ application/user/src/bin/threads.rs           |  45 ++
+ application/user/src/bin/threads_arg.rs       |  44 ++
+ application/user/src/bin/until_timeout.rs     |  46 ++
+ application/user/src/bin/user_shell.rs        | 214 +++++++++
+ application/user/src/bin/usertests.rs         | 145 +++++++
+ application/user/src/bin/yield.rs             |  17 +
+ application/user/src/console.rs               |  39 ++
+ application/user/src/file.rs                  |  30 ++
+ application/user/src/io.rs                    | 116 +++++
+ application/user/src/lang_items.rs            |  18 +
+ application/user/src/lib.rs                   |  89 ++++
+ application/user/src/linker.ld                |  32 ++
+ application/user/src/sync.rs                  |  32 ++
+ application/user/src/syscall.rs               | 176 ++++++++
+ application/user/src/task.rs                  |  82 ++++
+ 81 files changed, 5555 insertions(+)
+ create mode 100644 application/easy-fs-fuse/Cargo.toml
+ create mode 100644 application/easy-fs-fuse/rust-toolchain.toml
+ create mode 100644 application/easy-fs-fuse/src/main.rs
+ create mode 100644 application/easy-fs/Cargo.toml
+ create mode 100644 application/easy-fs/src/bitmap.rs
+ create mode 100644 application/easy-fs/src/block_cache.rs
+ create mode 100644 application/easy-fs/src/block_dev.rs
+ create mode 100644 application/easy-fs/src/efs.rs
+ create mode 100644 application/easy-fs/src/layout.rs
+ create mode 100644 application/easy-fs/src/lib.rs
+ create mode 100644 application/easy-fs/src/vfs.rs
+ create mode 100644 application/user/.cargo/config.toml
+ create mode 100644 application/user/.gitignore
+ create mode 100644 application/user/Cargo.toml
+ create mode 100644 application/user/Makefile
+ create mode 100644 application/user/src/bin/adder.rs
+ create mode 100644 application/user/src/bin/adder_atomic.rs
+ create mode 100644 application/user/src/bin/adder_mutex_blocking.rs
+ create mode 100644 application/user/src/bin/adder_mutex_spin.rs
+ create mode 100644 application/user/src/bin/adder_peterson_spin.rs
+ create mode 100644 application/user/src/bin/adder_peterson_yield.rs
+ create mode 100644 application/user/src/bin/adder_simple_spin.rs
+ create mode 100644 application/user/src/bin/adder_simple_yield.rs
+ create mode 100644 application/user/src/bin/barrier_condvar.rs
+ create mode 100644 application/user/src/bin/barrier_fail.rs
+ create mode 100644 application/user/src/bin/cat.rs
+ create mode 100644 application/user/src/bin/cmdline_args.rs
+ create mode 100644 application/user/src/bin/condsync_condvar.rs
+ create mode 100644 application/user/src/bin/condsync_sem.rs
+ create mode 100644 application/user/src/bin/count_lines.rs
+ create mode 100644 application/user/src/bin/eisenberg.rs
+ create mode 100644 application/user/src/bin/exit.rs
+ create mode 100644 application/user/src/bin/fantastic_text.rs
+ create mode 100644 application/user/src/bin/filetest_simple.rs
+ create mode 100644 application/user/src/bin/forktest.rs
+ create mode 100644 application/user/src/bin/forktest2.rs
+ create mode 100644 application/user/src/bin/forktest_simple.rs
+ create mode 100644 application/user/src/bin/forktree.rs
+ create mode 100644 application/user/src/bin/gui_rect.rs
+ create mode 100644 application/user/src/bin/gui_simple.rs
+ create mode 100644 application/user/src/bin/gui_snake.rs
+ create mode 100644 application/user/src/bin/gui_uart.rs
+ create mode 100644 application/user/src/bin/hello_world.rs
+ create mode 100644 application/user/src/bin/huge_write.rs
+ create mode 100644 application/user/src/bin/huge_write_mt.rs
+ create mode 100644 application/user/src/bin/infloop.rs
+ create mode 100644 application/user/src/bin/initproc.rs
+ create mode 100644 application/user/src/bin/inputdev_event.rs
+ create mode 100644 application/user/src/bin/matrix.rs
+ create mode 100644 application/user/src/bin/mpsc_sem.rs
+ create mode 100644 application/user/src/bin/peterson.rs
+ create mode 100644 application/user/src/bin/phil_din_mutex.rs
+ create mode 100644 application/user/src/bin/pipe_large_test.rs
+ create mode 100644 application/user/src/bin/pipetest.rs
+ create mode 100644 application/user/src/bin/priv_csr.rs
+ create mode 100644 application/user/src/bin/priv_inst.rs
+ create mode 100644 application/user/src/bin/race_adder_arg.rs
+ create mode 100644 application/user/src/bin/random_num.rs
+ create mode 100644 application/user/src/bin/run_pipe_test.rs
+ create mode 100644 application/user/src/bin/sleep.rs
+ create mode 100644 application/user/src/bin/sleep_simple.rs
+ create mode 100644 application/user/src/bin/stack_overflow.rs
+ create mode 100644 application/user/src/bin/stackful_coroutine.rs
+ create mode 100644 application/user/src/bin/stackless_coroutine.rs
+ create mode 100644 application/user/src/bin/store_fault.rs
+ create mode 100644 application/user/src/bin/sync_sem.rs
+ create mode 100644 application/user/src/bin/threads.rs
+ create mode 100644 application/user/src/bin/threads_arg.rs
+ create mode 100644 application/user/src/bin/until_timeout.rs
+ create mode 100644 application/user/src/bin/user_shell.rs
+ create mode 100644 application/user/src/bin/usertests.rs
+ create mode 100644 application/user/src/bin/yield.rs
+ create mode 100644 application/user/src/console.rs
+ create mode 100644 application/user/src/file.rs
+ create mode 100644 application/user/src/io.rs
+ create mode 100644 application/user/src/lang_items.rs
+ create mode 100644 application/user/src/lib.rs
+ create mode 100644 application/user/src/linker.ld
+ create mode 100644 application/user/src/sync.rs
+ create mode 100644 application/user/src/syscall.rs
+ create mode 100644 application/user/src/task.rs
+
+diff --git a/application/easy-fs-fuse/Cargo.toml b/application/easy-fs-fuse/Cargo.toml
+new file mode 100644
+index 0000000..4a8e9ee
+--- /dev/null
++++ b/application/easy-fs-fuse/Cargo.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "easy-fs-fuse"
++version = "0.1.0"
++authors = ["Yifan Wu <shinbokuow@163.com>"]
++edition = "2018"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++clap = "2.33.3"
++easy-fs = { path = "../easy-fs" }
++rand = "0.8.0"
++
++# [features]
++# board_qemu = []
++# board_k210 = []
+\ No newline at end of file
+diff --git a/application/easy-fs-fuse/rust-toolchain.toml b/application/easy-fs-fuse/rust-toolchain.toml
+new file mode 100644
+index 0000000..9b65d88
+--- /dev/null
++++ b/application/easy-fs-fuse/rust-toolchain.toml
+@@ -0,0 +1,5 @@
++[toolchain]
++profile = "minimal"
++channel = "nightly-2022-11-03"
++components = ["rust-src", "llvm-tools-preview", "rustfmt", "rust-std", "clippy"]
++targets = ["x86_64-unknown-linux-gnu"]
+\ No newline at end of file
+diff --git a/application/easy-fs-fuse/src/main.rs b/application/easy-fs-fuse/src/main.rs
+new file mode 100644
+index 0000000..799507a
+--- /dev/null
++++ b/application/easy-fs-fuse/src/main.rs
+@@ -0,0 +1,155 @@
++use clap::{App, Arg};
++use easy_fs::{BlockDevice, EasyFileSystem};
++use std::fs::{read_dir, File, OpenOptions};
++use std::io::{Read, Seek, SeekFrom, Write};
++use std::sync::Arc;
++use std::sync::Mutex;
++
++const BLOCK_SZ: usize = 512;
++
++struct BlockFile(Mutex<File>);
++
++impl BlockDevice for BlockFile {
++    fn read_block(&self, block_id: usize, buf: &mut [u8]) {
++        let mut file = self.0.lock().unwrap();
++        file.seek(SeekFrom::Start((block_id * BLOCK_SZ) as u64))
++            .expect("Error when seeking!");
++        assert_eq!(file.read(buf).unwrap(), BLOCK_SZ, "Not a complete block!");
++    }
++
++    fn write_block(&self, block_id: usize, buf: &[u8]) {
++        let mut file = self.0.lock().unwrap();
++        file.seek(SeekFrom::Start((block_id * BLOCK_SZ) as u64))
++            .expect("Error when seeking!");
++        assert_eq!(file.write(buf).unwrap(), BLOCK_SZ, "Not a complete block!");
++    }
++
++    fn handle_irq(&self) {
++        unimplemented!();
++    }
++}
++
++fn main() {
++    easy_fs_pack().expect("Error when packing easy-fs!");
++}
++
++fn easy_fs_pack() -> std::io::Result<()> {
++    let matches = App::new("EasyFileSystem packer")
++        .arg(
++            Arg::with_name("source")
++                .short("s")
++                .long("source")
++                .takes_value(true)
++                .help("Executable source dir(with backslash)"),
++        )
++        .arg(
++            Arg::with_name("target")
++                .short("t")
++                .long("target")
++                .takes_value(true)
++                .help("Executable target dir(with backslash)"),
++        )
++        .get_matches();
++    let src_path = matches.value_of("source").unwrap();
++    let target_path = matches.value_of("target").unwrap();
++    println!("src_path = {}\ntarget_path = {}", src_path, target_path);
++    let block_file = Arc::new(BlockFile(Mutex::new({
++        let f = OpenOptions::new()
++            .read(true)
++            .write(true)
++            .create(true)
++            .open(format!("{}{}", target_path, "fs.img"))?;
++        f.set_len(16 * 2048 * 512).unwrap();
++        f
++    })));
++    // 16MiB, at most 4095 files
++    let efs = EasyFileSystem::create(block_file, 16 * 2048, 1);
++    let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
++    let apps: Vec<_> = read_dir(src_path)
++        .unwrap()
++        .into_iter()
++        .map(|dir_entry| {
++            let mut name_with_ext = dir_entry.unwrap().file_name().into_string().unwrap();
++            name_with_ext.drain(name_with_ext.find('.').unwrap()..name_with_ext.len());
++            name_with_ext
++        })
++        .collect();
++    for app in apps {
++        // load app data from host file system
++        let mut host_file = File::open(format!("{}{}", target_path, app)).unwrap();
++        let mut all_data: Vec<u8> = Vec::new();
++        host_file.read_to_end(&mut all_data).unwrap();
++        // create a file in easy-fs
++        let inode = root_inode.create(app.as_str()).unwrap();
++        // write data to easy-fs
++        inode.write_at(0, all_data.as_slice());
++    }
++    // list apps
++    // for app in root_inode.ls() {
++    //     println!("{}", app);
++    // }
++    Ok(())
++}
++
++#[test]
++fn efs_test() -> std::io::Result<()> {
++    let block_file = Arc::new(BlockFile(Mutex::new({
++        let f = OpenOptions::new()
++            .read(true)
++            .write(true)
++            .create(true)
++            .open("target/fs.img")?;
++        f.set_len(8192 * 512).unwrap();
++        f
++    })));
++    EasyFileSystem::create(block_file.clone(), 4096, 1);
++    let efs = EasyFileSystem::open(block_file.clone());
++    let root_inode = EasyFileSystem::root_inode(&efs);
++    root_inode.create("filea");
++    root_inode.create("fileb");
++    for name in root_inode.ls() {
++        println!("{}", name);
++    }
++    let filea = root_inode.find("filea").unwrap();
++    let greet_str = "Hello, world!";
++    filea.write_at(0, greet_str.as_bytes());
++    //let mut buffer = [0u8; 512];
++    let mut buffer = [0u8; 233];
++    let len = filea.read_at(0, &mut buffer);
++    assert_eq!(greet_str, core::str::from_utf8(&buffer[..len]).unwrap(),);
++
++    let mut random_str_test = |len: usize| {
++        filea.clear();
++        assert_eq!(filea.read_at(0, &mut buffer), 0,);
++        let mut str = String::new();
++        use rand;
++        // random digit
++        for _ in 0..len {
++            str.push(char::from('0' as u8 + rand::random::<u8>() % 10));
++        }
++        filea.write_at(0, str.as_bytes());
++        let mut read_buffer = [0u8; 127];
++        let mut offset = 0usize;
++        let mut read_str = String::new();
++        loop {
++            let len = filea.read_at(offset, &mut read_buffer);
++            if len == 0 {
++                break;
++            }
++            offset += len;
++            read_str.push_str(core::str::from_utf8(&read_buffer[..len]).unwrap());
++        }
++        assert_eq!(str, read_str);
++    };
++
++    random_str_test(4 * BLOCK_SZ);
++    random_str_test(8 * BLOCK_SZ + BLOCK_SZ / 2);
++    random_str_test(100 * BLOCK_SZ);
++    random_str_test(70 * BLOCK_SZ + BLOCK_SZ / 7);
++    random_str_test((12 + 128) * BLOCK_SZ);
++    random_str_test(400 * BLOCK_SZ);
++    random_str_test(1000 * BLOCK_SZ);
++    random_str_test(2000 * BLOCK_SZ);
++
++    Ok(())
++}
+diff --git a/application/easy-fs/Cargo.toml b/application/easy-fs/Cargo.toml
+new file mode 100644
+index 0000000..77afb89
+--- /dev/null
++++ b/application/easy-fs/Cargo.toml
+@@ -0,0 +1,18 @@
++[package]
++name = "easy-fs"
++version = "0.1.0"
++authors = ["Yifan Wu <shinbokuow@163.com>"]
++edition = "2018"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++spin = "0.7.0"
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++
++[profile.release]
++debug = true
++
++[features]
++board_qemu = []
++board_k210 = []
+\ No newline at end of file
+diff --git a/application/easy-fs/src/bitmap.rs b/application/easy-fs/src/bitmap.rs
+new file mode 100644
+index 0000000..3fc0999
+--- /dev/null
++++ b/application/easy-fs/src/bitmap.rs
+@@ -0,0 +1,69 @@
++use super::{get_block_cache, BlockDevice, BLOCK_SZ};
++use alloc::sync::Arc;
++
++type BitmapBlock = [u64; 64];
++
++const BLOCK_BITS: usize = BLOCK_SZ * 8;
++
++pub struct Bitmap {
++    start_block_id: usize,
++    blocks: usize,
++}
++
++/// Return (block_pos, bits64_pos, inner_pos)
++fn decomposition(mut bit: usize) -> (usize, usize, usize) {
++    let block_pos = bit / BLOCK_BITS;
++    bit %= BLOCK_BITS;
++    (block_pos, bit / 64, bit % 64)
++}
++
++impl Bitmap {
++    pub fn new(start_block_id: usize, blocks: usize) -> Self {
++        Self {
++            start_block_id,
++            blocks,
++        }
++    }
++
++    pub fn alloc(&self, block_device: &Arc<dyn BlockDevice>) -> Option<usize> {
++        for block_id in 0..self.blocks {
++            let pos = get_block_cache(
++                block_id + self.start_block_id as usize,
++                Arc::clone(block_device),
++            )
++            .lock()
++            .modify(0, |bitmap_block: &mut BitmapBlock| {
++                if let Some((bits64_pos, inner_pos)) = bitmap_block
++                    .iter()
++                    .enumerate()
++                    .find(|(_, bits64)| **bits64 != u64::MAX)
++                    .map(|(bits64_pos, bits64)| (bits64_pos, bits64.trailing_ones() as usize))
++                {
++                    // modify cache
++                    bitmap_block[bits64_pos] |= 1u64 << inner_pos;
++                    Some(block_id * BLOCK_BITS + bits64_pos * 64 + inner_pos as usize)
++                } else {
++                    None
++                }
++            });
++            if pos.is_some() {
++                return pos;
++            }
++        }
++        None
++    }
++
++    pub fn dealloc(&self, block_device: &Arc<dyn BlockDevice>, bit: usize) {
++        let (block_pos, bits64_pos, inner_pos) = decomposition(bit);
++        get_block_cache(block_pos + self.start_block_id, Arc::clone(block_device))
++            .lock()
++            .modify(0, |bitmap_block: &mut BitmapBlock| {
++                assert!(bitmap_block[bits64_pos] & (1u64 << inner_pos) > 0);
++                bitmap_block[bits64_pos] -= 1u64 << inner_pos;
++            });
++    }
++
++    pub fn maximum(&self) -> usize {
++        self.blocks * BLOCK_BITS
++    }
++}
+diff --git a/application/easy-fs/src/block_cache.rs b/application/easy-fs/src/block_cache.rs
+new file mode 100644
+index 0000000..ff44204
+--- /dev/null
++++ b/application/easy-fs/src/block_cache.rs
+@@ -0,0 +1,142 @@
++use super::{BlockDevice, BLOCK_SZ};
++use alloc::collections::VecDeque;
++use alloc::sync::Arc;
++use alloc::vec;
++use alloc::vec::Vec;
++use lazy_static::*;
++use spin::Mutex;
++
++pub struct BlockCache {
++    cache: Vec<u8>,
++    block_id: usize,
++    block_device: Arc<dyn BlockDevice>,
++    modified: bool,
++}
++
++impl BlockCache {
++    /// Load a new BlockCache from disk.
++    pub fn new(block_id: usize, block_device: Arc<dyn BlockDevice>) -> Self {
++        // for alignment and move effciency
++        let mut cache = vec![0u8; BLOCK_SZ];
++        block_device.read_block(block_id, &mut cache);
++        Self {
++            cache,
++            block_id,
++            block_device,
++            modified: false,
++        }
++    }
++
++    fn addr_of_offset(&self, offset: usize) -> usize {
++        &self.cache[offset] as *const _ as usize
++    }
++
++    pub fn get_ref<T>(&self, offset: usize) -> &T
++    where
++        T: Sized,
++    {
++        let type_size = core::mem::size_of::<T>();
++        assert!(offset + type_size <= BLOCK_SZ);
++        let addr = self.addr_of_offset(offset);
++        unsafe { &*(addr as *const T) }
++    }
++
++    pub fn get_mut<T>(&mut self, offset: usize) -> &mut T
++    where
++        T: Sized,
++    {
++        let type_size = core::mem::size_of::<T>();
++        assert!(offset + type_size <= BLOCK_SZ);
++        self.modified = true;
++        let addr = self.addr_of_offset(offset);
++        unsafe { &mut *(addr as *mut T) }
++    }
++
++    pub fn read<T, V>(&self, offset: usize, f: impl FnOnce(&T) -> V) -> V {
++        f(self.get_ref(offset))
++    }
++
++    pub fn modify<T, V>(&mut self, offset: usize, f: impl FnOnce(&mut T) -> V) -> V {
++        f(self.get_mut(offset))
++    }
++
++    pub fn sync(&mut self) {
++        if self.modified {
++            self.modified = false;
++            self.block_device.write_block(self.block_id, &self.cache);
++        }
++    }
++}
++
++impl Drop for BlockCache {
++    fn drop(&mut self) {
++        self.sync()
++    }
++}
++
++const BLOCK_CACHE_SIZE: usize = 16;
++
++pub struct BlockCacheManager {
++    queue: VecDeque<(usize, Arc<Mutex<BlockCache>>)>,
++}
++
++impl BlockCacheManager {
++    pub fn new() -> Self {
++        Self {
++            queue: VecDeque::new(),
++        }
++    }
++
++    pub fn get_block_cache(
++        &mut self,
++        block_id: usize,
++        block_device: Arc<dyn BlockDevice>,
++    ) -> Arc<Mutex<BlockCache>> {
++        if let Some(pair) = self.queue.iter().find(|pair| pair.0 == block_id) {
++            Arc::clone(&pair.1)
++        } else {
++            // substitute
++            if self.queue.len() == BLOCK_CACHE_SIZE {
++                // from front to tail
++                if let Some((idx, _)) = self
++                    .queue
++                    .iter()
++                    .enumerate()
++                    .find(|(_, pair)| Arc::strong_count(&pair.1) == 1)
++                {
++                    self.queue.drain(idx..=idx);
++                } else {
++                    panic!("Run out of BlockCache!");
++                }
++            }
++            // load block into mem and push back
++            let block_cache = Arc::new(Mutex::new(BlockCache::new(
++                block_id,
++                Arc::clone(&block_device),
++            )));
++            self.queue.push_back((block_id, Arc::clone(&block_cache)));
++            block_cache
++        }
++    }
++}
++
++lazy_static! {
++    pub static ref BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> =
++        Mutex::new(BlockCacheManager::new());
++}
++
++pub fn get_block_cache(
++    block_id: usize,
++    block_device: Arc<dyn BlockDevice>,
++) -> Arc<Mutex<BlockCache>> {
++    BLOCK_CACHE_MANAGER
++        .lock()
++        .get_block_cache(block_id, block_device)
++}
++
++pub fn block_cache_sync_all() {
++    let manager = BLOCK_CACHE_MANAGER.lock();
++    for (_, cache) in manager.queue.iter() {
++        cache.lock().sync();
++    }
++}
+diff --git a/application/easy-fs/src/block_dev.rs b/application/easy-fs/src/block_dev.rs
+new file mode 100644
+index 0000000..6c49aef
+--- /dev/null
++++ b/application/easy-fs/src/block_dev.rs
+@@ -0,0 +1,7 @@
++use core::any::Any;
++
++pub trait BlockDevice: Send + Sync + Any {
++    fn read_block(&self, block_id: usize, buf: &mut [u8]);
++    fn write_block(&self, block_id: usize, buf: &[u8]);
++    fn handle_irq(&self);
++}
+diff --git a/application/easy-fs/src/efs.rs b/application/easy-fs/src/efs.rs
+new file mode 100644
+index 0000000..9d3c005
+--- /dev/null
++++ b/application/easy-fs/src/efs.rs
+@@ -0,0 +1,147 @@
++use super::{
++    block_cache_sync_all, get_block_cache, Bitmap, BlockDevice, DiskInode, DiskInodeType, Inode,
++    SuperBlock,
++};
++use crate::BLOCK_SZ;
++use alloc::sync::Arc;
++use spin::Mutex;
++
++pub struct EasyFileSystem {
++    pub block_device: Arc<dyn BlockDevice>,
++    pub inode_bitmap: Bitmap,
++    pub data_bitmap: Bitmap,
++    inode_area_start_block: u32,
++    data_area_start_block: u32,
++}
++
++type DataBlock = [u8; BLOCK_SZ];
++
++impl EasyFileSystem {
++    pub fn create(
++        block_device: Arc<dyn BlockDevice>,
++        total_blocks: u32,
++        inode_bitmap_blocks: u32,
++    ) -> Arc<Mutex<Self>> {
++        // calculate block size of areas & create bitmaps
++        let inode_bitmap = Bitmap::new(1, inode_bitmap_blocks as usize);
++        let inode_num = inode_bitmap.maximum();
++        let inode_area_blocks =
++            ((inode_num * core::mem::size_of::<DiskInode>() + BLOCK_SZ - 1) / BLOCK_SZ) as u32;
++        let inode_total_blocks = inode_bitmap_blocks + inode_area_blocks;
++        let data_total_blocks = total_blocks - 1 - inode_total_blocks;
++        let data_bitmap_blocks = (data_total_blocks + 4096) / 4097;
++        let data_area_blocks = data_total_blocks - data_bitmap_blocks;
++        let data_bitmap = Bitmap::new(
++            (1 + inode_bitmap_blocks + inode_area_blocks) as usize,
++            data_bitmap_blocks as usize,
++        );
++        let mut efs = Self {
++            block_device: Arc::clone(&block_device),
++            inode_bitmap,
++            data_bitmap,
++            inode_area_start_block: 1 + inode_bitmap_blocks,
++            data_area_start_block: 1 + inode_total_blocks + data_bitmap_blocks,
++        };
++        // clear all blocks
++        for i in 0..total_blocks {
++            get_block_cache(i as usize, Arc::clone(&block_device))
++                .lock()
++                .modify(0, |data_block: &mut DataBlock| {
++                    for byte in data_block.iter_mut() {
++                        *byte = 0;
++                    }
++                });
++        }
++        // initialize SuperBlock
++        get_block_cache(0, Arc::clone(&block_device)).lock().modify(
++            0,
++            |super_block: &mut SuperBlock| {
++                super_block.initialize(
++                    total_blocks,
++                    inode_bitmap_blocks,
++                    inode_area_blocks,
++                    data_bitmap_blocks,
++                    data_area_blocks,
++                );
++            },
++        );
++        // write back immediately
++        // create a inode for root node "/"
++        assert_eq!(efs.alloc_inode(), 0);
++        let (root_inode_block_id, root_inode_offset) = efs.get_disk_inode_pos(0);
++        get_block_cache(root_inode_block_id as usize, Arc::clone(&block_device))
++            .lock()
++            .modify(root_inode_offset, |disk_inode: &mut DiskInode| {
++                disk_inode.initialize(DiskInodeType::Directory);
++            });
++        block_cache_sync_all();
++        Arc::new(Mutex::new(efs))
++    }
++
++    pub fn open(block_device: Arc<dyn BlockDevice>) -> Arc<Mutex<Self>> {
++        // read SuperBlock
++        get_block_cache(0, Arc::clone(&block_device))
++            .lock()
++            .read(0, |super_block: &SuperBlock| {
++                assert!(super_block.is_valid(), "Error loading EFS!");
++                let inode_total_blocks =
++                    super_block.inode_bitmap_blocks + super_block.inode_area_blocks;
++                let efs = Self {
++                    block_device,
++                    inode_bitmap: Bitmap::new(1, super_block.inode_bitmap_blocks as usize),
++                    data_bitmap: Bitmap::new(
++                        (1 + inode_total_blocks) as usize,
++                        super_block.data_bitmap_blocks as usize,
++                    ),
++                    inode_area_start_block: 1 + super_block.inode_bitmap_blocks,
++                    data_area_start_block: 1 + inode_total_blocks + super_block.data_bitmap_blocks,
++                };
++                Arc::new(Mutex::new(efs))
++            })
++    }
++
++    pub fn root_inode(efs: &Arc<Mutex<Self>>) -> Inode {
++        let block_device = Arc::clone(&efs.lock().block_device);
++        // acquire efs lock temporarily
++        let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0);
++        // release efs lock
++        Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
++    }
++
++    pub fn get_disk_inode_pos(&self, inode_id: u32) -> (u32, usize) {
++        let inode_size = core::mem::size_of::<DiskInode>();
++        let inodes_per_block = (BLOCK_SZ / inode_size) as u32;
++        let block_id = self.inode_area_start_block + inode_id / inodes_per_block;
++        (
++            block_id,
++            (inode_id % inodes_per_block) as usize * inode_size,
++        )
++    }
++
++    pub fn get_data_block_id(&self, data_block_id: u32) -> u32 {
++        self.data_area_start_block + data_block_id
++    }
++
++    pub fn alloc_inode(&mut self) -> u32 {
++        self.inode_bitmap.alloc(&self.block_device).unwrap() as u32
++    }
++
++    /// Return a block ID not ID in the data area.
++    pub fn alloc_data(&mut self) -> u32 {
++        self.data_bitmap.alloc(&self.block_device).unwrap() as u32 + self.data_area_start_block
++    }
++
++    pub fn dealloc_data(&mut self, block_id: u32) {
++        get_block_cache(block_id as usize, Arc::clone(&self.block_device))
++            .lock()
++            .modify(0, |data_block: &mut DataBlock| {
++                data_block.iter_mut().for_each(|p| {
++                    *p = 0;
++                })
++            });
++        self.data_bitmap.dealloc(
++            &self.block_device,
++            (block_id - self.data_area_start_block) as usize,
++        )
++    }
++}
+diff --git a/application/easy-fs/src/layout.rs b/application/easy-fs/src/layout.rs
+new file mode 100644
+index 0000000..66221cc
+--- /dev/null
++++ b/application/easy-fs/src/layout.rs
+@@ -0,0 +1,409 @@
++use super::{get_block_cache, BlockDevice, BLOCK_SZ};
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++use core::fmt::{Debug, Formatter, Result};
++
++const EFS_MAGIC: u32 = 0x3b800001;
++const INODE_DIRECT_COUNT: usize = 28;
++const NAME_LENGTH_LIMIT: usize = 27;
++const INODE_INDIRECT1_COUNT: usize = BLOCK_SZ / 4;
++const INODE_INDIRECT2_COUNT: usize = INODE_INDIRECT1_COUNT * INODE_INDIRECT1_COUNT;
++const DIRECT_BOUND: usize = INODE_DIRECT_COUNT;
++const INDIRECT1_BOUND: usize = DIRECT_BOUND + INODE_INDIRECT1_COUNT;
++#[allow(unused)]
++const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
++
++#[repr(C)]
++pub struct SuperBlock {
++    magic: u32,
++    pub total_blocks: u32,
++    pub inode_bitmap_blocks: u32,
++    pub inode_area_blocks: u32,
++    pub data_bitmap_blocks: u32,
++    pub data_area_blocks: u32,
++}
++
++impl Debug for SuperBlock {
++    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
++        f.debug_struct("SuperBlock")
++            .field("total_blocks", &self.total_blocks)
++            .field("inode_bitmap_blocks", &self.inode_bitmap_blocks)
++            .field("inode_area_blocks", &self.inode_area_blocks)
++            .field("data_bitmap_blocks", &self.data_bitmap_blocks)
++            .field("data_area_blocks", &self.data_area_blocks)
++            .finish()
++    }
++}
++
++impl SuperBlock {
++    pub fn initialize(
++        &mut self,
++        total_blocks: u32,
++        inode_bitmap_blocks: u32,
++        inode_area_blocks: u32,
++        data_bitmap_blocks: u32,
++        data_area_blocks: u32,
++    ) {
++        *self = Self {
++            magic: EFS_MAGIC,
++            total_blocks,
++            inode_bitmap_blocks,
++            inode_area_blocks,
++            data_bitmap_blocks,
++            data_area_blocks,
++        }
++    }
++    pub fn is_valid(&self) -> bool {
++        self.magic == EFS_MAGIC
++    }
++}
++
++#[derive(PartialEq)]
++pub enum DiskInodeType {
++    File,
++    Directory,
++}
++
++type IndirectBlock = [u32; BLOCK_SZ / 4];
++type DataBlock = [u8; BLOCK_SZ];
++
++#[repr(C)]
++pub struct DiskInode {
++    pub size: u32,
++    pub direct: [u32; INODE_DIRECT_COUNT],
++    pub indirect1: u32,
++    pub indirect2: u32,
++    type_: DiskInodeType,
++}
++
++impl DiskInode {
++    /// indirect1 and indirect2 block are allocated only when they are needed.
++    pub fn initialize(&mut self, type_: DiskInodeType) {
++        self.size = 0;
++        self.direct.iter_mut().for_each(|v| *v = 0);
++        self.indirect1 = 0;
++        self.indirect2 = 0;
++        self.type_ = type_;
++    }
++    pub fn is_dir(&self) -> bool {
++        self.type_ == DiskInodeType::Directory
++    }
++    #[allow(unused)]
++    pub fn is_file(&self) -> bool {
++        self.type_ == DiskInodeType::File
++    }
++    /// Return block number correspond to size.
++    pub fn data_blocks(&self) -> u32 {
++        Self::_data_blocks(self.size)
++    }
++    fn _data_blocks(size: u32) -> u32 {
++        (size + BLOCK_SZ as u32 - 1) / BLOCK_SZ as u32
++    }
++    /// Return number of blocks needed include indirect1/2.
++    pub fn total_blocks(size: u32) -> u32 {
++        let data_blocks = Self::_data_blocks(size) as usize;
++        let mut total = data_blocks as usize;
++        // indirect1
++        if data_blocks > INODE_DIRECT_COUNT {
++            total += 1;
++        }
++        // indirect2
++        if data_blocks > INDIRECT1_BOUND {
++            total += 1;
++            // sub indirect1
++            total +=
++                (data_blocks - INDIRECT1_BOUND + INODE_INDIRECT1_COUNT - 1) / INODE_INDIRECT1_COUNT;
++        }
++        total as u32
++    }
++    pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
++        assert!(new_size >= self.size);
++        Self::total_blocks(new_size) - Self::total_blocks(self.size)
++    }
++    pub fn get_block_id(&self, inner_id: u32, block_device: &Arc<dyn BlockDevice>) -> u32 {
++        let inner_id = inner_id as usize;
++        if inner_id < INODE_DIRECT_COUNT {
++            self.direct[inner_id]
++        } else if inner_id < INDIRECT1_BOUND {
++            get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
++                .lock()
++                .read(0, |indirect_block: &IndirectBlock| {
++                    indirect_block[inner_id - INODE_DIRECT_COUNT]
++                })
++        } else {
++            let last = inner_id - INDIRECT1_BOUND;
++            let indirect1 = get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
++                .lock()
++                .read(0, |indirect2: &IndirectBlock| {
++                    indirect2[last / INODE_INDIRECT1_COUNT]
++                });
++            get_block_cache(indirect1 as usize, Arc::clone(block_device))
++                .lock()
++                .read(0, |indirect1: &IndirectBlock| {
++                    indirect1[last % INODE_INDIRECT1_COUNT]
++                })
++        }
++    }
++    pub fn increase_size(
++        &mut self,
++        new_size: u32,
++        new_blocks: Vec<u32>,
++        block_device: &Arc<dyn BlockDevice>,
++    ) {
++        let mut current_blocks = self.data_blocks();
++        self.size = new_size;
++        let mut total_blocks = self.data_blocks();
++        let mut new_blocks = new_blocks.into_iter();
++        // fill direct
++        while current_blocks < total_blocks.min(INODE_DIRECT_COUNT as u32) {
++            self.direct[current_blocks as usize] = new_blocks.next().unwrap();
++            current_blocks += 1;
++        }
++        // alloc indirect1
++        if total_blocks > INODE_DIRECT_COUNT as u32 {
++            if current_blocks == INODE_DIRECT_COUNT as u32 {
++                self.indirect1 = new_blocks.next().unwrap();
++            }
++            current_blocks -= INODE_DIRECT_COUNT as u32;
++            total_blocks -= INODE_DIRECT_COUNT as u32;
++        } else {
++            return;
++        }
++        // fill indirect1
++        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
++            .lock()
++            .modify(0, |indirect1: &mut IndirectBlock| {
++                while current_blocks < total_blocks.min(INODE_INDIRECT1_COUNT as u32) {
++                    indirect1[current_blocks as usize] = new_blocks.next().unwrap();
++                    current_blocks += 1;
++                }
++            });
++        // alloc indirect2
++        if total_blocks > INODE_INDIRECT1_COUNT as u32 {
++            if current_blocks == INODE_INDIRECT1_COUNT as u32 {
++                self.indirect2 = new_blocks.next().unwrap();
++            }
++            current_blocks -= INODE_INDIRECT1_COUNT as u32;
++            total_blocks -= INODE_INDIRECT1_COUNT as u32;
++        } else {
++            return;
++        }
++        // fill indirect2 from (a0, b0) -> (a1, b1)
++        let mut a0 = current_blocks as usize / INODE_INDIRECT1_COUNT;
++        let mut b0 = current_blocks as usize % INODE_INDIRECT1_COUNT;
++        let a1 = total_blocks as usize / INODE_INDIRECT1_COUNT;
++        let b1 = total_blocks as usize % INODE_INDIRECT1_COUNT;
++        // alloc low-level indirect1
++        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
++            .lock()
++            .modify(0, |indirect2: &mut IndirectBlock| {
++                while (a0 < a1) || (a0 == a1 && b0 < b1) {
++                    if b0 == 0 {
++                        indirect2[a0] = new_blocks.next().unwrap();
++                    }
++                    // fill current
++                    get_block_cache(indirect2[a0] as usize, Arc::clone(block_device))
++                        .lock()
++                        .modify(0, |indirect1: &mut IndirectBlock| {
++                            indirect1[b0] = new_blocks.next().unwrap();
++                        });
++                    // move to next
++                    b0 += 1;
++                    if b0 == INODE_INDIRECT1_COUNT {
++                        b0 = 0;
++                        a0 += 1;
++                    }
++                }
++            });
++    }
++
++    /// Clear size to zero and return blocks that should be deallocated.
++    ///
++    /// We will clear the block contents to zero later.
++    pub fn clear_size(&mut self, block_device: &Arc<dyn BlockDevice>) -> Vec<u32> {
++        let mut v: Vec<u32> = Vec::new();
++        let mut data_blocks = self.data_blocks() as usize;
++        self.size = 0;
++        let mut current_blocks = 0usize;
++        // direct
++        while current_blocks < data_blocks.min(INODE_DIRECT_COUNT) {
++            v.push(self.direct[current_blocks]);
++            self.direct[current_blocks] = 0;
++            current_blocks += 1;
++        }
++        // indirect1 block
++        if data_blocks > INODE_DIRECT_COUNT {
++            v.push(self.indirect1);
++            data_blocks -= INODE_DIRECT_COUNT;
++            current_blocks = 0;
++        } else {
++            return v;
++        }
++        // indirect1
++        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
++            .lock()
++            .modify(0, |indirect1: &mut IndirectBlock| {
++                while current_blocks < data_blocks.min(INODE_INDIRECT1_COUNT) {
++                    v.push(indirect1[current_blocks]);
++                    //indirect1[current_blocks] = 0;
++                    current_blocks += 1;
++                }
++            });
++        self.indirect1 = 0;
++        // indirect2 block
++        if data_blocks > INODE_INDIRECT1_COUNT {
++            v.push(self.indirect2);
++            data_blocks -= INODE_INDIRECT1_COUNT;
++        } else {
++            return v;
++        }
++        // indirect2
++        assert!(data_blocks <= INODE_INDIRECT2_COUNT);
++        let a1 = data_blocks / INODE_INDIRECT1_COUNT;
++        let b1 = data_blocks % INODE_INDIRECT1_COUNT;
++        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
++            .lock()
++            .modify(0, |indirect2: &mut IndirectBlock| {
++                // full indirect1 blocks
++                for entry in indirect2.iter_mut().take(a1) {
++                    v.push(*entry);
++                    get_block_cache(*entry as usize, Arc::clone(block_device))
++                        .lock()
++                        .modify(0, |indirect1: &mut IndirectBlock| {
++                            for entry in indirect1.iter() {
++                                v.push(*entry);
++                            }
++                        });
++                }
++                // last indirect1 block
++                if b1 > 0 {
++                    v.push(indirect2[a1]);
++                    get_block_cache(indirect2[a1] as usize, Arc::clone(block_device))
++                        .lock()
++                        .modify(0, |indirect1: &mut IndirectBlock| {
++                            for entry in indirect1.iter().take(b1) {
++                                v.push(*entry);
++                            }
++                        });
++                    //indirect2[a1] = 0;
++                }
++            });
++        self.indirect2 = 0;
++        v
++    }
++    pub fn read_at(
++        &self,
++        offset: usize,
++        buf: &mut [u8],
++        block_device: &Arc<dyn BlockDevice>,
++    ) -> usize {
++        let mut start = offset;
++        let end = (offset + buf.len()).min(self.size as usize);
++        if start >= end {
++            return 0;
++        }
++        let mut start_block = start / BLOCK_SZ;
++        let mut read_size = 0usize;
++        loop {
++            // calculate end of current block
++            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;
++            end_current_block = end_current_block.min(end);
++            // read and update read size
++            let block_read_size = end_current_block - start;
++            let dst = &mut buf[read_size..read_size + block_read_size];
++            get_block_cache(
++                self.get_block_id(start_block as u32, block_device) as usize,
++                Arc::clone(block_device),
++            )
++            .lock()
++            .read(0, |data_block: &DataBlock| {
++                let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];
++                dst.copy_from_slice(src);
++            });
++            read_size += block_read_size;
++            // move to next block
++            if end_current_block == end {
++                break;
++            }
++            start_block += 1;
++            start = end_current_block;
++        }
++        read_size
++    }
++    /// File size must be adjusted before.
++    pub fn write_at(
++        &mut self,
++        offset: usize,
++        buf: &[u8],
++        block_device: &Arc<dyn BlockDevice>,
++    ) -> usize {
++        let mut start = offset;
++        let end = (offset + buf.len()).min(self.size as usize);
++        assert!(start <= end);
++        let mut start_block = start / BLOCK_SZ;
++        let mut write_size = 0usize;
++        loop {
++            // calculate end of current block
++            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;
++            end_current_block = end_current_block.min(end);
++            // write and update write size
++            let block_write_size = end_current_block - start;
++            get_block_cache(
++                self.get_block_id(start_block as u32, block_device) as usize,
++                Arc::clone(block_device),
++            )
++            .lock()
++            .modify(0, |data_block: &mut DataBlock| {
++                let src = &buf[write_size..write_size + block_write_size];
++                let dst = &mut data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_write_size];
++                dst.copy_from_slice(src);
++            });
++            write_size += block_write_size;
++            // move to next block
++            if end_current_block == end {
++                break;
++            }
++            start_block += 1;
++            start = end_current_block;
++        }
++        write_size
++    }
++}
++
++#[repr(C)]
++pub struct DirEntry {
++    name: [u8; NAME_LENGTH_LIMIT + 1],
++    inode_number: u32,
++}
++
++pub const DIRENT_SZ: usize = 32;
++
++impl DirEntry {
++    pub fn empty() -> Self {
++        Self {
++            name: [0u8; NAME_LENGTH_LIMIT + 1],
++            inode_number: 0,
++        }
++    }
++    pub fn new(name: &str, inode_number: u32) -> Self {
++        let mut bytes = [0u8; NAME_LENGTH_LIMIT + 1];
++        bytes[..name.len()].copy_from_slice(name.as_bytes());
++        Self {
++            name: bytes,
++            inode_number,
++        }
++    }
++    pub fn as_bytes(&self) -> &[u8] {
++        unsafe { core::slice::from_raw_parts(self as *const _ as usize as *const u8, DIRENT_SZ) }
++    }
++    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
++        unsafe { core::slice::from_raw_parts_mut(self as *mut _ as usize as *mut u8, DIRENT_SZ) }
++    }
++    pub fn name(&self) -> &str {
++        let len = (0usize..).find(|i| self.name[*i] == 0).unwrap();
++        core::str::from_utf8(&self.name[..len]).unwrap()
++    }
++    pub fn inode_number(&self) -> u32 {
++        self.inode_number
++    }
++}
+diff --git a/application/easy-fs/src/lib.rs b/application/easy-fs/src/lib.rs
+new file mode 100644
+index 0000000..866a737
+--- /dev/null
++++ b/application/easy-fs/src/lib.rs
+@@ -0,0 +1,18 @@
++#![no_std]
++
++extern crate alloc;
++
++mod bitmap;
++mod block_cache;
++mod block_dev;
++mod efs;
++mod layout;
++mod vfs;
++
++pub const BLOCK_SZ: usize = 512;
++use bitmap::Bitmap;
++use block_cache::{block_cache_sync_all, get_block_cache};
++pub use block_dev::BlockDevice;
++pub use efs::EasyFileSystem;
++use layout::*;
++pub use vfs::Inode;
+diff --git a/application/easy-fs/src/vfs.rs b/application/easy-fs/src/vfs.rs
+new file mode 100644
+index 0000000..d082a6b
+--- /dev/null
++++ b/application/easy-fs/src/vfs.rs
+@@ -0,0 +1,186 @@
++use super::{
++    block_cache_sync_all, get_block_cache, BlockDevice, DirEntry, DiskInode, DiskInodeType,
++    EasyFileSystem, DIRENT_SZ,
++};
++use alloc::string::String;
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++use spin::{Mutex, MutexGuard};
++
++pub struct Inode {
++    block_id: usize,
++    block_offset: usize,
++    fs: Arc<Mutex<EasyFileSystem>>,
++    block_device: Arc<dyn BlockDevice>,
++}
++
++impl Inode {
++    /// We should not acquire efs lock here.
++    pub fn new(
++        block_id: u32,
++        block_offset: usize,
++        fs: Arc<Mutex<EasyFileSystem>>,
++        block_device: Arc<dyn BlockDevice>,
++    ) -> Self {
++        Self {
++            block_id: block_id as usize,
++            block_offset,
++            fs,
++            block_device,
++        }
++    }
++
++    fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
++        get_block_cache(self.block_id, Arc::clone(&self.block_device))
++            .lock()
++            .read(self.block_offset, f)
++    }
++
++    fn modify_disk_inode<V>(&self, f: impl FnOnce(&mut DiskInode) -> V) -> V {
++        get_block_cache(self.block_id, Arc::clone(&self.block_device))
++            .lock()
++            .modify(self.block_offset, f)
++    }
++
++    fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
++        // assert it is a directory
++        assert!(disk_inode.is_dir());
++        let file_count = (disk_inode.size as usize) / DIRENT_SZ;
++        let mut dirent = DirEntry::empty();
++        for i in 0..file_count {
++            assert_eq!(
++                disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
++                DIRENT_SZ,
++            );
++            if dirent.name() == name {
++                return Some(dirent.inode_number() as u32);
++            }
++        }
++        None
++    }
++
++    pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
++        let fs = self.fs.lock();
++        self.read_disk_inode(|disk_inode| {
++            self.find_inode_id(name, disk_inode).map(|inode_id| {
++                let (block_id, block_offset) = fs.get_disk_inode_pos(inode_id);
++                Arc::new(Self::new(
++                    block_id,
++                    block_offset,
++                    self.fs.clone(),
++                    self.block_device.clone(),
++                ))
++            })
++        })
++    }
++
++    fn increase_size(
++        &self,
++        new_size: u32,
++        disk_inode: &mut DiskInode,
++        fs: &mut MutexGuard<EasyFileSystem>,
++    ) {
++        if new_size < disk_inode.size {
++            return;
++        }
++        let blocks_needed = disk_inode.blocks_num_needed(new_size);
++        let mut v: Vec<u32> = Vec::new();
++        for _ in 0..blocks_needed {
++            v.push(fs.alloc_data());
++        }
++        disk_inode.increase_size(new_size, v, &self.block_device);
++    }
++
++    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
++        let mut fs = self.fs.lock();
++        let op = |root_inode: &mut DiskInode| {
++            // assert it is a directory
++            assert!(root_inode.is_dir());
++            // has the file been created?
++            self.find_inode_id(name, root_inode)
++        };
++        if self.modify_disk_inode(op).is_some() {
++            return None;
++        }
++        // create a new file
++        // alloc a inode with an indirect block
++        let new_inode_id = fs.alloc_inode();
++        // initialize inode
++        let (new_inode_block_id, new_inode_block_offset) = fs.get_disk_inode_pos(new_inode_id);
++        get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
++            .lock()
++            .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
++                new_inode.initialize(DiskInodeType::File);
++            });
++        self.modify_disk_inode(|root_inode| {
++            // append file in the dirent
++            let file_count = (root_inode.size as usize) / DIRENT_SZ;
++            let new_size = (file_count + 1) * DIRENT_SZ;
++            // increase size
++            self.increase_size(new_size as u32, root_inode, &mut fs);
++            // write dirent
++            let dirent = DirEntry::new(name, new_inode_id);
++            root_inode.write_at(
++                file_count * DIRENT_SZ,
++                dirent.as_bytes(),
++                &self.block_device,
++            );
++        });
++
++        let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
++        block_cache_sync_all();
++        // return inode
++        Some(Arc::new(Self::new(
++            block_id,
++            block_offset,
++            self.fs.clone(),
++            self.block_device.clone(),
++        )))
++        // release efs lock automatically by compiler
++    }
++
++    pub fn ls(&self) -> Vec<String> {
++        let _fs = self.fs.lock();
++        self.read_disk_inode(|disk_inode| {
++            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
++            let mut v: Vec<String> = Vec::new();
++            for i in 0..file_count {
++                let mut dirent = DirEntry::empty();
++                assert_eq!(
++                    disk_inode.read_at(i * DIRENT_SZ, dirent.as_bytes_mut(), &self.block_device,),
++                    DIRENT_SZ,
++                );
++                v.push(String::from(dirent.name()));
++            }
++            v
++        })
++    }
++
++    pub fn read_at(&self, offset: usize, buf: &mut [u8]) -> usize {
++        let _fs = self.fs.lock();
++        self.read_disk_inode(|disk_inode| disk_inode.read_at(offset, buf, &self.block_device))
++    }
++
++    pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize {
++        let mut fs = self.fs.lock();
++        let size = self.modify_disk_inode(|disk_inode| {
++            self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);
++            disk_inode.write_at(offset, buf, &self.block_device)
++        });
++        block_cache_sync_all();
++        size
++    }
++
++    pub fn clear(&self) {
++        let mut fs = self.fs.lock();
++        self.modify_disk_inode(|disk_inode| {
++            let size = disk_inode.size;
++            let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
++            assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
++            for data_block in data_blocks_dealloc.into_iter() {
++                fs.dealloc_data(data_block);
++            }
++        });
++        block_cache_sync_all();
++    }
++}
+diff --git a/application/user/.cargo/config.toml b/application/user/.cargo/config.toml
+new file mode 100644
+index 0000000..47806eb
+--- /dev/null
++++ b/application/user/.cargo/config.toml
+@@ -0,0 +1,7 @@
++[build]
++target = "riscv64gc-unknown-none-elf"
++
++[target.riscv64gc-unknown-none-elf]
++rustflags = [
++    "-Clink-args=-Tapplication/user/src/linker.ld", "-Cforce-frame-pointers=yes"
++]
+diff --git a/application/user/.gitignore b/application/user/.gitignore
+new file mode 100644
+index 0000000..d472d78
+--- /dev/null
++++ b/application/user/.gitignore
+@@ -0,0 +1 @@
++target/*
+diff --git a/application/user/Cargo.toml b/application/user/Cargo.toml
+new file mode 100644
+index 0000000..12378b3
+--- /dev/null
++++ b/application/user/Cargo.toml
+@@ -0,0 +1,19 @@
++[package]
++name = "user_lib"
++version = "0.1.0"
++authors = ["Yifan Wu <shinbokuow@163.com>"]
++edition = "2018"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++buddy_system_allocator = "0.6"
++bitflags = "1.2.1"
++riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++embedded-graphics = "0.7.1"
++oorandom ="11"
++virtio-input-decoder = "0.1.4"
++
++[profile.release]
++debug = true
+\ No newline at end of file
+diff --git a/application/user/Makefile b/application/user/Makefile
+new file mode 100644
+index 0000000..6a88ad5
+--- /dev/null
++++ b/application/user/Makefile
+@@ -0,0 +1,29 @@
++TARGET := riscv64gc-unknown-none-elf
++MODE := release
++APP_DIR := src/bin
++TARGET_DIR := ../../target/$(TARGET)/$(MODE)
++APPS := $(wildcard $(APP_DIR)/*.rs)
++ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
++BINS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%.bin, $(APPS))
++
++OBJDUMP := rust-objdump --arch-name=riscv64
++OBJCOPY := rust-objcopy --binary-architecture=riscv64
++CP := cp 
++
++TEST ?= 1
++
++elf: $(APPS)
++	@cargo build -p user_lib --release
++ifeq ($(TEST), 1)
++	@$(CP) $(TARGET_DIR)/usertests $(TARGET_DIR)/initproc
++endif
++
++binary: elf
++	@$(foreach elf, $(ELFS), $(OBJCOPY) $(elf) --strip-all -O binary $(patsubst $(TARGET_DIR)/%, $(TARGET_DIR)/%.bin, $(elf));)
++
++build: binary
++
++clean:
++	@cargo clean
++
++.PHONY: elf binary build clean
+diff --git a/application/user/src/bin/adder.rs b/application/user/src/bin/adder.rs
+new file mode 100644
+index 0000000..d1addf1
+--- /dev/null
++++ b/application/user/src/bin/adder.rs
+@@ -0,0 +1,57 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid};
++
++static mut A: usize = 0;
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        critical_section(&mut t);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++    let start = get_time();
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_atomic.rs b/application/user/src/bin/adder_atomic.rs
+new file mode 100644
+index 0000000..8fb5639
+--- /dev/null
++++ b/application/user/src/bin/adder_atomic.rs
+@@ -0,0 +1,74 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use core::sync::atomic::{AtomicBool, Ordering};
++use user_lib::{exit, get_time, thread_create, waittid, yield_};
++
++static mut A: usize = 0;
++static OCCUPIED: AtomicBool = AtomicBool::new(false);
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++fn lock() {
++    while OCCUPIED
++        .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
++        .is_err()
++    {
++        yield_();
++    }
++}
++
++fn unlock() {
++    OCCUPIED.store(false, Ordering::Relaxed);
++}
++
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        lock();
++        critical_section(&mut t);
++        unlock();
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++    let start = get_time();
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_mutex_blocking.rs b/application/user/src/bin/adder_mutex_blocking.rs
+new file mode 100644
+index 0000000..79bb3c3
+--- /dev/null
++++ b/application/user/src/bin/adder_mutex_blocking.rs
+@@ -0,0 +1,61 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid};
++use user_lib::{mutex_blocking_create, mutex_lock, mutex_unlock};
++
++static mut A: usize = 0;
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        mutex_lock(0);
++        critical_section(&mut t);
++        mutex_unlock(0);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++
++    let start = get_time();
++    assert_eq!(mutex_blocking_create(), 0);
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_mutex_spin.rs b/application/user/src/bin/adder_mutex_spin.rs
+new file mode 100644
+index 0000000..315a338
+--- /dev/null
++++ b/application/user/src/bin/adder_mutex_spin.rs
+@@ -0,0 +1,62 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid};
++use user_lib::{mutex_create, mutex_lock, mutex_unlock};
++
++static mut A: usize = 0;
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        mutex_lock(0);
++        critical_section(&mut t);
++        mutex_unlock(0);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++
++    let start = get_time();
++    assert_eq!(mutex_create(), 0);
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_peterson_spin.rs b/application/user/src/bin/adder_peterson_spin.rs
+new file mode 100644
+index 0000000..35fd0d3
+--- /dev/null
++++ b/application/user/src/bin/adder_peterson_spin.rs
+@@ -0,0 +1,95 @@
++//! It only works on a single CPU!
++
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use core::sync::atomic::{compiler_fence, Ordering};
++use user_lib::{exit, get_time, thread_create, waittid};
++
++static mut A: usize = 0;
++static mut FLAG: [bool; 2] = [false; 2];
++static mut TURN: usize = 0;
++const PER_THREAD_DEFAULT: usize = 2000;
++const THREAD_COUNT_DEFAULT: usize = 2;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn lock(id: usize) {
++    FLAG[id] = true;
++    let j = 1 - id;
++    TURN = j;
++    // Tell the compiler not to reorder memory operations
++    // across this fence.
++    compiler_fence(Ordering::SeqCst);
++    // Why do we need to use volatile_read here?
++    // Otherwise the compiler will assume that they will never
++    // be changed on this thread. Thus, they will be accessed
++    // only once!
++    while vload!(&FLAG[j]) && vload!(&TURN) == j {}
++}
++
++unsafe fn unlock(id: usize) {
++    FLAG[id] = false;
++}
++
++unsafe fn f(id: usize) -> ! {
++    let mut t = 2usize;
++    for _iter in 0..PER_THREAD {
++        lock(id);
++        critical_section(&mut t);
++        unlock(id);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++
++    // uncomment this if you want to check the assembly
++    // println!(
++    //     "addr: lock={:#x}, unlock={:#x}",
++    //     lock as usize,
++    //     unlock as usize
++    // );
++    let start = get_time();
++    let mut v = Vec::new();
++    assert_eq!(
++        thread_count, 2,
++        "Peterson works when there are only 2 threads."
++    );
++    for id in 0..thread_count {
++        v.push(thread_create(f as usize, id) as usize);
++    }
++    let mut time_cost = Vec::new();
++    for tid in v.iter() {
++        time_cost.push(waittid(*tid));
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_peterson_yield.rs b/application/user/src/bin/adder_peterson_yield.rs
+new file mode 100644
+index 0000000..7b905e3
+--- /dev/null
++++ b/application/user/src/bin/adder_peterson_yield.rs
+@@ -0,0 +1,94 @@
++//! It only works on a single CPU!
++
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use core::sync::atomic::{compiler_fence, Ordering};
++use user_lib::{exit, get_time, thread_create, waittid, yield_};
++
++static mut A: usize = 0;
++static mut FLAG: [bool; 2] = [false; 2];
++static mut TURN: usize = 0;
++const PER_THREAD_DEFAULT: usize = 2000;
++const THREAD_COUNT_DEFAULT: usize = 2;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn lock(id: usize) {
++    FLAG[id] = true;
++    let j = 1 - id;
++    TURN = j;
++    // Tell the compiler not to reorder memory operations
++    // across this fence.
++    compiler_fence(Ordering::SeqCst);
++    while FLAG[j] && TURN == j {
++        yield_();
++    }
++}
++
++unsafe fn unlock(id: usize) {
++    FLAG[id] = false;
++}
++
++unsafe fn f(id: usize) -> ! {
++    let mut t = 2usize;
++    for _iter in 0..PER_THREAD {
++        lock(id);
++        critical_section(&mut t);
++        unlock(id);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++
++    // uncomment this if you want to check the assembly
++    // println!(
++    //     "addr: lock={:#x}, unlock={:#x}",
++    //     lock as usize,
++    //     unlock as usize
++    // );
++
++    let start = get_time();
++    let mut v = Vec::new();
++    assert_eq!(
++        thread_count, 2,
++        "Peterson works when there are only 2 threads."
++    );
++    for id in 0..thread_count {
++        v.push(thread_create(f as usize, id) as usize);
++    }
++    let mut time_cost = Vec::new();
++    for tid in v.iter() {
++        time_cost.push(waittid(*tid));
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_simple_spin.rs b/application/user/src/bin/adder_simple_spin.rs
+new file mode 100644
+index 0000000..ad5b328
+--- /dev/null
++++ b/application/user/src/bin/adder_simple_spin.rs
+@@ -0,0 +1,70 @@
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid};
++
++static mut A: usize = 0;
++static mut OCCUPIED: bool = false;
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn lock() {
++    while vload!(&OCCUPIED) {}
++    OCCUPIED = true;
++}
++
++unsafe fn unlock() {
++    OCCUPIED = false;
++}
++
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        lock();
++        critical_section(&mut t);
++        unlock();
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++    let start = get_time();
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/adder_simple_yield.rs b/application/user/src/bin/adder_simple_yield.rs
+new file mode 100644
+index 0000000..355b401
+--- /dev/null
++++ b/application/user/src/bin/adder_simple_yield.rs
+@@ -0,0 +1,72 @@
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid, yield_};
++
++static mut A: usize = 0;
++static mut OCCUPIED: bool = false;
++const PER_THREAD_DEFAULT: usize = 10000;
++const THREAD_COUNT_DEFAULT: usize = 16;
++static mut PER_THREAD: usize = 0;
++
++unsafe fn critical_section(t: &mut usize) {
++    let a = &mut A as *mut usize;
++    let cur = a.read_volatile();
++    for _ in 0..500 {
++        *t = (*t) * (*t) % 10007;
++    }
++    a.write_volatile(cur + 1);
++}
++
++unsafe fn lock() {
++    while OCCUPIED {
++        yield_();
++    }
++    OCCUPIED = true;
++}
++
++unsafe fn unlock() {
++    OCCUPIED = false;
++}
++
++unsafe fn f() -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        lock();
++        critical_section(&mut t);
++        unlock();
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let mut thread_count = THREAD_COUNT_DEFAULT;
++    let mut per_thread = PER_THREAD_DEFAULT;
++    if argc >= 2 {
++        thread_count = argv[1].parse().unwrap();
++        if argc >= 3 {
++            per_thread = argv[2].parse().unwrap();
++        }
++    }
++    unsafe {
++        PER_THREAD = per_thread;
++    }
++    let start = get_time();
++    let mut v = Vec::new();
++    for _ in 0..thread_count {
++        v.push(thread_create(f as usize, 0) as usize);
++    }
++    for tid in v.into_iter() {
++        waittid(tid);
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
++    0
++}
+diff --git a/application/user/src/bin/barrier_condvar.rs b/application/user/src/bin/barrier_condvar.rs
+new file mode 100644
+index 0000000..7157772
+--- /dev/null
++++ b/application/user/src/bin/barrier_condvar.rs
+@@ -0,0 +1,83 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use core::cell::UnsafeCell;
++use lazy_static::*;
++use user_lib::{
++    condvar_create, condvar_signal, condvar_wait, exit, mutex_create, mutex_lock, mutex_unlock,
++    thread_create, waittid,
++};
++
++const THREAD_NUM: usize = 3;
++
++struct Barrier {
++    mutex_id: usize,
++    condvar_id: usize,
++    count: UnsafeCell<usize>,
++}
++
++impl Barrier {
++    pub fn new() -> Self {
++        Self {
++            mutex_id: mutex_create() as usize,
++            condvar_id: condvar_create() as usize,
++            count: UnsafeCell::new(0),
++        }
++    }
++    pub fn block(&self) {
++        mutex_lock(self.mutex_id);
++        let count = self.count.get();
++        // SAFETY: Here, the accesses of the count is in the
++        // critical section protected by the mutex.
++        unsafe {
++            *count = *count + 1;
++        }
++        if unsafe { *count } == THREAD_NUM {
++            condvar_signal(self.condvar_id);
++        } else {
++            condvar_wait(self.condvar_id, self.mutex_id);
++            condvar_signal(self.condvar_id);
++        }
++        mutex_unlock(self.mutex_id);
++    }
++}
++
++unsafe impl Sync for Barrier {}
++
++lazy_static! {
++    static ref BARRIER_AB: Barrier = Barrier::new();
++    static ref BARRIER_BC: Barrier = Barrier::new();
++}
++
++fn thread_fn() {
++    for _ in 0..300 {
++        print!("a");
++    }
++    BARRIER_AB.block();
++    for _ in 0..300 {
++        print!("b");
++    }
++    BARRIER_BC.block();
++    for _ in 0..300 {
++        print!("c");
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v: Vec<isize> = Vec::new();
++    for _ in 0..THREAD_NUM {
++        v.push(thread_create(thread_fn as usize, 0));
++    }
++    for tid in v.into_iter() {
++        waittid(tid as usize);
++    }
++    println!("\nOK!");
++    0
++}
+diff --git a/application/user/src/bin/barrier_fail.rs b/application/user/src/bin/barrier_fail.rs
+new file mode 100644
+index 0000000..11604ca
+--- /dev/null
++++ b/application/user/src/bin/barrier_fail.rs
+@@ -0,0 +1,33 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, thread_create, waittid};
++
++const THREAD_NUM: usize = 3;
++
++fn thread_fn() {
++    for ch in 'a'..='c' {
++        for _ in 0..300 {
++            print!("{}", ch);
++        }
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v: Vec<isize> = Vec::new();
++    for _ in 0..THREAD_NUM {
++        v.push(thread_create(thread_fn as usize, 0));
++    }
++    for tid in v.into_iter() {
++        waittid(tid as usize);
++    }
++    println!("\nOK!");
++    0
++}
+diff --git a/application/user/src/bin/cat.rs b/application/user/src/bin/cat.rs
+new file mode 100644
+index 0000000..b6a653b
+--- /dev/null
++++ b/application/user/src/bin/cat.rs
+@@ -0,0 +1,32 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use user_lib::{close, open, read, OpenFlags};
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    println!("argc = {}", argc);
++    for (i, arg) in argv.iter().enumerate() {
++        println!("argv[{}] = {}", i, arg);
++    }
++    assert!(argc == 2);
++    let fd = open(argv[1], OpenFlags::RDONLY);
++    if fd == -1 {
++        panic!("Error occurred when opening file");
++    }
++    let fd = fd as usize;
++    let mut buf = [0u8; 256];
++    loop {
++        let size = read(fd, &mut buf) as usize;
++        if size == 0 {
++            break;
++        }
++        print!("{}", core::str::from_utf8(&buf[..size]).unwrap());
++    }
++    close(fd);
++    0
++}
+diff --git a/application/user/src/bin/cmdline_args.rs b/application/user/src/bin/cmdline_args.rs
+new file mode 100644
+index 0000000..83857d4
+--- /dev/null
++++ b/application/user/src/bin/cmdline_args.rs
+@@ -0,0 +1,16 @@
++#![no_std]
++#![no_main]
++
++extern crate alloc;
++
++#[macro_use]
++extern crate user_lib;
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    println!("argc = {}", argc);
++    for (i, arg) in argv.iter().enumerate() {
++        println!("argv[{}] = {}", i, arg);
++    }
++    0
++}
+diff --git a/application/user/src/bin/condsync_condvar.rs b/application/user/src/bin/condsync_condvar.rs
+new file mode 100644
+index 0000000..78605ad
+--- /dev/null
++++ b/application/user/src/bin/condsync_condvar.rs
+@@ -0,0 +1,59 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::vec;
++use user_lib::exit;
++use user_lib::{
++    condvar_create, condvar_signal, condvar_wait, mutex_blocking_create, mutex_lock, mutex_unlock,
++};
++use user_lib::{sleep, thread_create, waittid};
++
++static mut A: usize = 0;
++
++const CONDVAR_ID: usize = 0;
++const MUTEX_ID: usize = 0;
++
++unsafe fn first() -> ! {
++    sleep(10);
++    println!("First work, Change A --> 1 and wakeup Second");
++    mutex_lock(MUTEX_ID);
++    A = 1;
++    condvar_signal(CONDVAR_ID);
++    mutex_unlock(MUTEX_ID);
++    exit(0)
++}
++
++unsafe fn second() -> ! {
++    println!("Second want to continue,but need to wait A=1");
++    mutex_lock(MUTEX_ID);
++    while A == 0 {
++        println!("Second: A is {}", A);
++        condvar_wait(CONDVAR_ID, MUTEX_ID);
++    }
++    println!("A is {}, Second can work now", A);
++    mutex_unlock(MUTEX_ID);
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    // create condvar & mutex
++    assert_eq!(condvar_create() as usize, CONDVAR_ID);
++    assert_eq!(mutex_blocking_create() as usize, MUTEX_ID);
++    // create threads
++    let threads = vec![
++        thread_create(first as usize, 0),
++        thread_create(second as usize, 0),
++    ];
++    // wait for all threads to complete
++    for thread in threads.iter() {
++        waittid(*thread as usize);
++    }
++    println!("test_condvar passed!");
++    0
++}
+diff --git a/application/user/src/bin/condsync_sem.rs b/application/user/src/bin/condsync_sem.rs
+new file mode 100644
+index 0000000..ee08fac
+--- /dev/null
++++ b/application/user/src/bin/condsync_sem.rs
+@@ -0,0 +1,64 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::vec;
++use user_lib::exit;
++use user_lib::{
++    mutex_blocking_create, mutex_lock, mutex_unlock, semaphore_create, semaphore_down, semaphore_up,
++};
++use user_lib::{sleep, thread_create, waittid};
++
++static mut A: usize = 0;
++
++const SEM_ID: usize = 0;
++const MUTEX_ID: usize = 0;
++
++unsafe fn first() -> ! {
++    sleep(10);
++    println!("First work, Change A --> 1 and wakeup Second");
++    mutex_lock(MUTEX_ID);
++    A = 1;
++    semaphore_up(SEM_ID);
++    mutex_unlock(MUTEX_ID);
++    exit(0)
++}
++
++unsafe fn second() -> ! {
++    println!("Second want to continue,but need to wait A=1");
++    loop {
++        mutex_lock(MUTEX_ID);
++        if A == 0 {
++            println!("Second: A is {}", A);
++            mutex_unlock(MUTEX_ID);
++            semaphore_down(SEM_ID);
++        } else {
++            mutex_unlock(MUTEX_ID);
++            break;
++        }
++    }
++    println!("A is {}, Second can work now", A);
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    // create semaphore & mutex
++    assert_eq!(semaphore_create(0) as usize, SEM_ID);
++    assert_eq!(mutex_blocking_create() as usize, MUTEX_ID);
++    // create threads
++    let threads = vec![
++        thread_create(first as usize, 0),
++        thread_create(second as usize, 0),
++    ];
++    // wait for all threads to complete
++    for thread in threads.iter() {
++        waittid(*thread as usize);
++    }
++    println!("test_condvar passed!");
++    0
++}
+diff --git a/application/user/src/bin/count_lines.rs b/application/user/src/bin/count_lines.rs
+new file mode 100644
+index 0000000..f4d9c9a
+--- /dev/null
++++ b/application/user/src/bin/count_lines.rs
+@@ -0,0 +1,30 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::read;
++
++#[no_mangle]
++pub fn main(_argc: usize, _argv: &[&str]) -> i32 {
++    let mut buf = [0u8; 256];
++    let mut lines = 0usize;
++    let mut total_size = 0usize;
++    loop {
++        let len = read(0, &mut buf) as usize;
++        if len == 0 {
++            break;
++        }
++        total_size += len;
++        let string = core::str::from_utf8(&buf[..len]).unwrap();
++        lines += string
++            .chars()
++            .fold(0, |acc, c| acc + if c == '\n' { 1 } else { 0 });
++    }
++    if total_size > 0 {
++        lines += 1;
++    }
++    println!("{}", lines);
++    0
++}
+diff --git a/application/user/src/bin/eisenberg.rs b/application/user/src/bin/eisenberg.rs
+new file mode 100644
+index 0000000..d39edd1
+--- /dev/null
++++ b/application/user/src/bin/eisenberg.rs
+@@ -0,0 +1,138 @@
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++extern crate core;
++
++use alloc::vec::Vec;
++use core::sync::atomic::{AtomicUsize, Ordering};
++use user_lib::{exit, sleep, thread_create, waittid};
++
++const N: usize = 2;
++const THREAD_NUM: usize = 10;
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum FlagState {
++    Out,
++    Want,
++    In,
++}
++
++static mut TURN: usize = 0;
++static mut FLAG: [FlagState; THREAD_NUM] = [FlagState::Out; THREAD_NUM];
++
++static GUARD: AtomicUsize = AtomicUsize::new(0);
++
++fn critical_test_enter() {
++    assert_eq!(GUARD.fetch_add(1, Ordering::SeqCst), 0);
++}
++
++fn critical_test_claim() {
++    assert_eq!(GUARD.load(Ordering::SeqCst), 1);
++}
++
++fn critical_test_exit() {
++    assert_eq!(GUARD.fetch_sub(1, Ordering::SeqCst), 1);
++}
++
++fn eisenberg_enter_critical(id: usize) {
++    /* announce that we want to enter */
++    loop {
++        println!("Thread[{}] try enter", id);
++        vstore!(&FLAG[id], FlagState::Want);
++        loop {
++            /* check if any with higher priority is `Want` or `In` */
++            let mut prior_thread: Option<usize> = None;
++            let turn = vload!(&TURN);
++            let ring_id = if id < turn { id + THREAD_NUM } else { id };
++            // FLAG.iter() may lead to some errors, use for-loop instead
++            for i in turn..ring_id {
++                if vload!(&FLAG[i % THREAD_NUM]) != FlagState::Out {
++                    prior_thread = Some(i % THREAD_NUM);
++                    break;
++                }
++            }
++            if prior_thread.is_none() {
++                break;
++            }
++            println!(
++                "Thread[{}]: prior thread {} exist, sleep and retry",
++                id,
++                prior_thread.unwrap()
++            );
++            sleep(1);
++        }
++        /* now tentatively claim the resource */
++        vstore!(&FLAG[id], FlagState::In);
++        /* enforce the order of `claim` and `conflict check`*/
++        memory_fence!();
++        /* check if anthor thread is also `In`, which imply a conflict*/
++        let mut conflict = false;
++        for i in 0..THREAD_NUM {
++            if i != id && vload!(&FLAG[i]) == FlagState::In {
++                conflict = true;
++            }
++        }
++        if !conflict {
++            break;
++        }
++        println!("Thread[{}]: CONFLECT!", id);
++        /* no need to sleep */
++    }
++    /* clain the trun */
++    vstore!(&TURN, id);
++    println!("Thread[{}] enter", id);
++}
++
++fn eisenberg_exit_critical(id: usize) {
++    /* find next one who wants to enter and give the turn to it*/
++    let mut next = id;
++    let ring_id = id + THREAD_NUM;
++    for i in (id + 1)..ring_id {
++        let idx = i % THREAD_NUM;
++        if vload!(&FLAG[idx]) == FlagState::Want {
++            next = idx;
++            break;
++        }
++    }
++    vstore!(&TURN, next);
++    /* All done */
++    vstore!(&FLAG[id], FlagState::Out);
++    println!("Thread[{}] exit, give turn to {}", id, next);
++}
++
++pub fn thread_fn(id: usize) -> ! {
++    println!("Thread[{}] init.", id);
++    for _ in 0..N {
++        eisenberg_enter_critical(id);
++        critical_test_enter();
++        for _ in 0..3 {
++            critical_test_claim();
++            sleep(2);
++        }
++        critical_test_exit();
++        eisenberg_exit_critical(id);
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v = Vec::new();
++    // TODO: really shuffle
++    assert_eq!(THREAD_NUM, 10);
++    let shuffle: [usize; 10] = [0, 7, 4, 6, 2, 9, 8, 1, 3, 5];
++    for i in 0..THREAD_NUM {
++        v.push(thread_create(thread_fn as usize, shuffle[i]));
++    }
++    for tid in v.iter() {
++        let exit_code = waittid(*tid as usize);
++        assert_eq!(exit_code, 0, "thread conflict happened!");
++        println!("thread#{} exited with code {}", tid, exit_code);
++    }
++    println!("main thread exited.");
++    0
++}
+diff --git a/application/user/src/bin/exit.rs b/application/user/src/bin/exit.rs
+new file mode 100644
+index 0000000..f9b4ec4
+--- /dev/null
++++ b/application/user/src/bin/exit.rs
+@@ -0,0 +1,30 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++use user_lib::{exit, fork, wait, waitpid, yield_};
++
++const MAGIC: i32 = -0x10384;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("I am the parent. Forking the child...");
++    let pid = fork();
++    if pid == 0 {
++        println!("I am the child.");
++        for _ in 0..7 {
++            yield_();
++        }
++        exit(MAGIC);
++    } else {
++        println!("I am parent, fork a child pid {}", pid);
++    }
++    println!("I am the parent, waiting now..");
++    let mut xstate: i32 = 0;
++    assert!(waitpid(pid as usize, &mut xstate) == pid && xstate == MAGIC);
++    assert!(waitpid(pid as usize, &mut xstate) < 0 && wait(&mut xstate) <= 0);
++    println!("waitpid {} ok.", pid);
++    println!("exit pass.");
++    0
++}
+diff --git a/application/user/src/bin/fantastic_text.rs b/application/user/src/bin/fantastic_text.rs
+new file mode 100644
+index 0000000..5c19d05
+--- /dev/null
++++ b/application/user/src/bin/fantastic_text.rs
+@@ -0,0 +1,44 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++macro_rules! color_text {
++    ($text:expr, $color:expr) => {{
++        format_args!("\x1b[{}m{}\x1b[0m", $color, $text)
++    }};
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!(
++        "{}{}{}{}{} {}{}{}{} {}{}{}{}{}{}",
++        color_text!("H", 31),
++        color_text!("e", 32),
++        color_text!("l", 33),
++        color_text!("l", 34),
++        color_text!("o", 35),
++        color_text!("R", 36),
++        color_text!("u", 37),
++        color_text!("s", 90),
++        color_text!("t", 91),
++        color_text!("u", 92),
++        color_text!("C", 93),
++        color_text!("o", 94),
++        color_text!("r", 95),
++        color_text!("e", 96),
++        color_text!("!", 97),
++    );
++
++    let text =
++        "reguler \x1b[4munderline\x1b[24m \x1b[7mreverse\x1b[27m \x1b[9mstrikethrough\x1b[29m";
++    println!("\x1b[47m{}\x1b[0m", color_text!(text, 30));
++    for i in 31..38 {
++        println!("{}", color_text!(text, i));
++    }
++    for i in 90..98 {
++        println!("{}", color_text!(text, i));
++    }
++    0
++}
+diff --git a/application/user/src/bin/filetest_simple.rs b/application/user/src/bin/filetest_simple.rs
+new file mode 100644
+index 0000000..d3a1af1
+--- /dev/null
++++ b/application/user/src/bin/filetest_simple.rs
+@@ -0,0 +1,29 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{close, open, read, write, OpenFlags};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let test_str = "Hello, world!";
++    let filea = "filea\0";
++    let fd = open(filea, OpenFlags::CREATE | OpenFlags::WRONLY);
++    assert!(fd > 0);
++    let fd = fd as usize;
++    write(fd, test_str.as_bytes());
++    close(fd);
++
++    let fd = open(filea, OpenFlags::RDONLY);
++    assert!(fd > 0);
++    let fd = fd as usize;
++    let mut buffer = [0u8; 100];
++    let read_len = read(fd, &mut buffer) as usize;
++    close(fd);
++
++    assert_eq!(test_str, core::str::from_utf8(&buffer[..read_len]).unwrap(),);
++    println!("file_test passed!");
++    0
++}
+diff --git a/application/user/src/bin/forktest.rs b/application/user/src/bin/forktest.rs
+new file mode 100644
+index 0000000..f4e387d
+--- /dev/null
++++ b/application/user/src/bin/forktest.rs
+@@ -0,0 +1,34 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, wait};
++
++const MAX_CHILD: usize = 30;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    for i in 0..MAX_CHILD {
++        let pid = fork();
++        if pid == 0 {
++            println!("I am child {}", i);
++            exit(0);
++        } else {
++            println!("forked child pid = {}", pid);
++        }
++        assert!(pid > 0);
++    }
++    let mut exit_code: i32 = 0;
++    for _ in 0..MAX_CHILD {
++        if wait(&mut exit_code) <= 0 {
++            panic!("wait stopped early");
++        }
++    }
++    if wait(&mut exit_code) > 0 {
++        panic!("wait got too many");
++    }
++    println!("forktest pass.");
++    0
++}
+diff --git a/application/user/src/bin/forktest2.rs b/application/user/src/bin/forktest2.rs
+new file mode 100644
+index 0000000..1c211cd
+--- /dev/null
++++ b/application/user/src/bin/forktest2.rs
+@@ -0,0 +1,34 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, get_time, getpid, sleep, wait};
++
++static NUM: usize = 30;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    for _ in 0..NUM {
++        let pid = fork();
++        if pid == 0 {
++            let current_time = get_time();
++            let sleep_length =
++                (current_time as i32 as isize) * (current_time as i32 as isize) % 1000 + 1000;
++            println!("pid {} sleep for {} ms", getpid(), sleep_length);
++            sleep(sleep_length as usize);
++            println!("pid {} OK!", getpid());
++            exit(0);
++        }
++    }
++
++    let mut exit_code: i32 = 0;
++    for _ in 0..NUM {
++        assert!(wait(&mut exit_code) > 0);
++        assert_eq!(exit_code, 0);
++    }
++    assert!(wait(&mut exit_code) < 0);
++    println!("forktest2 test passed!");
++    0
++}
+diff --git a/application/user/src/bin/forktest_simple.rs b/application/user/src/bin/forktest_simple.rs
+new file mode 100644
+index 0000000..63d95ac
+--- /dev/null
++++ b/application/user/src/bin/forktest_simple.rs
+@@ -0,0 +1,28 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{fork, getpid, wait};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    assert_eq!(wait(&mut 0i32), -1);
++    println!("sys_wait without child process test passed!");
++    println!("parent start, pid = {}!", getpid());
++    let pid = fork();
++    if pid == 0 {
++        // child process
++        println!("hello child process!");
++        100
++    } else {
++        // parent process
++        let mut exit_code: i32 = 0;
++        println!("ready waiting on parent process!");
++        assert_eq!(pid, wait(&mut exit_code));
++        assert_eq!(exit_code, 100);
++        println!("child process pid = {}, exit code = {}", pid, exit_code);
++        0
++    }
++}
+diff --git a/application/user/src/bin/forktree.rs b/application/user/src/bin/forktree.rs
+new file mode 100644
+index 0000000..ccf92a2
+--- /dev/null
++++ b/application/user/src/bin/forktree.rs
+@@ -0,0 +1,45 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, getpid, sleep, wait, yield_};
++
++const DEPTH: usize = 4;
++
++fn fork_child(cur: &str, branch: char) {
++    let mut next = [0u8; DEPTH + 1];
++    let l = cur.len();
++    if l >= DEPTH {
++        return;
++    }
++    next[..l].copy_from_slice(cur.as_bytes());
++    next[l] = branch as u8;
++    if fork() == 0 {
++        fork_tree(core::str::from_utf8(&next[..l + 1]).unwrap());
++        yield_();
++        exit(0);
++    }
++}
++
++fn fork_tree(cur: &str) {
++    println!("pid{}: {}", getpid(), cur);
++    fork_child(cur, '0');
++    fork_child(cur, '1');
++    let mut exit_code: i32 = 0;
++    for _ in 0..2 {
++        wait(&mut exit_code);
++    }
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    fork_tree("");
++    let mut exit_code: i32 = 0;
++    for _ in 0..2 {
++        wait(&mut exit_code);
++    }
++    sleep(3000);
++    0
++}
+diff --git a/application/user/src/bin/gui_rect.rs b/application/user/src/bin/gui_rect.rs
+new file mode 100644
+index 0000000..b73162b
+--- /dev/null
++++ b/application/user/src/bin/gui_rect.rs
+@@ -0,0 +1,71 @@
++#![no_std]
++#![no_main]
++
++extern crate alloc;
++extern crate user_lib;
++
++use user_lib::{Display, VIRTGPU_XRES, VIRTGPU_YRES};
++
++use embedded_graphics::pixelcolor::Rgb888;
++use embedded_graphics::prelude::{DrawTarget, Drawable, Point, RgbColor, Size};
++use embedded_graphics::primitives::{Circle, Primitive, PrimitiveStyle, Rectangle, Triangle};
++
++const INIT_X: i32 = 80;
++const INIT_Y: i32 = 400;
++const RECT_SIZE: u32 = 150;
++
++pub struct DrawingBoard {
++    disp: Display,
++    latest_pos: Point,
++}
++
++impl DrawingBoard {
++    pub fn new() -> Self {
++        Self {
++            disp: Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES)),
++            latest_pos: Point::new(INIT_X, INIT_Y),
++        }
++    }
++    fn paint(&mut self) {
++        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
++            .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 10))
++            .draw(&mut self.disp)
++            .ok();
++        Circle::new(self.latest_pos + Point::new(-70, -300), 150)
++            .into_styled(PrimitiveStyle::with_fill(Rgb888::BLUE))
++            .draw(&mut self.disp)
++            .ok();
++        Triangle::new(
++            self.latest_pos + Point::new(0, 150),
++            self.latest_pos + Point::new(80, 200),
++            self.latest_pos + Point::new(-120, 300),
++        )
++        .into_styled(PrimitiveStyle::with_stroke(Rgb888::GREEN, 10))
++        .draw(&mut self.disp)
++        .ok();
++    }
++    fn unpaint(&mut self) {
++        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
++            .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLACK, 10))
++            .draw(&mut self.disp)
++            .ok();
++    }
++    pub fn move_rect(&mut self, dx: i32, dy: i32) {
++        self.unpaint();
++        self.latest_pos.x += dx;
++        self.latest_pos.y += dy;
++        self.paint();
++    }
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut board = DrawingBoard::new();
++    let _ = board.disp.clear(Rgb888::BLACK).unwrap();
++    for _i in 0..5 {
++        board.latest_pos.x += RECT_SIZE as i32 + 20;
++        //board.latest_pos.y += i;
++        board.paint();
++    }
++    0
++}
+diff --git a/application/user/src/bin/gui_simple.rs b/application/user/src/bin/gui_simple.rs
+new file mode 100644
+index 0000000..f30b1fc
+--- /dev/null
++++ b/application/user/src/bin/gui_simple.rs
+@@ -0,0 +1,23 @@
++#![no_std]
++#![no_main]
++
++extern crate user_lib;
++
++use embedded_graphics::prelude::Size;
++use user_lib::{Display, VIRTGPU_XRES, VIRTGPU_YRES};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut disp = Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES));
++    disp.paint_on_framebuffer(|fb| {
++        for y in 0..VIRTGPU_YRES as usize {
++            for x in 0..VIRTGPU_XRES as usize {
++                let idx = (y * VIRTGPU_XRES as usize + x) * 4;
++                fb[idx] = x as u8;
++                fb[idx + 1] = y as u8;
++                fb[idx + 2] = (x + y) as u8;
++            }
++        }
++    });
++    0
++}
+diff --git a/application/user/src/bin/gui_snake.rs b/application/user/src/bin/gui_snake.rs
+new file mode 100644
+index 0000000..0411824
+--- /dev/null
++++ b/application/user/src/bin/gui_snake.rs
+@@ -0,0 +1,351 @@
++#![no_std]
++#![no_main]
++
++extern crate alloc;
++extern crate user_lib;
++
++use user_lib::console::getchar;
++use user_lib::{key_pressed, sleep, Display, VIRTGPU_XRES, VIRTGPU_YRES};
++
++use embedded_graphics::pixelcolor::*;
++use embedded_graphics::prelude::{Drawable, Point, RgbColor, Size};
++use embedded_graphics::primitives::Primitive;
++use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
++use embedded_graphics::Pixel;
++use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
++use oorandom; //random generator
++
++struct Snake<T: PixelColor, const MAX_SIZE: usize> {
++    parts: [Pixel<T>; MAX_SIZE],
++    len: usize,
++    direction: Direction,
++    size_x: u32,
++    size_y: u32,
++}
++
++struct SnakeIntoIterator<'a, T: PixelColor, const MAX_SIZE: usize> {
++    snake: &'a Snake<T, MAX_SIZE>,
++    index: usize,
++}
++
++impl<'a, T: PixelColor, const MAX_SIZE: usize> IntoIterator for &'a Snake<T, MAX_SIZE> {
++    type Item = Pixel<T>;
++    type IntoIter = SnakeIntoIterator<'a, T, MAX_SIZE>;
++
++    fn into_iter(self) -> Self::IntoIter {
++        SnakeIntoIterator {
++            snake: self,
++            index: 0,
++        }
++    }
++}
++
++impl<'a, T: PixelColor, const MAX_SIZE: usize> Iterator for SnakeIntoIterator<'a, T, MAX_SIZE> {
++    type Item = Pixel<T>;
++
++    fn next(&mut self) -> Option<Self::Item> {
++        let cur = self.snake.parts[self.index];
++        if self.index < self.snake.len {
++            self.index += 1;
++            return Some(cur);
++        }
++        None
++    }
++}
++
++impl<T: PixelColor, const MAX_SIZE: usize> Snake<T, MAX_SIZE> {
++    fn new(color: T, size_x: u32, size_y: u32) -> Snake<T, MAX_SIZE> {
++        Snake {
++            parts: [Pixel::<T>(Point { x: 0, y: 0 }, color); MAX_SIZE],
++            len: 1,
++            direction: Direction::None,
++            size_x,
++            size_y,
++        }
++    }
++    fn set_direction(&mut self, direction: Direction) {
++        self.direction = direction;
++    }
++    fn contains(&self, this: Point) -> bool {
++        for part in self.into_iter() {
++            if part.0 == this {
++                return true;
++            };
++        }
++        false
++    }
++    fn grow(&mut self) {
++        if self.len < MAX_SIZE - 1 {
++            self.len += 1;
++        }
++    }
++    fn make_step(&mut self) {
++        let mut i = self.len;
++        while i > 0 {
++            self.parts[i] = self.parts[i - 1];
++            i -= 1;
++        }
++        match self.direction {
++            Direction::Left => {
++                if self.parts[0].0.x == 0 {
++                    self.parts[0].0.x = (self.size_x - 1) as i32;
++                } else {
++                    self.parts[0].0.x -= 1;
++                }
++            }
++            Direction::Right => {
++                if self.parts[0].0.x == (self.size_x - 1) as i32 {
++                    self.parts[0].0.x = 0;
++                } else {
++                    self.parts[0].0.x += 1;
++                }
++            }
++            Direction::Up => {
++                if self.parts[0].0.y == 0 {
++                    self.parts[0].0.y = (self.size_y - 1) as i32;
++                } else {
++                    self.parts[0].0.y -= 1;
++                }
++            }
++            Direction::Down => {
++                if self.parts[0].0.y == (self.size_y - 1) as i32 {
++                    self.parts[0].0.y = 0;
++                } else {
++                    self.parts[0].0.y += 1;
++                }
++            }
++            Direction::None => {}
++        }
++    }
++}
++
++struct Food<T: PixelColor> {
++    size_x: u32,
++    size_y: u32,
++    place: Pixel<T>,
++    rng: oorandom::Rand32,
++}
++
++impl<T: PixelColor> Food<T> {
++    pub fn new(color: T, size_x: u32, size_y: u32) -> Self {
++        let seed = 4;
++        let rng = oorandom::Rand32::new(seed);
++        Food {
++            size_x,
++            size_y,
++            place: Pixel(Point { x: 0, y: 0 }, color),
++            rng,
++        }
++    }
++    fn replace<'a, const MAX_SIZE: usize>(&mut self, iter_source: &Snake<T, MAX_SIZE>) {
++        let mut p: Point;
++        'outer: loop {
++            let random_number = self.rng.rand_u32();
++            let blocked_positions = iter_source.into_iter();
++            p = Point {
++                x: ((random_number >> 24) as u16 % self.size_x as u16).into(),
++                y: ((random_number >> 16) as u16 % self.size_y as u16).into(),
++            };
++            for blocked_position in blocked_positions {
++                if p == blocked_position.0 {
++                    continue 'outer;
++                }
++            }
++            break;
++        }
++        self.place = Pixel::<T> {
++            0: p,
++            1: self.place.1,
++        }
++    }
++    fn get_pixel(&self) -> Pixel<T> {
++        self.place
++    }
++}
++
++#[derive(PartialEq, Debug, Clone, Copy)]
++pub enum Direction {
++    Left,
++    Right,
++    Up,
++    Down,
++    None,
++}
++
++pub struct SnakeGame<const MAX_SNAKE_SIZE: usize, T: PixelColor> {
++    snake: Snake<T, MAX_SNAKE_SIZE>,
++    food: Food<T>,
++    food_age: u32,
++    food_lifetime: u32,
++    size_x: u32,
++    size_y: u32,
++    scale_x: u32,
++    scale_y: u32,
++}
++
++impl<const MAX_SIZE: usize, T: PixelColor> SnakeGame<MAX_SIZE, T> {
++    pub fn new(
++        size_x: u32,
++        size_y: u32,
++        scale_x: u32,
++        scale_y: u32,
++        snake_color: T,
++        food_color: T,
++        food_lifetime: u32,
++    ) -> Self {
++        let snake = Snake::<T, MAX_SIZE>::new(snake_color, size_x / scale_x, size_y / scale_y);
++        let mut food = Food::<T>::new(food_color, size_x / scale_x, size_y / scale_y);
++        food.replace(&snake);
++        SnakeGame {
++            snake,
++            food,
++            food_age: 0,
++            food_lifetime,
++            size_x,
++            size_y,
++            scale_x,
++            scale_y,
++        }
++    }
++    pub fn set_direction(&mut self, direction: Direction) {
++        self.snake.set_direction(direction);
++    }
++    pub fn draw<D>(&mut self, target: &mut D) -> ()
++    where
++        D: DrawTarget<Color = T>,
++    {
++        self.snake.make_step();
++        let hit = self.snake.contains(self.food.get_pixel().0);
++        if hit {
++            self.snake.grow();
++        }
++        self.food_age += 1;
++        if self.food_age >= self.food_lifetime || hit {
++            self.food.replace(&self.snake);
++            self.food_age = 0;
++        }
++
++        let mut scaled_display = ScaledDisplay::<D> {
++            real_display: target,
++            size_x: self.size_x / self.scale_x,
++            size_y: self.size_y / self.scale_y,
++            scale_x: self.scale_x,
++            scale_y: self.scale_y,
++        };
++
++        for part in self.snake.into_iter() {
++            _ = part.draw(&mut scaled_display);
++        }
++        _ = self.food.get_pixel().draw(&mut scaled_display);
++    }
++}
++
++/// A dummy DrawTarget implementation that can magnify each pixel so the user code does not need to adapt for scaling things
++struct ScaledDisplay<'a, T: DrawTarget> {
++    real_display: &'a mut T,
++    size_x: u32,
++    size_y: u32,
++    scale_x: u32,
++    scale_y: u32,
++}
++
++impl<'a, T: DrawTarget> DrawTarget for ScaledDisplay<'a, T> {
++    type Color = T::Color;
++    type Error = T::Error;
++
++    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
++    where
++        I: IntoIterator<Item = Pixel<Self::Color>>,
++    {
++        for pixel in pixels {
++            let style = PrimitiveStyle::with_fill(pixel.1);
++            Rectangle::new(
++                Point::new(
++                    pixel.0.x * self.scale_x as i32,
++                    pixel.0.y * self.scale_y as i32,
++                ),
++                Size::new(self.scale_x as u32, self.scale_y as u32),
++            )
++            .into_styled(style)
++            .draw(self.real_display)?;
++        }
++        Ok(())
++    }
++}
++
++impl<'a, T: DrawTarget> OriginDimensions for ScaledDisplay<'a, T> {
++    fn size(&self) -> Size {
++        Size::new(self.size_x as u32, self.size_y as u32)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++
++    use crate::Snake;
++    use embedded_graphics::pixelcolor::*;
++    use embedded_graphics::prelude::*;
++
++    #[test]
++    fn snake_basic() {
++        let mut snake = Snake::<Rgb888, 20>::new(Rgb888::RED, 8, 8);
++        snake.set_direction(crate::Direction::Right);
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
++            snake.into_iter().next().unwrap()
++        );
++        snake.make_step();
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 1, y: 0 }, Rgb888::RED),
++            snake.into_iter().nth(0).unwrap()
++        );
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
++            snake.into_iter().nth(1).unwrap()
++        );
++        snake.set_direction(crate::Direction::Down);
++        snake.make_step();
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 1, y: 1 }, Rgb888::RED),
++            snake.into_iter().nth(0).unwrap()
++        );
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 1, y: 0 }, Rgb888::RED),
++            snake.into_iter().nth(1).unwrap()
++        );
++        assert_eq!(
++            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
++            snake.into_iter().nth(2).unwrap()
++        );
++        assert_eq!(true, snake.contains(Point { x: 0, y: 0 }));
++        assert_eq!(true, snake.contains(Point { x: 1, y: 0 }));
++        assert_eq!(true, snake.contains(Point { x: 1, y: 1 }));
++    }
++}
++
++const LF: u8 = 0x0au8;
++const CR: u8 = 0x0du8;
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut disp = Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES));
++    let mut game = SnakeGame::<20, Rgb888>::new(1280, 800, 20, 20, Rgb888::RED, Rgb888::YELLOW, 50);
++    let _ = disp.clear(Rgb888::BLACK).unwrap();
++    loop {
++        if key_pressed() {
++            let c = getchar();
++            match c {
++                LF => break,
++                CR => break,
++                b'w' => game.set_direction(Direction::Up),
++                b's' => game.set_direction(Direction::Down),
++                b'a' => game.set_direction(Direction::Left),
++                b'd' => game.set_direction(Direction::Right),
++                _ => (),
++            }
++        }
++        let _ = disp.clear(Rgb888::BLACK).unwrap();
++        game.draw(&mut disp);
++        sleep(10);
++    }
++    0
++}
+diff --git a/application/user/src/bin/gui_uart.rs b/application/user/src/bin/gui_uart.rs
+new file mode 100644
+index 0000000..8e9c9b8
+--- /dev/null
++++ b/application/user/src/bin/gui_uart.rs
+@@ -0,0 +1,125 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use user_lib::console::getchar;
++use user_lib::{framebuffer, framebuffer_flush};
++
++use embedded_graphics::pixelcolor::Rgb888;
++use embedded_graphics::prelude::{Drawable, Point, RgbColor, Size};
++use embedded_graphics::primitives::Primitive;
++use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
++use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
++
++pub const VIRTGPU_XRES: usize = 1280;
++pub const VIRTGPU_YRES: usize = 800;
++pub const VIRTGPU_LEN: usize = VIRTGPU_XRES * VIRTGPU_YRES * 4;
++
++const INIT_X: i32 = 640;
++const INIT_Y: i32 = 400;
++const RECT_SIZE: u32 = 40;
++
++pub struct Display {
++    pub size: Size,
++    pub point: Point,
++    //pub fb: Arc<&'static mut [u8]>,
++    pub fb: &'static mut [u8],
++}
++
++impl Display {
++    pub fn new(size: Size, point: Point) -> Self {
++        let fb_ptr = framebuffer() as *mut u8;
++        println!(
++            "Hello world from user mode program! 0x{:X} , len {}",
++            fb_ptr as usize, VIRTGPU_LEN
++        );
++        let fb =
++            unsafe { core::slice::from_raw_parts_mut(fb_ptr as *mut u8, VIRTGPU_LEN as usize) };
++        Self { size, point, fb }
++    }
++}
++
++impl OriginDimensions for Display {
++    fn size(&self) -> Size {
++        self.size
++    }
++}
++
++impl DrawTarget for Display {
++    type Color = Rgb888;
++
++    type Error = core::convert::Infallible;
++
++    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
++    where
++        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
++    {
++        pixels.into_iter().for_each(|px| {
++            let idx = ((self.point.y + px.0.y) * VIRTGPU_XRES as i32 + self.point.x + px.0.x)
++                as usize
++                * 4;
++            if idx + 2 >= self.fb.len() {
++                return;
++            }
++            self.fb[idx] = px.1.b();
++            self.fb[idx + 1] = px.1.g();
++            self.fb[idx + 2] = px.1.r();
++        });
++        framebuffer_flush();
++        Ok(())
++    }
++}
++
++pub struct DrawingBoard {
++    disp: Display,
++    latest_pos: Point,
++}
++
++impl DrawingBoard {
++    pub fn new() -> Self {
++        Self {
++            disp: Display::new(Size::new(1280, 800), Point::new(0, 0)),
++            latest_pos: Point::new(INIT_X, INIT_Y),
++        }
++    }
++    fn paint(&mut self) {
++        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
++            .into_styled(PrimitiveStyle::with_stroke(Rgb888::WHITE, 1))
++            .draw(&mut self.disp)
++            .ok();
++    }
++    fn unpaint(&mut self) {
++        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
++            .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLACK, 1))
++            .draw(&mut self.disp)
++            .ok();
++    }
++    pub fn move_rect(&mut self, dx: i32, dy: i32) {
++        self.unpaint();
++        self.latest_pos.x += dx;
++        self.latest_pos.y += dy;
++        self.paint();
++    }
++}
++
++const LF: u8 = 0x0au8;
++const CR: u8 = 0x0du8;
++#[no_mangle]
++pub fn main() -> i32 {
++    // let fb_ptr = framebuffer() as *mut u8;
++    let mut board = DrawingBoard::new();
++    let _ = board.disp.clear(Rgb888::BLACK).unwrap();
++    for i in 0..20 {
++        let c = getchar();
++        if c == LF || c == CR {
++            break;
++        }
++        board.latest_pos.x += i;
++        board.latest_pos.y += i;
++        board.paint();
++    }
++    0
++}
+diff --git a/application/user/src/bin/hello_world.rs b/application/user/src/bin/hello_world.rs
+new file mode 100644
+index 0000000..2ba7f91
+--- /dev/null
++++ b/application/user/src/bin/hello_world.rs
+@@ -0,0 +1,11 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("Hello world from user mode program!");
++    0
++}
+diff --git a/application/user/src/bin/huge_write.rs b/application/user/src/bin/huge_write.rs
+new file mode 100644
+index 0000000..dd9814a
+--- /dev/null
++++ b/application/user/src/bin/huge_write.rs
+@@ -0,0 +1,33 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{close, get_time, open, write, OpenFlags};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut buffer = [0u8; 1024]; // 1KiB
++    for (i, ch) in buffer.iter_mut().enumerate() {
++        *ch = i as u8;
++    }
++    let f = open("testf\0", OpenFlags::CREATE | OpenFlags::WRONLY);
++    if f < 0 {
++        panic!("Open test file failed!");
++    }
++    let f = f as usize;
++    let start = get_time();
++    let size_mb = 1usize;
++    for _ in 0..1024 * size_mb {
++        write(f, &buffer);
++    }
++    close(f);
++    let time_ms = (get_time() - start) as usize;
++    let speed_kbs = (size_mb << 20) / time_ms;
++    println!(
++        "{}MiB written, time cost = {}ms, write speed = {}KiB/s",
++        size_mb, time_ms, speed_kbs
++    );
++    0
++}
+diff --git a/application/user/src/bin/huge_write_mt.rs b/application/user/src/bin/huge_write_mt.rs
+new file mode 100644
+index 0000000..c2e1e65
+--- /dev/null
++++ b/application/user/src/bin/huge_write_mt.rs
+@@ -0,0 +1,56 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::{fmt::format, vec::Vec};
++use user_lib::{close, get_time, gettid, open, write, OpenFlags};
++use user_lib::{exit, thread_create, waittid};
++
++fn worker(size_kib: usize) {
++    let mut buffer = [0u8; 1024]; // 1KiB
++    for (i, ch) in buffer.iter_mut().enumerate() {
++        *ch = i as u8;
++    }
++    let filename = format(format_args!("testf{}\0", gettid()));
++    let f = open(filename.as_str(), OpenFlags::CREATE | OpenFlags::WRONLY);
++    if f < 0 {
++        panic!("Open test file failed!");
++    }
++    let f = f as usize;
++    for _ in 0..size_kib {
++        write(f, &buffer);
++    }
++    close(f);
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    assert_eq!(argc, 2, "wrong argument");
++    let size_mb = 1usize;
++    let size_kb = size_mb << 10;
++    let workers = argv[1].parse::<usize>().expect("wrong argument");
++    assert!(workers >= 1 && size_kb % workers == 0, "wrong argument");
++
++    let start = get_time();
++
++    let mut v = Vec::new();
++    let size_mb = 1usize;
++    for _ in 0..workers {
++        v.push(thread_create(worker as usize, size_kb / workers));
++    }
++    for tid in v.iter() {
++        assert_eq!(0, waittid(*tid as usize));
++    }
++
++    let time_ms = (get_time() - start) as usize;
++    let speed_kbs = size_kb * 1000 / time_ms;
++    println!(
++        "{}MiB written by {} threads, time cost = {}ms, write speed = {}KiB/s",
++        size_mb, workers, time_ms, speed_kbs
++    );
++    0
++}
+diff --git a/application/user/src/bin/infloop.rs b/application/user/src/bin/infloop.rs
+new file mode 100644
+index 0000000..9a38a09
+--- /dev/null
++++ b/application/user/src/bin/infloop.rs
+@@ -0,0 +1,10 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::empty_loop)]
++
++extern crate user_lib;
++
++#[no_mangle]
++pub fn main(_argc: usize, _argv: &[&str]) -> ! {
++    loop {}
++}
+diff --git a/application/user/src/bin/initproc.rs b/application/user/src/bin/initproc.rs
+new file mode 100644
+index 0000000..6989f29
+--- /dev/null
++++ b/application/user/src/bin/initproc.rs
+@@ -0,0 +1,30 @@
++#![no_std]
++#![no_main]
++
++extern crate user_lib;
++
++use user_lib::{exec, fork, wait, yield_};
++
++#[no_mangle]
++fn main() -> i32 {
++    if fork() == 0 {
++        exec("user_shell\0", &[core::ptr::null::<u8>()]);
++    } else {
++        loop {
++            let mut exit_code: i32 = 0;
++            let pid = wait(&mut exit_code);
++            if pid == -1 {
++                yield_();
++                continue;
++            }
++            /*
++            println!(
++                "[initproc] Released a zombie process, pid={}, exit_code={}",
++                pid,
++                exit_code,
++            );
++            */
++        }
++    }
++    0
++}
+diff --git a/application/user/src/bin/inputdev_event.rs b/application/user/src/bin/inputdev_event.rs
+new file mode 100644
+index 0000000..ea56f3a
+--- /dev/null
++++ b/application/user/src/bin/inputdev_event.rs
+@@ -0,0 +1,25 @@
++#![no_std]
++#![no_main]
++
++use user_lib::{event_get, DecodeType, Key, KeyType};
++
++#[macro_use]
++extern crate user_lib;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("Input device event test");
++    loop {
++        if let Some(event) = event_get() {
++            if let Some(decoder_type) = event.decode() {
++                println!("{:?}", decoder_type);
++                if let DecodeType::Key(key, keytype) = decoder_type {
++                    if key == Key::Enter && keytype == KeyType::Press {
++                        break;
++                    }
++                }
++            }
++        }
++    }
++    0
++}
+diff --git a/application/user/src/bin/matrix.rs b/application/user/src/bin/matrix.rs
+new file mode 100644
+index 0000000..1909124
+--- /dev/null
++++ b/application/user/src/bin/matrix.rs
+@@ -0,0 +1,69 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::needless_range_loop)]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, get_time, getpid, wait, yield_};
++
++static NUM: usize = 30;
++const N: usize = 10;
++static P: i32 = 10007;
++type Arr = [[i32; N]; N];
++
++fn work(times: isize) {
++    let mut a: Arr = Default::default();
++    let mut b: Arr = Default::default();
++    let mut c: Arr = Default::default();
++    for i in 0..N {
++        for j in 0..N {
++            a[i][j] = 1;
++            b[i][j] = 1;
++        }
++    }
++    yield_();
++    println!("pid {} is running ({} times)!.", getpid(), times);
++    for _ in 0..times {
++        for i in 0..N {
++            for j in 0..N {
++                c[i][j] = 0;
++                for k in 0..N {
++                    c[i][j] = (c[i][j] + a[i][k] * b[k][j]) % P;
++                }
++            }
++        }
++        for i in 0..N {
++            for j in 0..N {
++                a[i][j] = c[i][j];
++                b[i][j] = c[i][j];
++            }
++        }
++    }
++    println!("pid {} done!.", getpid());
++    exit(0);
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    for _ in 0..NUM {
++        let pid = fork();
++        if pid == 0 {
++            let current_time = get_time();
++            let times = (current_time as i32 as isize) * (current_time as i32 as isize) % 1000;
++            work(times * 10);
++        }
++    }
++
++    println!("fork ok.");
++
++    let mut exit_code: i32 = 0;
++    for _ in 0..NUM {
++        if wait(&mut exit_code) < 0 {
++            panic!("wait failed.");
++        }
++    }
++    assert!(wait(&mut exit_code) < 0);
++    println!("matrix passed.");
++    0
++}
+diff --git a/application/user/src/bin/mpsc_sem.rs b/application/user/src/bin/mpsc_sem.rs
+new file mode 100644
+index 0000000..861f3db
+--- /dev/null
++++ b/application/user/src/bin/mpsc_sem.rs
+@@ -0,0 +1,73 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::println_empty_string)]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::exit;
++use user_lib::{semaphore_create, semaphore_down, semaphore_up};
++use user_lib::{thread_create, waittid};
++
++const SEM_MUTEX: usize = 0;
++const SEM_EMPTY: usize = 1;
++const SEM_AVAIL: usize = 2;
++const BUFFER_SIZE: usize = 8;
++static mut BUFFER: [usize; BUFFER_SIZE] = [0; BUFFER_SIZE];
++static mut FRONT: usize = 0;
++static mut TAIL: usize = 0;
++const PRODUCER_COUNT: usize = 4;
++const NUMBER_PER_PRODUCER: usize = 100;
++
++unsafe fn producer(id: *const usize) -> ! {
++    let id = *id;
++    for _ in 0..NUMBER_PER_PRODUCER {
++        semaphore_down(SEM_EMPTY);
++        semaphore_down(SEM_MUTEX);
++        BUFFER[TAIL] = id;
++        TAIL = (TAIL + 1) % BUFFER_SIZE;
++        semaphore_up(SEM_MUTEX);
++        semaphore_up(SEM_AVAIL);
++    }
++    exit(0)
++}
++
++unsafe fn consumer() -> ! {
++    for _ in 0..PRODUCER_COUNT * NUMBER_PER_PRODUCER {
++        semaphore_down(SEM_AVAIL);
++        semaphore_down(SEM_MUTEX);
++        print!("{} ", BUFFER[FRONT]);
++        FRONT = (FRONT + 1) % BUFFER_SIZE;
++        semaphore_up(SEM_MUTEX);
++        semaphore_up(SEM_EMPTY);
++    }
++    println!("");
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    // create semaphores
++    assert_eq!(semaphore_create(1) as usize, SEM_MUTEX);
++    assert_eq!(semaphore_create(BUFFER_SIZE) as usize, SEM_EMPTY);
++    assert_eq!(semaphore_create(0) as usize, SEM_AVAIL);
++    // create threads
++    let ids: Vec<_> = (0..PRODUCER_COUNT).collect();
++    let mut threads = Vec::new();
++    for i in 0..PRODUCER_COUNT {
++        threads.push(thread_create(
++            producer as usize,
++            &ids.as_slice()[i] as *const _ as usize,
++        ));
++    }
++    threads.push(thread_create(consumer as usize, 0));
++    // wait for all threads to complete
++    for thread in threads.iter() {
++        waittid(*thread as usize);
++    }
++    println!("mpsc_sem passed!");
++    0
++}
+diff --git a/application/user/src/bin/peterson.rs b/application/user/src/bin/peterson.rs
+new file mode 100644
+index 0000000..ee8ff93
+--- /dev/null
++++ b/application/user/src/bin/peterson.rs
+@@ -0,0 +1,80 @@
++#![no_std]
++#![no_main]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++extern crate core;
++
++use alloc::vec::Vec;
++use core::sync::atomic::{AtomicUsize, Ordering};
++use user_lib::{exit, sleep, thread_create, waittid};
++const N: usize = 1000;
++
++static mut TURN: usize = 0;
++static mut FLAG: [bool; 2] = [false; 2];
++static GUARD: AtomicUsize = AtomicUsize::new(0);
++
++fn critical_test_enter() {
++    assert_eq!(GUARD.fetch_add(1, Ordering::SeqCst), 0);
++}
++
++fn critical_test_claim() {
++    assert_eq!(GUARD.load(Ordering::SeqCst), 1);
++}
++
++fn critical_test_exit() {
++    assert_eq!(GUARD.fetch_sub(1, Ordering::SeqCst), 1);
++}
++
++fn peterson_enter_critical(id: usize, peer_id: usize) {
++    // println!("Thread[{}] try enter", id);
++    vstore!(&FLAG[id], true);
++    vstore!(&TURN, peer_id);
++    memory_fence!();
++    while vload!(&FLAG[peer_id]) && vload!(&TURN) == peer_id {
++        // println!("Thread[{}] enter fail", id);
++        sleep(1);
++        // println!("Thread[{}] retry enter", id);
++    }
++    // println!("Thread[{}] enter", id);
++}
++
++fn peterson_exit_critical(id: usize) {
++    vstore!(&FLAG[id], false);
++    // println!("Thread[{}] exit", id);
++}
++
++pub fn thread_fn(id: usize) -> ! {
++    // println!("Thread[{}] init.", id);
++    let peer_id: usize = id ^ 1;
++    for iter in 0..N {
++        if iter % 10 == 0 {
++            println!("[{}] it={}", id, iter);
++        }
++        peterson_enter_critical(id, peer_id);
++        critical_test_enter();
++        for _ in 0..3 {
++            critical_test_claim();
++            sleep(2);
++        }
++        critical_test_exit();
++        peterson_exit_critical(id);
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v = Vec::new();
++    v.push(thread_create(thread_fn as usize, 0));
++    // v.push(thread_create(thread_fn as usize, 1));
++    for tid in v.iter() {
++        let exit_code = waittid(*tid as usize);
++        assert_eq!(exit_code, 0, "thread conflict happened!");
++        println!("thread#{} exited with code {}", tid, exit_code);
++    }
++    println!("main thread exited.");
++    0
++}
+diff --git a/application/user/src/bin/phil_din_mutex.rs b/application/user/src/bin/phil_din_mutex.rs
+new file mode 100644
+index 0000000..c2815de
+--- /dev/null
++++ b/application/user/src/bin/phil_din_mutex.rs
+@@ -0,0 +1,107 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::println_empty_string)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, sleep};
++use user_lib::{mutex_blocking_create, mutex_lock, mutex_unlock};
++use user_lib::{thread_create, waittid};
++
++const N: usize = 5;
++const ROUND: usize = 4;
++// A round: think -> wait for forks -> eat
++const GRAPH_SCALE: usize = 100;
++
++fn get_time_u() -> usize {
++    get_time() as usize
++}
++
++// Time unit: ms
++const ARR: [[usize; ROUND * 2]; N] = [
++    [700, 800, 1000, 400, 500, 600, 200, 400],
++    [300, 600, 200, 700, 1000, 100, 300, 600],
++    [500, 200, 900, 200, 400, 600, 1200, 400],
++    [500, 1000, 600, 500, 800, 600, 200, 900],
++    [600, 100, 600, 600, 200, 500, 600, 200],
++];
++static mut THINK: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
++static mut EAT: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
++
++fn philosopher_dining_problem(id: *const usize) {
++    let id = unsafe { *id };
++    let left = id;
++    let right = if id == N - 1 { 0 } else { id + 1 };
++    let min = if left < right { left } else { right };
++    let max = left + right - min;
++    for round in 0..ROUND {
++        // thinking
++        unsafe {
++            THINK[id][2 * round] = get_time_u();
++        }
++        sleep(ARR[id][2 * round]);
++        unsafe {
++            THINK[id][2 * round + 1] = get_time_u();
++        }
++        // wait for forks
++        mutex_lock(min);
++        mutex_lock(max);
++        // eating
++        unsafe {
++            EAT[id][2 * round] = get_time_u();
++        }
++        sleep(ARR[id][2 * round + 1]);
++        unsafe {
++            EAT[id][2 * round + 1] = get_time_u();
++        }
++        mutex_unlock(max);
++        mutex_unlock(min);
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v = Vec::new();
++    let ids: Vec<_> = (0..N).collect();
++    let start = get_time_u();
++    for i in 0..N {
++        assert_eq!(mutex_blocking_create(), i as isize);
++        v.push(thread_create(
++            philosopher_dining_problem as usize,
++            &ids.as_slice()[i] as *const _ as usize,
++        ));
++    }
++    for tid in v.iter() {
++        waittid(*tid as usize);
++    }
++    let time_cost = get_time_u() - start;
++    println!("time cost = {}", time_cost);
++    println!("'-' -> THINKING; 'x' -> EATING; ' ' -> WAITING ");
++    for id in (0..N).into_iter().chain(0..=0) {
++        print!("#{}:", id);
++        for j in 0..time_cost / GRAPH_SCALE {
++            let current_time = j * GRAPH_SCALE + start;
++            if (0..ROUND).any(|round| unsafe {
++                let start_thinking = THINK[id][2 * round];
++                let end_thinking = THINK[id][2 * round + 1];
++                start_thinking <= current_time && current_time <= end_thinking
++            }) {
++                print!("-");
++            } else if (0..ROUND).any(|round| unsafe {
++                let start_eating = EAT[id][2 * round];
++                let end_eating = EAT[id][2 * round + 1];
++                start_eating <= current_time && current_time <= end_eating
++            }) {
++                print!("x");
++            } else {
++                print!(" ");
++            };
++        }
++        println!("");
++    }
++    0
++}
+diff --git a/application/user/src/bin/pipe_large_test.rs b/application/user/src/bin/pipe_large_test.rs
+new file mode 100644
+index 0000000..eeddbf1
+--- /dev/null
++++ b/application/user/src/bin/pipe_large_test.rs
+@@ -0,0 +1,71 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::format;
++use user_lib::{close, fork, get_time, pipe, read, wait, write};
++
++const LENGTH: usize = 3000;
++#[no_mangle]
++pub fn main() -> i32 {
++    // create pipes
++    // parent write to child
++    let mut down_pipe_fd = [0usize; 2];
++    // child write to parent
++    let mut up_pipe_fd = [0usize; 2];
++    pipe(&mut down_pipe_fd);
++    pipe(&mut up_pipe_fd);
++    let mut random_str = [0u8; LENGTH];
++    if fork() == 0 {
++        // close write end of down pipe
++        close(down_pipe_fd[1]);
++        // close read end of up pipe
++        close(up_pipe_fd[0]);
++        assert_eq!(read(down_pipe_fd[0], &mut random_str) as usize, LENGTH);
++        close(down_pipe_fd[0]);
++        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
++        println!("sum = {}(child)", sum);
++        let sum_str = format!("{}", sum);
++        write(up_pipe_fd[1], sum_str.as_bytes());
++        close(up_pipe_fd[1]);
++        println!("Child process exited!");
++        0
++    } else {
++        // close read end of down pipe
++        close(down_pipe_fd[0]);
++        // close write end of up pipe
++        close(up_pipe_fd[1]);
++        // generate a long random string
++        for ch in random_str.iter_mut() {
++            *ch = get_time() as u8;
++        }
++        // send it
++        assert_eq!(
++            write(down_pipe_fd[1], &random_str) as usize,
++            random_str.len()
++        );
++        // close write end of down pipe
++        close(down_pipe_fd[1]);
++        // calculate sum(parent)
++        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
++        println!("sum = {}(parent)", sum);
++        // recv sum(child)
++        let mut child_result = [0u8; 32];
++        let result_len = read(up_pipe_fd[0], &mut child_result) as usize;
++        close(up_pipe_fd[0]);
++        // check
++        assert_eq!(
++            sum,
++            str::parse::<usize>(core::str::from_utf8(&child_result[..result_len]).unwrap())
++                .unwrap()
++        );
++        let mut _unused: i32 = 0;
++        wait(&mut _unused);
++        println!("pipe_large_test passed!");
++        0
++    }
++}
+diff --git a/application/user/src/bin/pipetest.rs b/application/user/src/bin/pipetest.rs
+new file mode 100644
+index 0000000..4a840d6
+--- /dev/null
++++ b/application/user/src/bin/pipetest.rs
+@@ -0,0 +1,44 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{close, fork, pipe, read, wait, write};
++
++static STR: &str = "Hello, world!";
++
++#[no_mangle]
++pub fn main() -> i32 {
++    // create pipe
++    let mut pipe_fd = [0usize; 2];
++    pipe(&mut pipe_fd);
++    // read end
++    assert_eq!(pipe_fd[0], 3);
++    // write end
++    assert_eq!(pipe_fd[1], 4);
++    if fork() == 0 {
++        // child process, read from parent
++        // close write_end
++        close(pipe_fd[1]);
++        let mut buffer = [0u8; 32];
++        let len_read = read(pipe_fd[0], &mut buffer) as usize;
++        // close read_end
++        close(pipe_fd[0]);
++        assert_eq!(core::str::from_utf8(&buffer[..len_read]).unwrap(), STR);
++        println!("Read OK, child process exited!");
++        0
++    } else {
++        // parent process, write to child
++        // close read end
++        close(pipe_fd[0]);
++        assert_eq!(write(pipe_fd[1], STR.as_bytes()), STR.len() as isize);
++        // close write end
++        close(pipe_fd[1]);
++        let mut child_exit_code: i32 = 0;
++        wait(&mut child_exit_code);
++        assert_eq!(child_exit_code, 0);
++        println!("pipetest passed!");
++        0
++    }
++}
+diff --git a/application/user/src/bin/priv_csr.rs b/application/user/src/bin/priv_csr.rs
+new file mode 100644
+index 0000000..397e339
+--- /dev/null
++++ b/application/user/src/bin/priv_csr.rs
+@@ -0,0 +1,17 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use riscv::register::sstatus::{self, SPP};
++
++#[no_mangle]
++fn main() -> i32 {
++    println!("Try to access privileged CSR in U Mode");
++    println!("Kernel should kill this application!");
++    unsafe {
++        sstatus::set_spp(SPP::User);
++    }
++    0
++}
+diff --git a/application/user/src/bin/priv_inst.rs b/application/user/src/bin/priv_inst.rs
+new file mode 100644
+index 0000000..f37595b
+--- /dev/null
++++ b/application/user/src/bin/priv_inst.rs
+@@ -0,0 +1,17 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use core::arch::asm;
++
++#[no_mangle]
++fn main() -> i32 {
++    println!("Try to execute privileged instruction in U Mode");
++    println!("Kernel should kill this application!");
++    unsafe {
++        asm!("sret");
++    }
++    0
++}
+diff --git a/application/user/src/bin/race_adder_arg.rs b/application/user/src/bin/race_adder_arg.rs
+new file mode 100644
+index 0000000..988de77
+--- /dev/null
++++ b/application/user/src/bin/race_adder_arg.rs
+@@ -0,0 +1,56 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use crate::alloc::string::ToString;
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, thread_create, waittid};
++
++static mut A: usize = 0;
++const PER_THREAD: usize = 1000;
++const THREAD_COUNT: usize = 16;
++
++unsafe fn f(count: usize) -> ! {
++    let mut t = 2usize;
++    for _ in 0..PER_THREAD {
++        let a = &mut A as *mut usize;
++        let cur = a.read_volatile();
++        for _ in 0..count {
++            t = t * t % 10007;
++        }
++        a.write_volatile(cur + 1);
++    }
++    exit(t as i32)
++}
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    let count: usize;
++    if argc == 1 {
++        count = THREAD_COUNT;
++    } else if argc == 2 {
++        count = argv[1].to_string().parse::<usize>().unwrap();
++    } else {
++        println!(
++            "ERROR in argv, argc is {}, argv[0] {} , argv[1] {} , argv[2] {}",
++            argc, argv[0], argv[1], argv[2]
++        );
++        exit(-1);
++    }
++
++    let start = get_time();
++    let mut v = Vec::new();
++    for _ in 0..THREAD_COUNT {
++        v.push(thread_create(f as usize, count) as usize);
++    }
++    let mut time_cost = Vec::new();
++    for tid in v.iter() {
++        time_cost.push(waittid(*tid));
++    }
++    println!("time cost is {}ms", get_time() - start);
++    assert_eq!(unsafe { A }, PER_THREAD * THREAD_COUNT);
++    0
++}
+diff --git a/application/user/src/bin/random_num.rs b/application/user/src/bin/random_num.rs
+new file mode 100644
+index 0000000..d68bb13
+--- /dev/null
++++ b/application/user/src/bin/random_num.rs
+@@ -0,0 +1,16 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++use oorandom;
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("random num  program!");
++    let seed = 4;
++    let mut rng = oorandom::Rand32::new(seed);
++    println!("OORandom: Random number 32bit: {}", rng.rand_i32());
++    println!("OORandom: Random number range: {}", rng.rand_range(1..100));
++    0
++}
+diff --git a/application/user/src/bin/run_pipe_test.rs b/application/user/src/bin/run_pipe_test.rs
+new file mode 100644
+index 0000000..97f3bb9
+--- /dev/null
++++ b/application/user/src/bin/run_pipe_test.rs
+@@ -0,0 +1,21 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exec, fork, wait};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    for i in 0..5 {
++        if fork() == 0 {
++            exec("pipe_large_test\0", &[core::ptr::null::<u8>()]);
++        } else {
++            let mut _unused: i32 = 0;
++            wait(&mut _unused);
++            println!("Iter {} OK.", i);
++        }
++    }
++    0
++}
+diff --git a/application/user/src/bin/sleep.rs b/application/user/src/bin/sleep.rs
+new file mode 100644
+index 0000000..7fea2fa
+--- /dev/null
++++ b/application/user/src/bin/sleep.rs
+@@ -0,0 +1,30 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, get_time, sleep, waitpid};
++
++fn sleepy() {
++    let time: usize = 100;
++    for i in 0..5 {
++        sleep(time);
++        println!("sleep {} x {} msecs.", i + 1, time);
++    }
++    exit(0);
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let current_time = get_time();
++    let pid = fork();
++    let mut exit_code: i32 = 0;
++    if pid == 0 {
++        sleepy();
++    }
++    assert!(waitpid(pid as usize, &mut exit_code) == pid && exit_code == 0);
++    println!("use {} msecs.", get_time() - current_time);
++    println!("sleep pass.");
++    0
++}
+diff --git a/application/user/src/bin/sleep_simple.rs b/application/user/src/bin/sleep_simple.rs
+new file mode 100644
+index 0000000..624efbe
+--- /dev/null
++++ b/application/user/src/bin/sleep_simple.rs
+@@ -0,0 +1,23 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{get_time, sleep};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("into sleep test!");
++    let start = get_time();
++    println!("current time_msec = {}", start);
++    sleep(100);
++    let end = get_time();
++    println!(
++        "time_msec = {} after sleeping 100 ticks, delta = {}ms!",
++        end,
++        end - start
++    );
++    println!("r_sleep passed!");
++    0
++}
+diff --git a/application/user/src/bin/stack_overflow.rs b/application/user/src/bin/stack_overflow.rs
+new file mode 100644
+index 0000000..cd6cdff
+--- /dev/null
++++ b/application/user/src/bin/stack_overflow.rs
+@@ -0,0 +1,20 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++#[allow(unconditional_recursion)]
++fn f(depth: usize) {
++    if depth % 10 == 0 {
++        println!("depth = {}", depth);
++    }
++    f(depth + 1);
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("It should trigger segmentation fault!");
++    f(0);
++    0
++}
+diff --git a/application/user/src/bin/stackful_coroutine.rs b/application/user/src/bin/stackful_coroutine.rs
+new file mode 100644
+index 0000000..3f61979
+--- /dev/null
++++ b/application/user/src/bin/stackful_coroutine.rs
+@@ -0,0 +1,350 @@
++// we porting below codes to Rcore Tutorial v3
++// https://cfsamson.gitbook.io/green-threads-explained-in-200-lines-of-rust/
++// https://github.com/cfsamson/example-greenthreads
++#![no_std]
++#![no_main]
++#![feature(naked_functions)]
++//#![feature(asm)]
++
++extern crate alloc;
++#[macro_use]
++extern crate user_lib;
++
++use core::arch::asm;
++
++//#[macro_use]
++use alloc::vec;
++use alloc::vec::Vec;
++
++use user_lib::exit;
++
++// In our simple example we set most constraints here.
++const DEFAULT_STACK_SIZE: usize = 4096; //128 got  SEGFAULT, 256(1024, 4096) got right results.
++const MAX_TASKS: usize = 5;
++static mut RUNTIME: usize = 0;
++
++pub struct Runtime {
++    tasks: Vec<Task>,
++    current: usize,
++}
++
++#[derive(PartialEq, Eq, Debug)]
++enum State {
++    Available,
++    Running,
++    Ready,
++}
++
++struct Task {
++    id: usize,
++    stack: Vec<u8>,
++    ctx: TaskContext,
++    state: State,
++}
++
++#[derive(Debug, Default)]
++#[repr(C)] // not strictly needed but Rust ABI is not guaranteed to be stable
++pub struct TaskContext {
++    // 15 u64
++    x1: u64,  //ra: return addres
++    x2: u64,  //sp
++    x8: u64,  //s0,fp
++    x9: u64,  //s1
++    x18: u64, //x18-27: s2-11
++    x19: u64,
++    x20: u64,
++    x21: u64,
++    x22: u64,
++    x23: u64,
++    x24: u64,
++    x25: u64,
++    x26: u64,
++    x27: u64,
++    nx1: u64, //new return addres
++}
++
++impl Task {
++    fn new(id: usize) -> Self {
++        // We initialize each task here and allocate the stack. This is not neccesary,
++        // we can allocate memory for it later, but it keeps complexity down and lets us focus on more interesting parts
++        // to do it here. The important part is that once allocated it MUST NOT move in memory.
++        Task {
++            id: id,
++            stack: vec![0_u8; DEFAULT_STACK_SIZE],
++            ctx: TaskContext::default(),
++            state: State::Available,
++        }
++    }
++}
++
++impl Runtime {
++    pub fn new() -> Self {
++        // This will be our base task, which will be initialized in the `running` state
++        let base_task = Task {
++            id: 0,
++            stack: vec![0_u8; DEFAULT_STACK_SIZE],
++            ctx: TaskContext::default(),
++            state: State::Running,
++        };
++
++        // We initialize the rest of our tasks.
++        let mut tasks = vec![base_task];
++        let mut available_tasks: Vec<Task> = (1..MAX_TASKS).map(|i| Task::new(i)).collect();
++        tasks.append(&mut available_tasks);
++
++        Runtime { tasks, current: 0 }
++    }
++
++    /// This is cheating a bit, but we need a pointer to our Runtime stored so we can call yield on it even if
++    /// we don't have a reference to it.
++    pub fn init(&self) {
++        unsafe {
++            let r_ptr: *const Runtime = self;
++            RUNTIME = r_ptr as usize;
++        }
++    }
++
++    /// This is where we start running our runtime. If it is our base task, we call yield until
++    /// it returns false (which means that there are no tasks scheduled) and we are done.
++    pub fn run(&mut self) {
++        while self.t_yield() {}
++        println!("All tasks finished!");
++    }
++
++    /// This is our return function. The only place we use this is in our `guard` function.
++    /// If the current task is not our base task we set its state to Available. It means
++    /// we're finished with it. Then we yield which will schedule a new task to be run.
++    fn t_return(&mut self) {
++        if self.current != 0 {
++            self.tasks[self.current].state = State::Available;
++            self.t_yield();
++        }
++    }
++
++    /// This is the heart of our runtime. Here we go through all tasks and see if anyone is in the `Ready` state.
++    /// If no task is `Ready` we're all done. This is an extremely simple scheduler using only a round-robin algorithm.
++    ///
++    /// If we find a task that's ready to be run we change the state of the current task from `Running` to `Ready`.
++    /// Then we call switch which will save the current context (the old context) and load the new context
++    /// into the CPU which then resumes based on the context it was just passed.
++    ///
++    /// NOITCE: if we comment below `#[inline(never)]`, we can not get the corrent running result
++    #[inline(never)]
++    fn t_yield(&mut self) -> bool {
++        let mut pos = self.current;
++        while self.tasks[pos].state != State::Ready {
++            pos += 1;
++            if pos == self.tasks.len() {
++                pos = 0;
++            }
++            if pos == self.current {
++                return false;
++            }
++        }
++
++        if self.tasks[self.current].state != State::Available {
++            self.tasks[self.current].state = State::Ready;
++        }
++
++        self.tasks[pos].state = State::Running;
++        let old_pos = self.current;
++        self.current = pos;
++
++        unsafe {
++            switch(&mut self.tasks[old_pos].ctx, &self.tasks[pos].ctx);
++        }
++
++        // NOTE: this might look strange and it is. Normally we would just mark this as `unreachable!()` but our compiler
++        // is too smart for it's own good so it optimized our code away on release builds. Curiously this happens on windows
++        // and not on linux. This is a common problem in tests so Rust has a `black_box` function in the `test` crate that
++        // will "pretend" to use a value we give it to prevent the compiler from eliminating code. I'll just do this instead,
++        // this code will never be run anyways and if it did it would always be `true`.
++        self.tasks.len() > 0
++    }
++
++    /// While `yield` is the logically interesting function I think this the technically most interesting.
++    ///
++    /// When we spawn a new task we first check if there are any available tasks (tasks in `Parked` state).
++    /// If we run out of tasks we panic in this scenario but there are several (better) ways to handle that.
++    /// We keep things simple for now.
++    ///
++    /// When we find an available task we get the stack length and a pointer to our u8 bytearray.
++    ///
++    /// The next part we have to use some unsafe functions. First we write an address to our `guard` function
++    /// that will be called if the function we provide returns. Then we set the address to the function we
++    /// pass inn.
++    ///
++    /// Third, we set the value of `sp` which is the stack pointer to the address of our provided function so we start
++    /// executing that first when we are scheuled to run.
++    ///
++    /// Lastly we set the state as `Ready` which means we have work to do and is ready to do it.
++    pub fn spawn(&mut self, f: fn()) {
++        let available = self
++            .tasks
++            .iter_mut()
++            .find(|t| t.state == State::Available)
++            .expect("no available task.");
++
++        println!("RUNTIME: spawning task {}\n", available.id);
++        let size = available.stack.len();
++        unsafe {
++            let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
++
++            // make sure our stack itself is 8 byte aligned - it will always
++            // offset to a lower memory address. Since we know we're at the "high"
++            // memory address of our allocated space, we know that offsetting to
++            // a lower one will be a valid address (given that we actually allocated)
++            // enough space to actually get an aligned pointer in the first place).
++            let s_ptr = (s_ptr as usize & !7) as *mut u8;
++
++            available.ctx.x1 = guard as u64; //ctx.x1  is old return address
++            available.ctx.nx1 = f as u64; //ctx.nx2 is new return address
++            available.ctx.x2 = s_ptr.offset(-32) as u64; //cxt.x2 is sp
++        }
++        available.state = State::Ready;
++    }
++}
++
++/// This is our guard function that we place on top of the stack. All this function does is set the
++/// state of our current task and then `yield` which will then schedule a new task to be run.
++fn guard() {
++    unsafe {
++        let rt_ptr = RUNTIME as *mut Runtime;
++        (*rt_ptr).t_return();
++    };
++}
++
++/// We know that Runtime is alive the length of the program and that we only access from one core
++/// (so no datarace). We yield execution of the current task  by dereferencing a pointer to our
++/// Runtime and then calling `t_yield`
++pub fn yield_task() {
++    unsafe {
++        let rt_ptr = RUNTIME as *mut Runtime;
++        (*rt_ptr).t_yield();
++    };
++}
++
++/// So here is our inline Assembly. As you remember from our first example this is just a bit more elaborate where we first
++/// read out the values of all the registers we need and then sets all the register values to the register values we
++/// saved when we suspended exceution on the "new" task.
++///
++/// This is essentially all we need to do to save and resume execution.
++///
++/// Some details about inline assembly.
++///
++/// The assembly commands in the string literal is called the assemblt template. It is preceeded by
++/// zero or up to four segments indicated by ":":
++///
++/// - First ":" we have our output parameters, this parameters that this function will return.
++/// - Second ":" we have the input parameters which is our contexts. We only read from the "new" context
++/// but we modify the "old" context saving our registers there (see volatile option below)
++/// - Third ":" This our clobber list, this is information to the compiler that these registers can't be used freely
++/// - Fourth ":" This is options we can pass inn, Rust has 3: "alignstack", "volatile" and "intel"
++///
++/// For this to work on windows we need to use "alignstack" where the compiler adds the neccesary padding to
++/// make sure our stack is aligned. Since we modify one of our inputs, our assembly has "side effects"
++/// therefore we should use the `volatile` option. I **think** this is actually set for us by default
++/// when there are no output parameters given (my own assumption after going through the source code)
++/// for the `asm` macro, but we should make it explicit anyway.
++///
++/// One last important part (it will not work without this) is the #[naked] attribute. Basically this lets us have full
++/// control over the stack layout since normal functions has a prologue-and epilogue added by the
++/// compiler that will cause trouble for us. We avoid this by marking the funtion as "Naked".
++/// For this to work on `release` builds we also need to use the `#[inline(never)] attribute or else
++/// the compiler decides to inline this function (curiously this currently only happens on Windows).
++/// If the function is inlined we get a curious runtime error where it fails when switching back
++/// to as saved context and in general our assembly will not work as expected.
++///
++/// see: https://github.com/rust-lang/rfcs/blob/master/text/1201-naked-fns.md
++/// see: https://doc.rust-lang.org/nightly/reference/inline-assembly.html
++/// see: https://doc.rust-lang.org/nightly/rust-by-example/unsafe/asm.html
++#[naked]
++#[no_mangle]
++unsafe extern "C" fn switch(old: *mut TaskContext, new: *const TaskContext) {
++    // a0: _old, a1: _new
++    asm!(
++        "
++        sd x1, 0x00(a0)
++        sd x2, 0x08(a0)
++        sd x8, 0x10(a0)
++        sd x9, 0x18(a0)
++        sd x18, 0x20(a0)
++        sd x19, 0x28(a0)
++        sd x20, 0x30(a0)
++        sd x21, 0x38(a0)
++        sd x22, 0x40(a0)
++        sd x23, 0x48(a0)
++        sd x24, 0x50(a0)
++        sd x25, 0x58(a0)
++        sd x26, 0x60(a0)
++        sd x27, 0x68(a0)
++        sd x1, 0x70(a0)
++
++        ld x1, 0x00(a1)
++        ld x2, 0x08(a1)
++        ld x8, 0x10(a1)
++        ld x9, 0x18(a1)
++        ld x18, 0x20(a1)
++        ld x19, 0x28(a1)
++        ld x20, 0x30(a1)
++        ld x21, 0x38(a1)
++        ld x22, 0x40(a1)
++        ld x23, 0x48(a1)
++        ld x24, 0x50(a1)
++        ld x25, 0x58(a1)
++        ld x26, 0x60(a1)
++        ld x27, 0x68(a1)
++        ld t0, 0x70(a1)
++
++        jr t0
++    ",
++        options(noreturn)
++    );
++}
++
++#[no_mangle]
++pub fn main() {
++    println!("stackful_coroutine begin...");
++    println!("TASK  0(Runtime) STARTING");
++    let mut runtime = Runtime::new();
++    runtime.init();
++    runtime.spawn(|| {
++        println!("TASK  1 STARTING");
++        let id = 1;
++        for i in 0..4 {
++            println!("task: {} counter: {}", id, i);
++            yield_task();
++        }
++        println!("TASK 1 FINISHED");
++    });
++    runtime.spawn(|| {
++        println!("TASK 2 STARTING");
++        let id = 2;
++        for i in 0..8 {
++            println!("task: {} counter: {}", id, i);
++            yield_task();
++        }
++        println!("TASK 2 FINISHED");
++    });
++    runtime.spawn(|| {
++        println!("TASK 3 STARTING");
++        let id = 3;
++        for i in 0..12 {
++            println!("task: {} counter: {}", id, i);
++            yield_task();
++        }
++        println!("TASK 3 FINISHED");
++    });
++    runtime.spawn(|| {
++        println!("TASK 4 STARTING");
++        let id = 4;
++        for i in 0..16 {
++            println!("task: {} counter: {}", id, i);
++            yield_task();
++        }
++        println!("TASK 4 FINISHED");
++    });
++    runtime.run();
++    println!("stackful_coroutine PASSED");
++    exit(0);
++}
+diff --git a/application/user/src/bin/stackless_coroutine.rs b/application/user/src/bin/stackless_coroutine.rs
+new file mode 100644
+index 0000000..e67cab2
+--- /dev/null
++++ b/application/user/src/bin/stackless_coroutine.rs
+@@ -0,0 +1,129 @@
++// https://blog.aloni.org/posts/a-stack-less-rust-coroutine-100-loc/
++// https://github.com/chyyuu/example-coroutine-and-thread/tree/stackless-coroutine-x86
++#![no_std]
++#![no_main]
++
++use core::future::Future;
++use core::pin::Pin;
++use core::task::{Context, Poll};
++use core::task::{RawWaker, RawWakerVTable, Waker};
++
++extern crate alloc;
++use alloc::collections::VecDeque;
++
++use alloc::boxed::Box;
++
++#[macro_use]
++extern crate user_lib;
++
++enum State {
++    Halted,
++    Running,
++}
++
++struct Task {
++    state: State,
++}
++
++impl Task {
++    fn waiter<'a>(&'a mut self) -> Waiter<'a> {
++        Waiter { task: self }
++    }
++}
++
++struct Waiter<'a> {
++    task: &'a mut Task,
++}
++
++impl<'a> Future for Waiter<'a> {
++    type Output = ();
++
++    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
++        match self.task.state {
++            State::Halted => {
++                self.task.state = State::Running;
++                Poll::Ready(())
++            }
++            State::Running => {
++                self.task.state = State::Halted;
++                Poll::Pending
++            }
++        }
++    }
++}
++
++struct Executor {
++    tasks: VecDeque<Pin<Box<dyn Future<Output = ()>>>>,
++}
++
++impl Executor {
++    fn new() -> Self {
++        Executor {
++            tasks: VecDeque::new(),
++        }
++    }
++
++    fn push<C, F>(&mut self, closure: C)
++    where
++        F: Future<Output = ()> + 'static,
++        C: FnOnce(Task) -> F,
++    {
++        let task = Task {
++            state: State::Running,
++        };
++        self.tasks.push_back(Box::pin(closure(task)));
++    }
++
++    fn run(&mut self) {
++        let waker = create_waker();
++        let mut context = Context::from_waker(&waker);
++
++        while let Some(mut task) = self.tasks.pop_front() {
++            match task.as_mut().poll(&mut context) {
++                Poll::Pending => {
++                    self.tasks.push_back(task);
++                }
++                Poll::Ready(()) => {}
++            }
++        }
++    }
++}
++
++pub fn create_waker() -> Waker {
++    // Safety: The waker points to a vtable with functions that do nothing. Doing
++    // nothing is memory-safe.
++    unsafe { Waker::from_raw(RAW_WAKER) }
++}
++
++const RAW_WAKER: RawWaker = RawWaker::new(core::ptr::null(), &VTABLE);
++const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
++
++unsafe fn clone(_: *const ()) -> RawWaker {
++    RAW_WAKER
++}
++unsafe fn wake(_: *const ()) {}
++unsafe fn wake_by_ref(_: *const ()) {}
++unsafe fn drop(_: *const ()) {}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("stackless coroutine Begin..");
++    let mut exec = Executor::new();
++    println!(" Create futures");
++    for instance in 1..=3 {
++        exec.push(move |mut task| async move {
++            println!("   Task {}: begin state", instance);
++            task.waiter().await;
++            println!("   Task {}: next state", instance);
++            task.waiter().await;
++            println!("   Task {}: end state", instance);
++        });
++    }
++
++    println!(" Running");
++    exec.run();
++    println!(" Done");
++    println!("stackless coroutine PASSED");
++
++    0
++}
+diff --git a/application/user/src/bin/store_fault.rs b/application/user/src/bin/store_fault.rs
+new file mode 100644
+index 0000000..a54c376
+--- /dev/null
++++ b/application/user/src/bin/store_fault.rs
+@@ -0,0 +1,15 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++#[no_mangle]
++fn main() -> i32 {
++    println!("Into Test store_fault, we will insert an invalid store operation...");
++    println!("Kernel should kill this application!");
++    unsafe {
++        core::ptr::null_mut::<u8>().write_volatile(0);
++    }
++    0
++}
+diff --git a/application/user/src/bin/sync_sem.rs b/application/user/src/bin/sync_sem.rs
+new file mode 100644
+index 0000000..ef69f35
+--- /dev/null
++++ b/application/user/src/bin/sync_sem.rs
+@@ -0,0 +1,45 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::vec;
++use user_lib::exit;
++use user_lib::{semaphore_create, semaphore_down, semaphore_up};
++use user_lib::{sleep, thread_create, waittid};
++
++const SEM_SYNC: usize = 0;
++
++unsafe fn first() -> ! {
++    sleep(10);
++    println!("First work and wakeup Second");
++    semaphore_up(SEM_SYNC);
++    exit(0)
++}
++
++unsafe fn second() -> ! {
++    println!("Second want to continue,but need to wait first");
++    semaphore_down(SEM_SYNC);
++    println!("Second can work now");
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    // create semaphores
++    assert_eq!(semaphore_create(0) as usize, SEM_SYNC);
++    // create threads
++    let threads = vec![
++        thread_create(first as usize, 0),
++        thread_create(second as usize, 0),
++    ];
++    // wait for all threads to complete
++    for thread in threads.iter() {
++        waittid(*thread as usize);
++    }
++    println!("sync_sem passed!");
++    0
++}
+diff --git a/application/user/src/bin/threads.rs b/application/user/src/bin/threads.rs
+new file mode 100644
+index 0000000..b3a18c3
+--- /dev/null
++++ b/application/user/src/bin/threads.rs
+@@ -0,0 +1,45 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec;
++use user_lib::{exit, thread_create, waittid};
++
++pub fn thread_a() -> ! {
++    for _ in 0..1000 {
++        print!("a");
++    }
++    exit(1)
++}
++
++pub fn thread_b() -> ! {
++    for _ in 0..1000 {
++        print!("b");
++    }
++    exit(2)
++}
++
++pub fn thread_c() -> ! {
++    for _ in 0..1000 {
++        print!("c");
++    }
++    exit(3)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let v = vec![
++        thread_create(thread_a as usize, 0),
++        thread_create(thread_b as usize, 0),
++        thread_create(thread_c as usize, 0),
++    ];
++    for tid in v.iter() {
++        let exit_code = waittid(*tid as usize);
++        println!("thread#{} exited with code {}", tid, exit_code);
++    }
++    println!("main thread exited.");
++    0
++}
+diff --git a/application/user/src/bin/threads_arg.rs b/application/user/src/bin/threads_arg.rs
+new file mode 100644
+index 0000000..f884619
+--- /dev/null
++++ b/application/user/src/bin/threads_arg.rs
+@@ -0,0 +1,44 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, thread_create, waittid};
++
++struct Argument {
++    pub ch: char,
++    pub rc: i32,
++}
++
++fn thread_print(arg: *const Argument) -> ! {
++    let arg = unsafe { &*arg };
++    for _ in 0..1000 {
++        print!("{}", arg.ch);
++    }
++    exit(arg.rc)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v = Vec::new();
++    let args = [
++        Argument { ch: 'a', rc: 1 },
++        Argument { ch: 'b', rc: 2 },
++        Argument { ch: 'c', rc: 3 },
++    ];
++    for arg in args.iter() {
++        v.push(thread_create(
++            thread_print as usize,
++            arg as *const _ as usize,
++        ));
++    }
++    for tid in v.iter() {
++        let exit_code = waittid(*tid as usize);
++        println!("thread#{} exited with code {}", tid, exit_code);
++    }
++    println!("main thread exited.");
++    0
++}
+diff --git a/application/user/src/bin/until_timeout.rs b/application/user/src/bin/until_timeout.rs
+new file mode 100644
+index 0000000..32e5dbe
+--- /dev/null
++++ b/application/user/src/bin/until_timeout.rs
+@@ -0,0 +1,46 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exec, fork, get_time, kill, waitpid, waitpid_nb, SignalFlags};
++
++#[no_mangle]
++pub fn main(argc: usize, argv: &[&str]) -> i32 {
++    assert_eq!(argc, 3, "argc must be 3!");
++    let timeout_ms = argv[2]
++        .parse::<isize>()
++        .expect("Error when parsing timeout!");
++    let pid = fork() as usize;
++    if pid == 0 {
++        if exec(argv[1], &[core::ptr::null::<u8>()]) != 0 {
++            println!("Error when executing '{}'", argv[1]);
++            return -4;
++        }
++    } else {
++        let start_time = get_time();
++        let mut child_exited = false;
++        let mut exit_code: i32 = 0;
++        loop {
++            if get_time() - start_time > timeout_ms {
++                break;
++            }
++            if waitpid_nb(pid, &mut exit_code) as usize == pid {
++                child_exited = true;
++                println!(
++                    "child exited in {}ms, exit_code = {}",
++                    get_time() - start_time,
++                    exit_code,
++                );
++            }
++        }
++        if !child_exited {
++            println!("child has run for {}ms, kill it!", timeout_ms);
++            kill(pid, SignalFlags::SIGINT.bits());
++            assert_eq!(waitpid(pid, &mut exit_code) as usize, pid);
++            println!("exit code of the child is {}", exit_code);
++        }
++    }
++    0
++}
+diff --git a/application/user/src/bin/user_shell.rs b/application/user/src/bin/user_shell.rs
+new file mode 100644
+index 0000000..22c03c1
+--- /dev/null
++++ b/application/user/src/bin/user_shell.rs
+@@ -0,0 +1,214 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::println_empty_string)]
++
++extern crate alloc;
++
++#[macro_use]
++extern crate user_lib;
++
++const LF: u8 = 0x0au8;
++const CR: u8 = 0x0du8;
++const DL: u8 = 0x7fu8;
++const BS: u8 = 0x08u8;
++const LINE_START: &str = ">> ";
++
++use alloc::string::String;
++use alloc::vec::Vec;
++use user_lib::console::getchar;
++use user_lib::{close, dup, exec, fork, open, pipe, waitpid, OpenFlags};
++
++#[derive(Debug)]
++struct ProcessArguments {
++    input: String,
++    output: String,
++    args_copy: Vec<String>,
++    args_addr: Vec<*const u8>,
++}
++
++impl ProcessArguments {
++    pub fn new(command: &str) -> Self {
++        let args: Vec<_> = command.split(' ').collect();
++        let mut args_copy: Vec<String> = args
++            .iter()
++            .filter(|&arg| !arg.is_empty())
++            .map(|&arg| {
++                let mut string = String::new();
++                string.push_str(arg);
++                string.push('\0');
++                string
++            })
++            .collect();
++
++        // redirect input
++        let mut input = String::new();
++        if let Some((idx, _)) = args_copy
++            .iter()
++            .enumerate()
++            .find(|(_, arg)| arg.as_str() == "<\0")
++        {
++            input = args_copy[idx + 1].clone();
++            args_copy.drain(idx..=idx + 1);
++        }
++
++        // redirect output
++        let mut output = String::new();
++        if let Some((idx, _)) = args_copy
++            .iter()
++            .enumerate()
++            .find(|(_, arg)| arg.as_str() == ">\0")
++        {
++            output = args_copy[idx + 1].clone();
++            args_copy.drain(idx..=idx + 1);
++        }
++
++        let mut args_addr: Vec<*const u8> = args_copy.iter().map(|arg| arg.as_ptr()).collect();
++        args_addr.push(core::ptr::null::<u8>());
++
++        Self {
++            input,
++            output,
++            args_copy,
++            args_addr,
++        }
++    }
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("Rust user shell");
++    let mut line: String = String::new();
++    print!("{}", LINE_START);
++    loop {
++        let c = getchar();
++        match c {
++            LF | CR => {
++                println!("");
++                if !line.is_empty() {
++                    let splited: Vec<_> = line.as_str().split('|').collect();
++                    let process_arguments_list: Vec<_> = splited
++                        .iter()
++                        .map(|&cmd| ProcessArguments::new(cmd))
++                        .collect();
++                    let mut valid = true;
++                    for (i, process_args) in process_arguments_list.iter().enumerate() {
++                        if i == 0 {
++                            if !process_args.output.is_empty() {
++                                valid = false;
++                            }
++                        } else if i == process_arguments_list.len() - 1 {
++                            if !process_args.input.is_empty() {
++                                valid = false;
++                            }
++                        } else if !process_args.output.is_empty() || !process_args.input.is_empty()
++                        {
++                            valid = false;
++                        }
++                    }
++                    if process_arguments_list.len() == 1 {
++                        valid = true;
++                    }
++                    if !valid {
++                        println!("Invalid command: Inputs/Outputs cannot be correctly binded!");
++                    } else {
++                        // create pipes
++                        let mut pipes_fd: Vec<[usize; 2]> = Vec::new();
++                        if !process_arguments_list.is_empty() {
++                            for _ in 0..process_arguments_list.len() - 1 {
++                                let mut pipe_fd = [0usize; 2];
++                                pipe(&mut pipe_fd);
++                                pipes_fd.push(pipe_fd);
++                            }
++                        }
++                        let mut children: Vec<_> = Vec::new();
++                        for (i, process_argument) in process_arguments_list.iter().enumerate() {
++                            let pid = fork();
++                            if pid == 0 {
++                                let input = &process_argument.input;
++                                let output = &process_argument.output;
++                                let args_copy = &process_argument.args_copy;
++                                let args_addr = &process_argument.args_addr;
++                                // redirect input
++                                if !input.is_empty() {
++                                    let input_fd = open(input.as_str(), OpenFlags::RDONLY);
++                                    if input_fd == -1 {
++                                        println!("Error when opening file {}", input);
++                                        return -4;
++                                    }
++                                    let input_fd = input_fd as usize;
++                                    close(0);
++                                    assert_eq!(dup(input_fd), 0);
++                                    close(input_fd);
++                                }
++                                // redirect output
++                                if !output.is_empty() {
++                                    let output_fd = open(
++                                        output.as_str(),
++                                        OpenFlags::CREATE | OpenFlags::WRONLY,
++                                    );
++                                    if output_fd == -1 {
++                                        println!("Error when opening file {}", output);
++                                        return -4;
++                                    }
++                                    let output_fd = output_fd as usize;
++                                    close(1);
++                                    assert_eq!(dup(output_fd), 1);
++                                    close(output_fd);
++                                }
++                                // receive input from the previous process
++                                if i > 0 {
++                                    close(0);
++                                    let read_end = pipes_fd.get(i - 1).unwrap()[0];
++                                    assert_eq!(dup(read_end), 0);
++                                }
++                                // send output to the next process
++                                if i < process_arguments_list.len() - 1 {
++                                    close(1);
++                                    let write_end = pipes_fd.get(i).unwrap()[1];
++                                    assert_eq!(dup(write_end), 1);
++                                }
++                                // close all pipe ends inherited from the parent process
++                                for pipe_fd in pipes_fd.iter() {
++                                    close(pipe_fd[0]);
++                                    close(pipe_fd[1]);
++                                }
++                                // execute new application
++                                if exec(args_copy[0].as_str(), args_addr.as_slice()) == -1 {
++                                    println!("Error when executing!");
++                                    return -4;
++                                }
++                                unreachable!();
++                            } else {
++                                children.push(pid);
++                            }
++                        }
++                        for pipe_fd in pipes_fd.iter() {
++                            close(pipe_fd[0]);
++                            close(pipe_fd[1]);
++                        }
++                        let mut exit_code: i32 = 0;
++                        for pid in children.into_iter() {
++                            let exit_pid = waitpid(pid as usize, &mut exit_code);
++                            assert_eq!(pid, exit_pid);
++                            //println!("Shell: Process {} exited with code {}", pid, exit_code);
++                        }
++                    }
++                    line.clear();
++                }
++                print!("{}", LINE_START);
++            }
++            BS | DL => {
++                if !line.is_empty() {
++                    print!("{}", BS as char);
++                    print!(" ");
++                    print!("{}", BS as char);
++                    line.pop();
++                }
++            }
++            _ => {
++                print!("{}", c as char);
++                line.push(c as char);
++            }
++        }
++    }
++}
+diff --git a/application/user/src/bin/usertests.rs b/application/user/src/bin/usertests.rs
+new file mode 100644
+index 0000000..4f99c83
+--- /dev/null
++++ b/application/user/src/bin/usertests.rs
+@@ -0,0 +1,145 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++// not in SUCC_TESTS & FAIL_TESTS
++// count_lines, infloop, user_shell, usertests
++
++// item of TESTS : app_name(argv_0), argv_1, argv_2, argv_3, exit_code
++static SUCC_TESTS: &[(&str, &str, &str, &str, i32)] = &[
++    ("filetest_simple\0", "\0", "\0", "\0", 0),
++    ("cat\0", "filea\0", "\0", "\0", 0),
++    ("cmdline_args\0", "1\0", "2\0", "3\0", 0),
++    ("eisenberg\0", "\0", "\0", "\0", 0),
++    ("exit\0", "\0", "\0", "\0", 0),
++    ("fantastic_text\0", "\0", "\0", "\0", 0),
++    ("forktest_simple\0", "\0", "\0", "\0", 0),
++    ("forktest\0", "\0", "\0", "\0", 0),
++    ("forktest2\0", "\0", "\0", "\0", 0),
++    ("forktree\0", "\0", "\0", "\0", 0),
++    ("hello_world\0", "\0", "\0", "\0", 0),
++    ("huge_write\0", "\0", "\0", "\0", 0),
++    ("matrix\0", "\0", "\0", "\0", 0),
++    ("mpsc_sem\0", "\0", "\0", "\0", 0),
++    ("peterson\0", "\0", "\0", "\0", 0),
++    ("phil_din_mutex\0", "\0", "\0", "\0", 0),
++    ("pipe_large_test\0", "\0", "\0", "\0", 0),
++    ("pipetest\0", "\0", "\0", "\0", 0),
++    ("adder_peterson_spin\0", "\0", "\0", "\0", 0),
++    ("adder_peterson_yield\0", "\0", "\0", "\0", 0),
++    ("adder_mutex_blocking\0", "\0", "\0", "\0", 0),
++    ("adder_mutex_spin\0", "\0", "\0", "\0", 0),
++    ("run_pipe_test\0", "\0", "\0", "\0", 0),
++    ("sleep_simple\0", "\0", "\0", "\0", 0),
++    ("sleep\0", "\0", "\0", "\0", 0),
++    ("sleep_simple\0", "\0", "\0", "\0", 0),
++    ("sync_sem\0", "\0", "\0", "\0", 0),
++    ("condsync_sem\0", "\0", "\0", "\0", 0),
++    ("condsync_condvar\0", "\0", "\0", "\0", 0),
++    ("threads_arg\0", "\0", "\0", "\0", 0),
++    ("threads\0", "\0", "\0", "\0", 0),
++    ("yield\0", "\0", "\0", "\0", 0),
++    ("barrier_fail\0", "\0", "\0", "\0", 0),
++    ("barrier_condvar\0", "\0", "\0", "\0", 0),
++];
++
++static FAIL_TESTS: &[(&str, &str, &str, &str, i32)] = &[
++    ("stack_overflow\0", "\0", "\0", "\0", -11),
++    ("race_adder_loop\0", "\0", "\0", "\0", -6),
++    ("priv_csr\0", "\0", "\0", "\0", -4),
++    ("priv_inst\0", "\0", "\0", "\0", -4),
++    ("store_fault\0", "\0", "\0", "\0", -11),
++    ("until_timeout\0", "\0", "\0", "\0", -6),
++    ("adder\0", "\0", "\0", "\0", -6),
++    ("adder_simple_spin\0", "\0", "\0", "\0", -6),
++    ("adder_simple_yield\0", "\0", "\0", "\0", -6),
++];
++
++use user_lib::{exec, fork, waitpid};
++
++fn run_tests(tests: &[(&str, &str, &str, &str, i32)]) -> i32 {
++    let mut pass_num = 0;
++    let mut arr: [*const u8; 4] = [
++        core::ptr::null::<u8>(),
++        core::ptr::null::<u8>(),
++        core::ptr::null::<u8>(),
++        core::ptr::null::<u8>(),
++    ];
++
++    for test in tests {
++        println!("Usertests: Running {}", test.0);
++        arr[0] = test.0.as_ptr();
++        if test.1 != "\0" {
++            arr[1] = test.1.as_ptr();
++            arr[2] = core::ptr::null::<u8>();
++            arr[3] = core::ptr::null::<u8>();
++            if test.2 != "\0" {
++                arr[2] = test.2.as_ptr();
++                arr[3] = core::ptr::null::<u8>();
++                if test.3 != "\0" {
++                    arr[3] = test.3.as_ptr();
++                } else {
++                    arr[3] = core::ptr::null::<u8>();
++                }
++            } else {
++                arr[2] = core::ptr::null::<u8>();
++                arr[3] = core::ptr::null::<u8>();
++            }
++        } else {
++            arr[1] = core::ptr::null::<u8>();
++            arr[2] = core::ptr::null::<u8>();
++            arr[3] = core::ptr::null::<u8>();
++        }
++
++        let pid = fork();
++        if pid == 0 {
++            exec(test.0, &arr[..]);
++            panic!("unreachable!");
++        } else {
++            let mut exit_code: i32 = Default::default();
++            let wait_pid = waitpid(pid as usize, &mut exit_code);
++            assert_eq!(pid, wait_pid);
++            if exit_code == test.4 {
++                // summary apps with  exit_code
++                pass_num = pass_num + 1;
++            }
++            println!(
++                "\x1b[32mUsertests: Test {} in Process {} exited with code {}\x1b[0m",
++                test.0, pid, exit_code
++            );
++        }
++    }
++    pass_num
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let succ_num = run_tests(SUCC_TESTS);
++    let err_num = run_tests(FAIL_TESTS);
++    if succ_num == SUCC_TESTS.len() as i32 && err_num == FAIL_TESTS.len() as i32 {
++        println!(
++            "{} of sueecssed apps, {} of failed apps run correctly. \nUsertests passed!",
++            SUCC_TESTS.len(),
++            FAIL_TESTS.len()
++        );
++        return 0;
++    }
++    if succ_num != SUCC_TESTS.len() as i32 {
++        println!(
++            "all successed app_num is  {} , but only  passed {}",
++            SUCC_TESTS.len(),
++            succ_num
++        );
++    }
++    if err_num != FAIL_TESTS.len() as i32 {
++        println!(
++            "all failed app_num is  {} , but only  passed {}",
++            FAIL_TESTS.len(),
++            err_num
++        );
++    }
++    println!(" Usertests failed!");
++    return -1;
++}
+diff --git a/application/user/src/bin/yield.rs b/application/user/src/bin/yield.rs
+new file mode 100644
+index 0000000..7e5733b
+--- /dev/null
++++ b/application/user/src/bin/yield.rs
+@@ -0,0 +1,17 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++use user_lib::{getpid, yield_};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    println!("Hello, I am process {}.", getpid());
++    for i in 0..5 {
++        yield_();
++        println!("Back in process {}, iteration {}.", getpid(), i);
++    }
++    println!("yield pass.");
++    0
++}
+diff --git a/application/user/src/console.rs b/application/user/src/console.rs
+new file mode 100644
+index 0000000..35605e2
+--- /dev/null
++++ b/application/user/src/console.rs
+@@ -0,0 +1,39 @@
++use core::fmt::{self, Write};
++
++const STDIN: usize = 0;
++const STDOUT: usize = 1;
++
++use super::{read, write};
++
++struct Stdout;
++
++impl Write for Stdout {
++    fn write_str(&mut self, s: &str) -> fmt::Result {
++        write(STDOUT, s.as_bytes());
++        Ok(())
++    }
++}
++
++pub fn print(args: fmt::Arguments) {
++    Stdout.write_fmt(args).unwrap();
++}
++
++#[macro_export]
++macro_rules! print {
++    ($fmt: literal $(, $($arg: tt)+)?) => {
++        $crate::console::print(format_args!($fmt $(, $($arg)+)?));
++    }
++}
++
++#[macro_export]
++macro_rules! println {
++    ($fmt: literal $(, $($arg: tt)+)?) => {
++        $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
++    }
++}
++
++pub fn getchar() -> u8 {
++    let mut c = [0u8; 1];
++    read(STDIN, &mut c);
++    c[0]
++}
+diff --git a/application/user/src/file.rs b/application/user/src/file.rs
+new file mode 100644
+index 0000000..19e2564
+--- /dev/null
++++ b/application/user/src/file.rs
+@@ -0,0 +1,30 @@
++use super::*;
++
++bitflags! {
++    pub struct OpenFlags: u32 {
++        const RDONLY = 0;
++        const WRONLY = 1 << 0;
++        const RDWR = 1 << 1;
++        const CREATE = 1 << 9;
++        const TRUNC = 1 << 10;
++    }
++}
++
++pub fn dup(fd: usize) -> isize {
++    sys_dup(fd)
++}
++pub fn open(path: &str, flags: OpenFlags) -> isize {
++    sys_open(path, flags.bits)
++}
++pub fn close(fd: usize) -> isize {
++    sys_close(fd)
++}
++pub fn pipe(pipe_fd: &mut [usize]) -> isize {
++    sys_pipe(pipe_fd)
++}
++pub fn read(fd: usize, buf: &mut [u8]) -> isize {
++    sys_read(fd, buf)
++}
++pub fn write(fd: usize, buf: &[u8]) -> isize {
++    sys_write(fd, buf)
++}
+diff --git a/application/user/src/io.rs b/application/user/src/io.rs
+new file mode 100644
+index 0000000..30e7a1c
+--- /dev/null
++++ b/application/user/src/io.rs
+@@ -0,0 +1,116 @@
++use super::*;
++use embedded_graphics::pixelcolor::Rgb888;
++use embedded_graphics::prelude::{RgbColor, Size};
++use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
++use virtio_input_decoder::Decoder;
++pub use virtio_input_decoder::{DecodeType, Key, KeyType, Mouse};
++
++pub const VIRTGPU_XRES: u32 = 1280;
++pub const VIRTGPU_YRES: u32 = 800;
++pub const VIRTGPU_LEN: usize = (VIRTGPU_XRES * VIRTGPU_YRES * 4) as usize;
++
++pub fn framebuffer() -> isize {
++    sys_framebuffer()
++}
++pub fn framebuffer_flush() -> isize {
++    sys_framebuffer_flush()
++}
++
++pub struct Display {
++    pub size: Size,
++    pub fb: &'static mut [u8],
++}
++
++impl Display {
++    pub fn new(size: Size) -> Self {
++        let fb_ptr = framebuffer() as *mut u8;
++        let fb = unsafe { core::slice::from_raw_parts_mut(fb_ptr, VIRTGPU_LEN as usize) };
++        Self { size, fb }
++    }
++    pub fn framebuffer(&mut self) -> &mut [u8] {
++        self.fb
++    }
++    pub fn paint_on_framebuffer(&mut self, p: impl FnOnce(&mut [u8]) -> ()) {
++        p(self.framebuffer());
++        framebuffer_flush();
++    }
++}
++
++impl OriginDimensions for Display {
++    fn size(&self) -> Size {
++        self.size
++    }
++}
++
++impl DrawTarget for Display {
++    type Color = Rgb888;
++
++    type Error = core::convert::Infallible;
++
++    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
++    where
++        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
++    {
++        pixels.into_iter().for_each(|px| {
++            let idx = (px.0.y * VIRTGPU_XRES as i32 + px.0.x) as usize * 4;
++            if idx + 2 >= self.fb.len() {
++                return;
++            }
++            self.fb[idx] = px.1.b();
++            self.fb[idx + 1] = px.1.g();
++            self.fb[idx + 2] = px.1.r();
++        });
++        framebuffer_flush();
++        Ok(())
++    }
++}
++
++pub fn event_get() -> Option<InputEvent> {
++    let raw_value = sys_event_get();
++    if raw_value == 0 {
++        None
++    } else {
++        Some((raw_value as u64).into())
++    }
++}
++
++pub fn key_pressed() -> bool {
++    if sys_key_pressed() == 1 {
++        true
++    } else {
++        false
++    }
++}
++
++#[repr(C)]
++pub struct InputEvent {
++    pub event_type: u16,
++    pub code: u16,
++    pub value: u32,
++}
++
++impl From<u64> for InputEvent {
++    fn from(mut v: u64) -> Self {
++        let value = v as u32;
++        v >>= 32;
++        let code = v as u16;
++        v >>= 16;
++        let event_type = v as u16;
++        Self {
++            event_type,
++            code,
++            value,
++        }
++    }
++}
++
++impl InputEvent {
++    pub fn decode(&self) -> Option<DecodeType> {
++        Decoder::decode(
++            self.event_type as usize,
++            self.code as usize,
++            self.value as usize,
++        )
++        .ok()
++    }
++}
+diff --git a/application/user/src/lang_items.rs b/application/user/src/lang_items.rs
+new file mode 100644
+index 0000000..c3e9a0b
+--- /dev/null
++++ b/application/user/src/lang_items.rs
+@@ -0,0 +1,18 @@
++use super::{getpid, kill, SignalFlags};
++
++#[panic_handler]
++fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
++    let err = panic_info.message().unwrap();
++    if let Some(location) = panic_info.location() {
++        println!(
++            "Panicked at {}:{}, {}",
++            location.file(),
++            location.line(),
++            err
++        );
++    } else {
++        println!("Panicked: {}", err);
++    }
++    kill(getpid() as usize, SignalFlags::SIGABRT.bits());
++    unreachable!()
++}
+diff --git a/application/user/src/lib.rs b/application/user/src/lib.rs
+new file mode 100644
+index 0000000..31a8db8
+--- /dev/null
++++ b/application/user/src/lib.rs
+@@ -0,0 +1,89 @@
++#![no_std]
++#![feature(linkage)]
++#![feature(panic_info_message)]
++#![feature(alloc_error_handler)]
++#![feature(core_intrinsics)]
++
++#[macro_use]
++pub mod console;
++mod file;
++mod io;
++mod lang_items;
++mod sync;
++mod syscall;
++mod task;
++
++extern crate alloc;
++#[macro_use]
++extern crate bitflags;
++
++use alloc::vec::Vec;
++use buddy_system_allocator::LockedHeap;
++pub use file::*;
++pub use io::*;
++pub use sync::*;
++use syscall::*;
++pub use task::*;
++
++const USER_HEAP_SIZE: usize = 32768;
++
++static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
++
++#[global_allocator]
++static HEAP: LockedHeap = LockedHeap::empty();
++
++#[alloc_error_handler]
++pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
++    panic!("Heap allocation error, layout = {:?}", layout);
++}
++
++#[no_mangle]
++#[link_section = ".text.entry"]
++pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
++    unsafe {
++        HEAP.lock()
++            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
++    }
++    let mut v: Vec<&'static str> = Vec::new();
++    for i in 0..argc {
++        let str_start =
++            unsafe { ((argv + i * core::mem::size_of::<usize>()) as *const usize).read_volatile() };
++        let len = (0usize..)
++            .find(|i| unsafe { ((str_start + *i) as *const u8).read_volatile() == 0 })
++            .unwrap();
++        v.push(
++            core::str::from_utf8(unsafe {
++                core::slice::from_raw_parts(str_start as *const u8, len)
++            })
++            .unwrap(),
++        );
++    }
++    exit(main(argc, v.as_slice()));
++}
++
++#[linkage = "weak"]
++#[no_mangle]
++fn main(_argc: usize, _argv: &[&str]) -> i32 {
++    panic!("Cannot find main!");
++}
++
++#[macro_export]
++macro_rules! vstore {
++    ($var_ref: expr, $value: expr) => {
++        unsafe { core::intrinsics::volatile_store($var_ref as *const _ as _, $value) }
++    };
++}
++
++#[macro_export]
++macro_rules! vload {
++    ($var_ref: expr) => {
++        unsafe { core::intrinsics::volatile_load($var_ref as *const _ as _) }
++    };
++}
++
++#[macro_export]
++macro_rules! memory_fence {
++    () => {
++        core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst)
++    };
++}
+diff --git a/application/user/src/linker.ld b/application/user/src/linker.ld
+new file mode 100644
+index 0000000..0c42290
+--- /dev/null
++++ b/application/user/src/linker.ld
+@@ -0,0 +1,32 @@
++
++OUTPUT_ARCH(riscv)
++ENTRY(_start)
++
++BASE_ADDRESS = 0x10000;
++
++SECTIONS
++{
++    . = BASE_ADDRESS;
++    .text : {
++        *(.text.entry)
++        *(.text .text.*)
++    }
++    . = ALIGN(4K);
++    .rodata : {
++        *(.rodata .rodata.*)
++        *(.srodata .srodata.*)
++    }
++    . = ALIGN(4K);
++    .data : {
++        *(.data .data.*)
++        *(.sdata .sdata.*)
++    }
++    .bss : {
++        *(.bss .bss.*)
++        *(.sbss .sbss.*)
++    }
++    /DISCARD/ : {
++        *(.eh_frame)
++        *(.debug*)
++    }
++}
+diff --git a/application/user/src/sync.rs b/application/user/src/sync.rs
+new file mode 100644
+index 0000000..82cd2a0
+--- /dev/null
++++ b/application/user/src/sync.rs
+@@ -0,0 +1,32 @@
++use super::*;
++
++pub fn mutex_create() -> isize {
++    sys_mutex_create(false)
++}
++pub fn mutex_blocking_create() -> isize {
++    sys_mutex_create(true)
++}
++pub fn mutex_lock(mutex_id: usize) {
++    sys_mutex_lock(mutex_id);
++}
++pub fn mutex_unlock(mutex_id: usize) {
++    sys_mutex_unlock(mutex_id);
++}
++pub fn semaphore_create(res_count: usize) -> isize {
++    sys_semaphore_create(res_count)
++}
++pub fn semaphore_up(sem_id: usize) {
++    sys_semaphore_up(sem_id);
++}
++pub fn semaphore_down(sem_id: usize) {
++    sys_semaphore_down(sem_id);
++}
++pub fn condvar_create() -> isize {
++    sys_condvar_create()
++}
++pub fn condvar_signal(condvar_id: usize) {
++    sys_condvar_signal(condvar_id);
++}
++pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
++    sys_condvar_wait(condvar_id, mutex_id);
++}
+diff --git a/application/user/src/syscall.rs b/application/user/src/syscall.rs
+new file mode 100644
+index 0000000..1d0e5a5
+--- /dev/null
++++ b/application/user/src/syscall.rs
+@@ -0,0 +1,176 @@
++const SYSCALL_DUP: usize = 24;
++const SYSCALL_OPEN: usize = 56;
++const SYSCALL_CLOSE: usize = 57;
++const SYSCALL_PIPE: usize = 59;
++const SYSCALL_READ: usize = 63;
++const SYSCALL_WRITE: usize = 64;
++const SYSCALL_EXIT: usize = 93;
++const SYSCALL_SLEEP: usize = 101;
++const SYSCALL_YIELD: usize = 124;
++const SYSCALL_KILL: usize = 129;
++const SYSCALL_GET_TIME: usize = 169;
++const SYSCALL_GETPID: usize = 172;
++const SYSCALL_FORK: usize = 220;
++const SYSCALL_EXEC: usize = 221;
++const SYSCALL_WAITPID: usize = 260;
++const SYSCALL_THREAD_CREATE: usize = 1000;
++const SYSCALL_GETTID: usize = 1001;
++const SYSCALL_WAITTID: usize = 1002;
++const SYSCALL_MUTEX_CREATE: usize = 1010;
++const SYSCALL_MUTEX_LOCK: usize = 1011;
++const SYSCALL_MUTEX_UNLOCK: usize = 1012;
++const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
++const SYSCALL_SEMAPHORE_UP: usize = 1021;
++const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
++const SYSCALL_CONDVAR_CREATE: usize = 1030;
++const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
++const SYSCALL_CONDVAR_WAIT: usize = 1032;
++const SYSCALL_FRAMEBUFFER: usize = 2000;
++const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
++const SYSCALL_EVENT_GET: usize = 3000;
++const SYSCALL_KEY_PRESSED: usize = 3001;
++
++fn syscall(id: usize, args: [usize; 3]) -> isize {
++    let mut ret: isize;
++    unsafe {
++        core::arch::asm!(
++            "ecall",
++            inlateout("x10") args[0] => ret,
++            in("x11") args[1],
++            in("x12") args[2],
++            in("x17") id
++        );
++    }
++    ret
++}
++
++pub fn sys_dup(fd: usize) -> isize {
++    syscall(SYSCALL_DUP, [fd, 0, 0])
++}
++
++pub fn sys_open(path: &str, flags: u32) -> isize {
++    syscall(SYSCALL_OPEN, [path.as_ptr() as usize, flags as usize, 0])
++}
++
++pub fn sys_close(fd: usize) -> isize {
++    syscall(SYSCALL_CLOSE, [fd, 0, 0])
++}
++
++pub fn sys_pipe(pipe: &mut [usize]) -> isize {
++    syscall(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
++}
++
++pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {
++    syscall(
++        SYSCALL_READ,
++        [fd, buffer.as_mut_ptr() as usize, buffer.len()],
++    )
++}
++
++pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
++    syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
++}
++
++pub fn sys_exit(exit_code: i32) -> ! {
++    syscall(SYSCALL_EXIT, [exit_code as usize, 0, 0]);
++    panic!("sys_exit never returns!");
++}
++
++pub fn sys_sleep(sleep_ms: usize) -> isize {
++    syscall(SYSCALL_SLEEP, [sleep_ms, 0, 0])
++}
++
++pub fn sys_yield() -> isize {
++    syscall(SYSCALL_YIELD, [0, 0, 0])
++}
++
++pub fn sys_kill(pid: usize, signal: i32) -> isize {
++    syscall(SYSCALL_KILL, [pid, signal as usize, 0])
++}
++
++pub fn sys_get_time() -> isize {
++    syscall(SYSCALL_GET_TIME, [0, 0, 0])
++}
++
++pub fn sys_getpid() -> isize {
++    syscall(SYSCALL_GETPID, [0, 0, 0])
++}
++
++pub fn sys_fork() -> isize {
++    syscall(SYSCALL_FORK, [0, 0, 0])
++}
++
++pub fn sys_exec(path: &str, args: &[*const u8]) -> isize {
++    syscall(
++        SYSCALL_EXEC,
++        [path.as_ptr() as usize, args.as_ptr() as usize, 0],
++    )
++}
++
++pub fn sys_waitpid(pid: isize, exit_code: *mut i32) -> isize {
++    syscall(SYSCALL_WAITPID, [pid as usize, exit_code as usize, 0])
++}
++
++pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
++    syscall(SYSCALL_THREAD_CREATE, [entry, arg, 0])
++}
++
++pub fn sys_gettid() -> isize {
++    syscall(SYSCALL_GETTID, [0; 3])
++}
++
++pub fn sys_waittid(tid: usize) -> isize {
++    syscall(SYSCALL_WAITTID, [tid, 0, 0])
++}
++
++pub fn sys_mutex_create(blocking: bool) -> isize {
++    syscall(SYSCALL_MUTEX_CREATE, [blocking as usize, 0, 0])
++}
++
++pub fn sys_mutex_lock(id: usize) -> isize {
++    syscall(SYSCALL_MUTEX_LOCK, [id, 0, 0])
++}
++
++pub fn sys_mutex_unlock(id: usize) -> isize {
++    syscall(SYSCALL_MUTEX_UNLOCK, [id, 0, 0])
++}
++
++pub fn sys_semaphore_create(res_count: usize) -> isize {
++    syscall(SYSCALL_SEMAPHORE_CREATE, [res_count, 0, 0])
++}
++
++pub fn sys_semaphore_up(sem_id: usize) -> isize {
++    syscall(SYSCALL_SEMAPHORE_UP, [sem_id, 0, 0])
++}
++
++pub fn sys_semaphore_down(sem_id: usize) -> isize {
++    syscall(SYSCALL_SEMAPHORE_DOWN, [sem_id, 0, 0])
++}
++
++pub fn sys_condvar_create() -> isize {
++    syscall(SYSCALL_CONDVAR_CREATE, [0, 0, 0])
++}
++
++pub fn sys_condvar_signal(condvar_id: usize) -> isize {
++    syscall(SYSCALL_CONDVAR_SIGNAL, [condvar_id, 0, 0])
++}
++
++pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
++    syscall(SYSCALL_CONDVAR_WAIT, [condvar_id, mutex_id, 0])
++}
++
++pub fn sys_framebuffer() -> isize {
++    syscall(SYSCALL_FRAMEBUFFER, [0, 0, 0])
++}
++
++pub fn sys_framebuffer_flush() -> isize {
++    syscall(SYSCALL_FRAMEBUFFER_FLUSH, [0, 0, 0])
++}
++
++pub fn sys_event_get() -> isize {
++    syscall(SYSCALL_EVENT_GET, [0, 0, 0])
++}
++
++pub fn sys_key_pressed() -> isize {
++    syscall(SYSCALL_KEY_PRESSED, [0, 0, 0])
++}
+diff --git a/application/user/src/task.rs b/application/user/src/task.rs
+new file mode 100644
+index 0000000..040ef54
+--- /dev/null
++++ b/application/user/src/task.rs
+@@ -0,0 +1,82 @@
++use super::*;
++
++pub fn exit(exit_code: i32) -> ! {
++    sys_exit(exit_code);
++}
++pub fn yield_() -> isize {
++    sys_yield()
++}
++pub fn get_time() -> isize {
++    sys_get_time()
++}
++pub fn getpid() -> isize {
++    sys_getpid()
++}
++pub fn fork() -> isize {
++    sys_fork()
++}
++pub fn exec(path: &str, args: &[*const u8]) -> isize {
++    sys_exec(path, args)
++}
++pub fn wait(exit_code: &mut i32) -> isize {
++    loop {
++        match sys_waitpid(-1, exit_code as *mut _) {
++            -2 => {
++                yield_();
++            }
++            // -1 or a real pid
++            exit_pid => return exit_pid,
++        }
++    }
++}
++
++pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
++    loop {
++        match sys_waitpid(pid as isize, exit_code as *mut _) {
++            -2 => {
++                yield_();
++            }
++            // -1 or a real pid
++            exit_pid => return exit_pid,
++        }
++    }
++}
++
++pub fn waitpid_nb(pid: usize, exit_code: &mut i32) -> isize {
++    sys_waitpid(pid as isize, exit_code as *mut _)
++}
++
++bitflags! {
++    pub struct SignalFlags: i32 {
++        const SIGINT    = 1 << 2;
++        const SIGILL    = 1 << 4;
++        const SIGABRT   = 1 << 6;
++        const SIGFPE    = 1 << 8;
++        const SIGSEGV   = 1 << 11;
++    }
++}
++
++pub fn kill(pid: usize, signal: i32) -> isize {
++    sys_kill(pid, signal)
++}
++
++pub fn sleep(sleep_ms: usize) {
++    sys_sleep(sleep_ms);
++}
++
++pub fn thread_create(entry: usize, arg: usize) -> isize {
++    sys_thread_create(entry, arg)
++}
++pub fn gettid() -> isize {
++    sys_gettid()
++}
++pub fn waittid(tid: usize) -> isize {
++    loop {
++        match sys_waittid(tid) {
++            -2 => {
++                yield_();
++            }
++            exit_code => return exit_code,
++        }
++    }
++}
+-- 
+2.34.1
+

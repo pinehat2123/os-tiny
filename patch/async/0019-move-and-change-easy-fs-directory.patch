@@ -1,0 +1,126 @@
+From f31dd954c22da34da7da6f343aef749c24221be2 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:56:53 -0500
+Subject: [PATCH 19/80] move and change easy-fs directory.
+
+---
+ Cargo.toml                                          | 6 ++----
+ application/easy-fs-fuse/Cargo.toml                 | 2 +-
+ drivers/Cargo.toml                                  | 2 +-
+ {application/easy-fs => easy-fs}/Cargo.toml         | 0
+ {application/easy-fs => easy-fs}/src/bitmap.rs      | 0
+ {application/easy-fs => easy-fs}/src/block_cache.rs | 0
+ {application/easy-fs => easy-fs}/src/block_dev.rs   | 0
+ {application/easy-fs => easy-fs}/src/efs.rs         | 0
+ {application/easy-fs => easy-fs}/src/layout.rs      | 0
+ {application/easy-fs => easy-fs}/src/lib.rs         | 0
+ {application/easy-fs => easy-fs}/src/vfs.rs         | 0
+ kernel/Cargo.toml                                   | 2 +-
+ 12 files changed, 5 insertions(+), 7 deletions(-)
+ rename {application/easy-fs => easy-fs}/Cargo.toml (100%)
+ rename {application/easy-fs => easy-fs}/src/bitmap.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/block_cache.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/block_dev.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/efs.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/layout.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/lib.rs (100%)
+ rename {application/easy-fs => easy-fs}/src/vfs.rs (100%)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index d129825..019bc46 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -9,7 +9,8 @@ members = [
+     "drivers",
+     "safe_cell",
+     "xtask", 
+-    "application/easy-fs", "application/easy-fs-fuse",
++    "easy-fs", 
++    "application/easy-fs-fuse",
+     "application/user",
+     ]
+ default-members = ["xtask"]
+@@ -17,9 +18,6 @@ default-members = ["xtask"]
+ exclude = [
+     "mod_mgmt",
+     "other_libs/*",
+-    "easy-fs",
+-    "easy-fs-fuse",
+-    "user"
+     ]
+ 
+ 
+diff --git a/application/easy-fs-fuse/Cargo.toml b/application/easy-fs-fuse/Cargo.toml
+index 4a8e9ee..e818917 100644
+--- a/application/easy-fs-fuse/Cargo.toml
++++ b/application/easy-fs-fuse/Cargo.toml
+@@ -8,7 +8,7 @@ edition = "2018"
+ 
+ [dependencies]
+ clap = "2.33.3"
+-easy-fs = { path = "../easy-fs" }
++easy-fs = { path = "../../easy-fs" }
+ rand = "0.8.0"
+ 
+ # [features]
+diff --git a/drivers/Cargo.toml b/drivers/Cargo.toml
+index 2e29067..4dc3de2 100644
+--- a/drivers/Cargo.toml
++++ b/drivers/Cargo.toml
+@@ -12,7 +12,7 @@ bitflags = "1.2.1"
+ xmas-elf = "0.7.0"
+ volatile = "0.3"
+ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+-easy-fs = { path = "../application/easy-fs" }
++easy-fs = { path = "../easy-fs" }
+ embedded-graphics = "0.7.1"
+ tinybmp = "0.3.1"
+ config = { path = "../tconfig", package = "tconfig" }
+diff --git a/application/easy-fs/Cargo.toml b/easy-fs/Cargo.toml
+similarity index 100%
+rename from application/easy-fs/Cargo.toml
+rename to easy-fs/Cargo.toml
+diff --git a/application/easy-fs/src/bitmap.rs b/easy-fs/src/bitmap.rs
+similarity index 100%
+rename from application/easy-fs/src/bitmap.rs
+rename to easy-fs/src/bitmap.rs
+diff --git a/application/easy-fs/src/block_cache.rs b/easy-fs/src/block_cache.rs
+similarity index 100%
+rename from application/easy-fs/src/block_cache.rs
+rename to easy-fs/src/block_cache.rs
+diff --git a/application/easy-fs/src/block_dev.rs b/easy-fs/src/block_dev.rs
+similarity index 100%
+rename from application/easy-fs/src/block_dev.rs
+rename to easy-fs/src/block_dev.rs
+diff --git a/application/easy-fs/src/efs.rs b/easy-fs/src/efs.rs
+similarity index 100%
+rename from application/easy-fs/src/efs.rs
+rename to easy-fs/src/efs.rs
+diff --git a/application/easy-fs/src/layout.rs b/easy-fs/src/layout.rs
+similarity index 100%
+rename from application/easy-fs/src/layout.rs
+rename to easy-fs/src/layout.rs
+diff --git a/application/easy-fs/src/lib.rs b/easy-fs/src/lib.rs
+similarity index 100%
+rename from application/easy-fs/src/lib.rs
+rename to easy-fs/src/lib.rs
+diff --git a/application/easy-fs/src/vfs.rs b/easy-fs/src/vfs.rs
+similarity index 100%
+rename from application/easy-fs/src/vfs.rs
+rename to easy-fs/src/vfs.rs
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 7411802..94d75db 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -12,7 +12,7 @@ bitflags = "1.2.1"
+ xmas-elf = "0.7.0"
+ volatile = "0.3"
+ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+-easy-fs = { path = "../application/easy-fs" }
++easy-fs = { path = "../easy-fs" }
+ embedded-graphics = "0.7.1"
+ tinybmp = "0.3.1"
+ woke = "0.0.2"
+-- 
+2.34.1
+

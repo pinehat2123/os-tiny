@@ -1,0 +1,53 @@
+From db739f97a50fc65739cd47f63d37e6937a4be1ea Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 02:22:21 -0500
+Subject: [PATCH 70/80] fix syscall error
+
+---
+ syscall/src/lib.rs | 22 ++++------------------
+ 1 file changed, 4 insertions(+), 18 deletions(-)
+
+diff --git a/syscall/src/lib.rs b/syscall/src/lib.rs
+index a1774d7..6251d20 100644
+--- a/syscall/src/lib.rs
++++ b/syscall/src/lib.rs
+@@ -89,8 +89,7 @@ macro_rules! syscall {
+                     lateout("a0") _ret,
+                     options(nostack),
+                 );
+-
+-                1106
++                _ret
+             }
+         )+
+     };
+@@ -106,21 +105,8 @@ syscall! {
+     syscall6(a, b, c, d, e, f, g, z, );
+ }
+ 
+-fn syscall_3(id: usize, args: [usize; 3]) -> isize {
+-    let mut ret: isize;
+-    unsafe {
+-        core::arch::asm!(
+-            "ecall",
+-            in("a0") args[0],
+-            in("a1") args[1],
+-            in("a2") args[2],
+-            in("a7") id,
+-            lateout("a0") ret,
+-            options(nostack),
+-        );
+-    }
+-    ret
+-    // todo: [error] unsafe { syscall2(id, args[0], args[1], args[2]) }
++fn syscall_3_helper(id: usize, args: [usize; 3]) -> isize {
++    unsafe { syscall2(id, args[0], args[1], args[2]) }
+ }
+ 
+-pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3(id, args) }
+\ No newline at end of file
++pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3_helper(id, args) }
+\ No newline at end of file
+-- 
+2.34.1
+

@@ -1,0 +1,79 @@
+From b6aac1e5f433a9539c163992d21a2570f2a6bb90 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:30:22 -0500
+Subject: [PATCH 18/80] fit change
+
+---
+ Cargo.toml        | 5 +++++
+ kernel/Cargo.toml | 5 +++++
+ kernel/src/lib.rs | 5 +++--
+ 3 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index b468543..d129825 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,7 +2,12 @@
+ members = [
+     "kernel", 
+     "tconfig",
++    "memory",
++    "sync",
++    "task",
++    "sbi",
+     "drivers",
++    "safe_cell",
+     "xtask", 
+     "application/easy-fs", "application/easy-fs-fuse",
+     "application/user",
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 9c1cee5..7411802 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -17,6 +17,11 @@ embedded-graphics = "0.7.1"
+ tinybmp = "0.3.1"
+ woke = "0.0.2"
+ config = { path = "../tconfig", package = "tconfig" }
++# sbi = { path = "../sbi", package = "sbi" }
++mm = { path = "../memory", package = "memory" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
++# sync = { path = "../sync", package = "sync" }
++# task = { path = "../task", package = "task" }
+ 
+ [dependencies.riscv]
+ git = "https://github.com/Andre-HJR/riscv.git"
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index ea2dc90..dbd7855 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -17,8 +17,10 @@ mod plantform;
+ extern crate bitflags;
+ 
+ extern crate config;
++extern crate mm;
+ 
+ use config::*;
++use mm::*;
+ #[path = "boards/qemu.rs"]
+ mod board;
+ 
+@@ -27,7 +29,6 @@ mod console;
+ mod drivers;
+ mod fs;
+ mod lang_items;
+-mod mm;
+ mod sbi;
+ mod sync;
+ mod syscall;
+@@ -40,7 +41,7 @@ use crate::drivers::chardev::CharDevice;
+ use crate::drivers::chardev::UART;
+ 
+ use lazy_static::*;
+-use sync::UPIntrFreeCell;
++use safe_cell::UPIntrFreeCell;
+ 
+ core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
+ 
+-- 
+2.34.1
+

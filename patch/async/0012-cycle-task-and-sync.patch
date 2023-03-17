@@ -1,0 +1,1102 @@
+From befa627451ae346d867d36db77b81d979fe78fc1 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:25:23 -0500
+Subject: [PATCH 12/80] cycle! task and sync
+
+---
+ task/Cargo.toml       |  13 +++
+ task/src/context.rs   |  26 +++++
+ task/src/id.rs        | 226 ++++++++++++++++++++++++++++++++++++
+ task/src/lib.rs       | 160 ++++++++++++++++++++++++++
+ task/src/manager.rs   |  63 ++++++++++
+ task/src/process.rs   | 260 ++++++++++++++++++++++++++++++++++++++++++
+ task/src/processor.rs | 104 +++++++++++++++++
+ task/src/signal.rs    |  30 +++++
+ task/src/switch.S     |  33 ++++++
+ task/src/switch.rs    |   8 ++
+ task/src/task.rs      |  80 +++++++++++++
+ 11 files changed, 1003 insertions(+)
+ create mode 100644 task/Cargo.toml
+ create mode 100644 task/src/context.rs
+ create mode 100644 task/src/id.rs
+ create mode 100644 task/src/lib.rs
+ create mode 100644 task/src/manager.rs
+ create mode 100644 task/src/process.rs
+ create mode 100644 task/src/processor.rs
+ create mode 100644 task/src/signal.rs
+ create mode 100644 task/src/switch.S
+ create mode 100644 task/src/switch.rs
+ create mode 100644 task/src/task.rs
+
+diff --git a/task/Cargo.toml b/task/Cargo.toml
+new file mode 100644
+index 0000000..db71e62
+--- /dev/null
++++ b/task/Cargo.toml
+@@ -0,0 +1,13 @@
++[package]
++name = "task"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++bitflags = "1.2.1"
++config = { path = "../tconfig", package = "tconfig" }
++mm = { path = "../memory", package = "memory" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
+diff --git a/task/src/context.rs b/task/src/context.rs
+new file mode 100644
+index 0000000..01fe537
+--- /dev/null
++++ b/task/src/context.rs
+@@ -0,0 +1,26 @@
++// TODO trap
++use trap::trap_return;
++
++#[repr(C)]
++pub struct TaskContext {
++    ra: usize,
++    sp: usize,
++    s: [usize; 12],
++}
++
++impl TaskContext {
++    pub fn zero_init() -> Self {
++        Self {
++            ra: 0,
++            sp: 0,
++            s: [0; 12],
++        }
++    }
++    pub fn goto_trap_return(kstack_ptr: usize) -> Self {
++        Self {
++            ra: trap_return as usize,
++            sp: kstack_ptr,
++            s: [0; 12],
++        }
++    }
++}
+diff --git a/task/src/id.rs b/task/src/id.rs
+new file mode 100644
+index 0000000..a646b19
+--- /dev/null
++++ b/task/src/id.rs
+@@ -0,0 +1,226 @@
++// TODO config mm safe_cell lazy_static
++use crate::ProcessControlBlock;
++use config::{KERNEL_STACK_SIZE, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT_BASE, USER_STACK_SIZE};
++use mm::{MapPermission, PhysPageNum, VirtAddr, KERNEL_SPACE};
++use safe_cell::UPIntrFreeCell;
++use alloc::{
++    sync::{Arc, Weak},
++    vec::Vec,
++};
++use lazy_static::*;
++
++pub struct RecycleAllocator {
++    current: usize,
++    recycled: Vec<usize>,
++}
++
++impl RecycleAllocator {
++    pub fn new() -> Self {
++        RecycleAllocator {
++            current: 0,
++            recycled: Vec::new(),
++        }
++    }
++    pub fn alloc(&mut self) -> usize {
++        if let Some(id) = self.recycled.pop() {
++            id
++        } else {
++            self.current += 1;
++            self.current - 1
++        }
++    }
++    pub fn dealloc(&mut self, id: usize) {
++        assert!(id < self.current);
++        assert!(
++            !self.recycled.iter().any(|i| *i == id),
++            "id {} has been deallocated!",
++            id
++        );
++        self.recycled.push(id);
++    }
++}
++
++lazy_static! {
++    static ref PID_ALLOCATOR: UPIntrFreeCell<RecycleAllocator> =
++        unsafe { UPIntrFreeCell::new(RecycleAllocator::new()) };
++    static ref KSTACK_ALLOCATOR: UPIntrFreeCell<RecycleAllocator> =
++        unsafe { UPIntrFreeCell::new(RecycleAllocator::new()) };
++}
++
++pub const IDLE_PID: usize = 0;
++
++pub struct PidHandle(pub usize);
++
++pub fn pid_alloc() -> PidHandle {
++    PidHandle(PID_ALLOCATOR.exclusive_access().alloc())
++}
++
++impl Drop for PidHandle {
++    fn drop(&mut self) {
++        PID_ALLOCATOR.exclusive_access().dealloc(self.0);
++    }
++}
++
++/// Return (bottom, top) of a kernel stack in kernel space.
++pub fn kernel_stack_position(kstack_id: usize) -> (usize, usize) {
++    let top = TRAMPOLINE - kstack_id * (KERNEL_STACK_SIZE + PAGE_SIZE);
++    let bottom = top - KERNEL_STACK_SIZE;
++    (bottom, top)
++}
++
++pub struct KernelStack(pub usize);
++
++pub fn kstack_alloc() -> KernelStack {
++    let kstack_id = KSTACK_ALLOCATOR.exclusive_access().alloc();
++    let (kstack_bottom, kstack_top) = kernel_stack_position(kstack_id);
++    KERNEL_SPACE.exclusive_access().insert_framed_area(
++        kstack_bottom.into(),
++        kstack_top.into(),
++        MapPermission::R | MapPermission::W,
++    );
++    KernelStack(kstack_id)
++}
++
++impl Drop for KernelStack {
++    fn drop(&mut self) {
++        let (kernel_stack_bottom, _) = kernel_stack_position(self.0);
++        let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
++        KERNEL_SPACE
++            .exclusive_access()
++            .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
++    }
++}
++
++impl KernelStack {
++    #[allow(unused)]
++    pub fn push_on_top<T>(&self, value: T) -> *mut T
++    where
++        T: Sized,
++    {
++        let kernel_stack_top = self.get_top();
++        let ptr_mut = (kernel_stack_top - core::mem::size_of::<T>()) as *mut T;
++        unsafe {
++            *ptr_mut = value;
++        }
++        ptr_mut
++    }
++    pub fn get_top(&self) -> usize {
++        let (_, kernel_stack_top) = kernel_stack_position(self.0);
++        kernel_stack_top
++    }
++}
++
++pub struct TaskUserRes {
++    pub tid: usize,
++    pub ustack_base: usize,
++    pub process: Weak<ProcessControlBlock>,
++}
++
++fn trap_cx_bottom_from_tid(tid: usize) -> usize {
++    TRAP_CONTEXT_BASE - tid * PAGE_SIZE
++}
++
++fn ustack_bottom_from_tid(ustack_base: usize, tid: usize) -> usize {
++    ustack_base + tid * (PAGE_SIZE + USER_STACK_SIZE)
++}
++
++impl TaskUserRes {
++    pub fn new(
++        process: Arc<ProcessControlBlock>,
++        ustack_base: usize,
++        alloc_user_res: bool,
++    ) -> Self {
++        let tid = process.inner_exclusive_access().alloc_tid();
++        let task_user_res = Self {
++            tid,
++            ustack_base,
++            process: Arc::downgrade(&process),
++        };
++        if alloc_user_res {
++            task_user_res.alloc_user_res();
++        }
++        task_user_res
++    }
++
++    pub fn alloc_user_res(&self) {
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        // alloc user stack
++        let ustack_bottom = ustack_bottom_from_tid(self.ustack_base, self.tid);
++        let ustack_top = ustack_bottom + USER_STACK_SIZE;
++        process_inner.memory_set.insert_framed_area(
++            ustack_bottom.into(),
++            ustack_top.into(),
++            MapPermission::R | MapPermission::W | MapPermission::U,
++        );
++        // alloc trap_cx
++        let trap_cx_bottom = trap_cx_bottom_from_tid(self.tid);
++        let trap_cx_top = trap_cx_bottom + PAGE_SIZE;
++        process_inner.memory_set.insert_framed_area(
++            trap_cx_bottom.into(),
++            trap_cx_top.into(),
++            MapPermission::R | MapPermission::W,
++        );
++    }
++
++    fn dealloc_user_res(&self) {
++        // dealloc tid
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        // dealloc ustack manually
++        let ustack_bottom_va: VirtAddr = ustack_bottom_from_tid(self.ustack_base, self.tid).into();
++        process_inner
++            .memory_set
++            .remove_area_with_start_vpn(ustack_bottom_va.into());
++        // dealloc trap_cx manually
++        let trap_cx_bottom_va: VirtAddr = trap_cx_bottom_from_tid(self.tid).into();
++        process_inner
++            .memory_set
++            .remove_area_with_start_vpn(trap_cx_bottom_va.into());
++    }
++
++    #[allow(unused)]
++    pub fn alloc_tid(&mut self) {
++        self.tid = self
++            .process
++            .upgrade()
++            .unwrap()
++            .inner_exclusive_access()
++            .alloc_tid();
++    }
++
++    pub fn dealloc_tid(&self) {
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.dealloc_tid(self.tid);
++    }
++
++    pub fn trap_cx_user_va(&self) -> usize {
++        trap_cx_bottom_from_tid(self.tid)
++    }
++
++    pub fn trap_cx_ppn(&self) -> PhysPageNum {
++        let process = self.process.upgrade().unwrap();
++        let process_inner = process.inner_exclusive_access();
++        let trap_cx_bottom_va: VirtAddr = trap_cx_bottom_from_tid(self.tid).into();
++        process_inner
++            .memory_set
++            .translate(trap_cx_bottom_va.into())
++            .unwrap()
++            .ppn()
++    }
++
++    pub fn ustack_base(&self) -> usize {
++        self.ustack_base
++    }
++    pub fn ustack_top(&self) -> usize {
++        ustack_bottom_from_tid(self.ustack_base, self.tid) + USER_STACK_SIZE
++    }
++}
++
++impl Drop for TaskUserRes {
++    fn drop(&mut self) {
++        self.dealloc_tid();
++        self.dealloc_user_res();
++    }
++}
+diff --git a/task/src/lib.rs b/task/src/lib.rs
+new file mode 100644
+index 0000000..c2b00a2
+--- /dev/null
++++ b/task/src/lib.rs
+@@ -0,0 +1,160 @@
++// TODO fs lazy_static 
++#![no_std]
++mod context;
++mod id;
++mod manager;
++mod process;
++mod processor;
++mod signal;
++mod switch;
++#[allow(clippy::module_inception)]
++mod task;
++
++use self::id::TaskUserRes;
++use fs::{open_file, OpenFlags};
++use alloc::{sync::Arc, vec::Vec};
++use lazy_static::*;
++use manager::fetch_task;
++use process::ProcessControlBlock;
++use switch::__switch;
++
++pub use context::TaskContext;
++pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle, IDLE_PID};
++pub use manager::{add_task, pid2process, remove_from_pid2process, wakeup_task};
++pub use processor::{
++    current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va,
++    current_user_token, run_tasks, schedule, take_current_task,
++};
++pub use signal::SignalFlags;
++pub use task::{TaskControlBlock, TaskStatus};
++
++pub fn suspend_current_and_run_next() {
++    // There must be an application running.
++    let task = take_current_task().unwrap();
++
++    // ---- access current TCB exclusively
++    let mut task_inner = task.inner_exclusive_access();
++    let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
++    // Change status to Ready
++    task_inner.task_status = TaskStatus::Ready;
++    drop(task_inner);
++    // ---- release current TCB
++
++    // push back to ready queue.
++    add_task(task);
++    // jump to scheduling cycle
++    schedule(task_cx_ptr);
++}
++
++/// This function must be followed by a schedule
++pub fn block_current_task() -> *mut TaskContext {
++    let task = take_current_task().unwrap();
++    let mut task_inner = task.inner_exclusive_access();
++    task_inner.task_status = TaskStatus::Blocked;
++    &mut task_inner.task_cx as *mut TaskContext
++}
++
++pub fn block_current_and_run_next() {
++    let task_cx_ptr = block_current_task();
++    schedule(task_cx_ptr);
++}
++use crate::board::QEMUExit;
++
++pub fn exit_current_and_run_next(exit_code: i32) {
++    let task = take_current_task().unwrap();
++    let mut task_inner = task.inner_exclusive_access();
++    let process = task.process.upgrade().unwrap();
++    let tid = task_inner.res.as_ref().unwrap().tid;
++    // record exit code
++    task_inner.exit_code = Some(exit_code);
++    task_inner.res = None;
++    // here we do not remove the thread since we are still using the kstack
++    // it will be deallocated when sys_waittid is called
++    drop(task_inner);
++    drop(task);
++    // however, if this is the main thread of current process
++    // the process should terminate at once
++    if tid == 0 {
++        let pid = process.getpid();
++        if pid == IDLE_PID {
++            println!(
++                "[kernel] Idle process exit with exit_code {} ...",
++                exit_code
++            );
++            if exit_code != 0 {
++                //crate::sbi::shutdown(255); //255 == -1 for err hint
++                crate::board::QEMU_EXIT_HANDLE.exit_failure();
++            } else {
++                //crate::sbi::shutdown(0); //0 for success hint
++                crate::board::QEMU_EXIT_HANDLE.exit_success();
++            }
++        }
++        remove_from_pid2process(pid);
++        let mut process_inner = process.inner_exclusive_access();
++        // mark this process as a zombie process
++        process_inner.is_zombie = true;
++        // record exit code of main process
++        process_inner.exit_code = exit_code;
++
++        {
++            // move all child processes under init process
++            let mut initproc_inner = INITPROC.inner_exclusive_access();
++            for child in process_inner.children.iter() {
++                child.inner_exclusive_access().parent = Some(Arc::downgrade(&INITPROC));
++                initproc_inner.children.push(child.clone());
++            }
++        }
++
++        // deallocate user res (including tid/trap_cx/ustack) of all threads
++        // it has to be done before we dealloc the whole memory_set
++        // otherwise they will be deallocated twice
++        let mut recycle_res = Vec::<TaskUserRes>::new();
++        for task in process_inner.tasks.iter().filter(|t| t.is_some()) {
++            let task = task.as_ref().unwrap();
++            let mut task_inner = task.inner_exclusive_access();
++            if let Some(res) = task_inner.res.take() {
++                recycle_res.push(res);
++            }
++        }
++        // dealloc_tid and dealloc_user_res require access to PCB inner, so we
++        // need to collect those user res first, then release process_inner
++        // for now to avoid deadlock/double borrow problem.
++        drop(process_inner);
++        recycle_res.clear();
++
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.children.clear();
++        // deallocate other data in user space i.e. program code/data section
++        process_inner.memory_set.recycle_data_pages();
++        // drop file descriptors
++        process_inner.fd_table.clear();
++    }
++    drop(process);
++    // we do not have to save task context
++    let mut _unused = TaskContext::zero_init();
++    schedule(&mut _unused as *mut _);
++}
++
++lazy_static! {
++    pub static ref INITPROC: Arc<ProcessControlBlock> = {
++        let inode = open_file("initproc", OpenFlags::RDONLY).unwrap();
++        let v = inode.read_all();
++        ProcessControlBlock::new(v.as_slice())
++    };
++}
++
++pub fn add_initproc() {
++    let _initproc = INITPROC.clone();
++}
++
++pub fn check_signals_of_current() -> Option<(i32, &'static str)> {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    process_inner.signals.check_error()
++}
++
++pub fn current_add_signal(signal: SignalFlags) {
++    let process = current_process();
++    let mut process_inner = process.inner_exclusive_access();
++    process_inner.signals |= signal;
++}
+diff --git a/task/src/manager.rs b/task/src/manager.rs
+new file mode 100644
+index 0000000..b13f8b0
+--- /dev/null
++++ b/task/src/manager.rs
+@@ -0,0 +1,63 @@
++// TODO safe_cell lazy_static
++use crate::{ProcessControlBlock, TaskControlBlock, TaskStatus};
++use safe_cell::UPIntrFreeCell;
++use alloc::collections::{BTreeMap, VecDeque};
++use alloc::sync::Arc;
++use lazy_static::*;
++
++pub struct TaskManager {
++    ready_queue: VecDeque<Arc<TaskControlBlock>>,
++}
++
++/// A simple FIFO scheduler.
++impl TaskManager {
++    pub fn new() -> Self {
++        Self {
++            ready_queue: VecDeque::new(),
++        }
++    }
++    pub fn add(&mut self, task: Arc<TaskControlBlock>) {
++        self.ready_queue.push_back(task);
++    }
++    pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
++        self.ready_queue.pop_front()
++    }
++}
++
++lazy_static! {
++    pub static ref TASK_MANAGER: UPIntrFreeCell<TaskManager> =
++        unsafe { UPIntrFreeCell::new(TaskManager::new()) };
++    pub static ref PID2PCB: UPIntrFreeCell<BTreeMap<usize, Arc<ProcessControlBlock>>> =
++        unsafe { UPIntrFreeCell::new(BTreeMap::new()) };
++}
++
++pub fn add_task(task: Arc<TaskControlBlock>) {
++    TASK_MANAGER.exclusive_access().add(task);
++}
++
++pub fn wakeup_task(task: Arc<TaskControlBlock>) {
++    let mut task_inner = task.inner_exclusive_access();
++    task_inner.task_status = TaskStatus::Ready;
++    drop(task_inner);
++    add_task(task);
++}
++
++pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
++    TASK_MANAGER.exclusive_access().fetch()
++}
++
++pub fn pid2process(pid: usize) -> Option<Arc<ProcessControlBlock>> {
++    let map = PID2PCB.exclusive_access();
++    map.get(&pid).map(Arc::clone)
++}
++
++pub fn insert_into_pid2process(pid: usize, process: Arc<ProcessControlBlock>) {
++    PID2PCB.exclusive_access().insert(pid, process);
++}
++
++pub fn remove_from_pid2process(pid: usize) {
++    let mut map = PID2PCB.exclusive_access();
++    if map.remove(&pid).is_none() {
++        panic!("cannot find pid {} in pid2task!", pid);
++    }
++}
+diff --git a/task/src/process.rs b/task/src/process.rs
+new file mode 100644
+index 0000000..81e4f5b
+--- /dev/null
++++ b/task/src/process.rs
+@@ -0,0 +1,260 @@
++// TODO fs mm trap safe_cell sync
++use crate::id::RecycleAllocator;
++use crate::manager::insert_into_pid2process;
++use crate::TaskControlBlock;
++use crate::{add_task, SignalFlags};
++use crate::{pid_alloc, PidHandle};
++use fs::{File, Stdin, Stdout};
++use mm::{translated_refmut, MemorySet, KERNEL_SPACE};
++use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
++use sync::{Condvar, Mutex, Semaphore};
++use trap::{trap_handler, TrapContext};
++use alloc::string::String;
++use alloc::sync::{Arc, Weak};
++use alloc::vec;
++use alloc::vec::Vec;
++
++pub struct ProcessControlBlock {
++    // immutable
++    pub pid: PidHandle,
++    // mutable
++    inner: UPIntrFreeCell<ProcessControlBlockInner>,
++}
++
++pub struct ProcessControlBlockInner {
++    pub is_zombie: bool,
++    pub memory_set: MemorySet,
++    pub parent: Option<Weak<ProcessControlBlock>>,
++    pub children: Vec<Arc<ProcessControlBlock>>,
++    pub exit_code: i32,
++    pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
++    pub signals: SignalFlags,
++    pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
++    pub task_res_allocator: RecycleAllocator,
++    pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
++    pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
++    pub condvar_list: Vec<Option<Arc<Condvar>>>,
++}
++
++impl ProcessControlBlockInner {
++    #[allow(unused)]
++    pub fn get_user_token(&self) -> usize {
++        self.memory_set.token()
++    }
++
++    pub fn alloc_fd(&mut self) -> usize {
++        if let Some(fd) = (0..self.fd_table.len()).find(|fd| self.fd_table[*fd].is_none()) {
++            fd
++        } else {
++            self.fd_table.push(None);
++            self.fd_table.len() - 1
++        }
++    }
++
++    pub fn alloc_tid(&mut self) -> usize {
++        self.task_res_allocator.alloc()
++    }
++
++    pub fn dealloc_tid(&mut self, tid: usize) {
++        self.task_res_allocator.dealloc(tid)
++    }
++
++    pub fn thread_count(&self) -> usize {
++        self.tasks.len()
++    }
++
++    pub fn get_task(&self, tid: usize) -> Arc<TaskControlBlock> {
++        self.tasks[tid].as_ref().unwrap().clone()
++    }
++}
++
++impl ProcessControlBlock {
++    pub fn inner_exclusive_access(&self) -> UPIntrRefMut<'_, ProcessControlBlockInner> {
++        self.inner.exclusive_access()
++    }
++
++    pub fn new(elf_data: &[u8]) -> Arc<Self> {
++        // memory_set with elf program headers/trampoline/trap context/user stack
++        let (memory_set, ustack_base, entry_point) = MemorySet::from_elf(elf_data);
++        // allocate a pid
++        let pid_handle = pid_alloc();
++        let process = Arc::new(Self {
++            pid: pid_handle,
++            inner: unsafe {
++                UPIntrFreeCell::new(ProcessControlBlockInner {
++                    is_zombie: false,
++                    memory_set,
++                    parent: None,
++                    children: Vec::new(),
++                    exit_code: 0,
++                    fd_table: vec![
++                        // 0 -> stdin
++                        Some(Arc::new(Stdin)),
++                        // 1 -> stdout
++                        Some(Arc::new(Stdout)),
++                        // 2 -> stderr
++                        Some(Arc::new(Stdout)),
++                    ],
++                    signals: SignalFlags::empty(),
++                    tasks: Vec::new(),
++                    task_res_allocator: RecycleAllocator::new(),
++                    mutex_list: Vec::new(),
++                    semaphore_list: Vec::new(),
++                    condvar_list: Vec::new(),
++                })
++            },
++        });
++        // create a main thread, we should allocate ustack and trap_cx here
++        let task = Arc::new(TaskControlBlock::new(
++            Arc::clone(&process),
++            ustack_base,
++            true,
++        ));
++        // prepare trap_cx of main thread
++        let task_inner = task.inner_exclusive_access();
++        let trap_cx = task_inner.get_trap_cx();
++        let ustack_top = task_inner.res.as_ref().unwrap().ustack_top();
++        let kstack_top = task.kstack.get_top();
++        drop(task_inner);
++        *trap_cx = TrapContext::app_init_context(
++            entry_point,
++            ustack_top,
++            KERNEL_SPACE.exclusive_access().token(),
++            kstack_top,
++            trap_handler as usize,
++        );
++        // add main thread to the process
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.tasks.push(Some(Arc::clone(&task)));
++        drop(process_inner);
++        insert_into_pid2process(process.getpid(), Arc::clone(&process));
++        // add main thread to scheduler
++        add_task(task);
++        process
++    }
++
++    /// Only support processes with a single thread.
++    pub fn exec(self: &Arc<Self>, elf_data: &[u8], args: Vec<String>) {
++        assert_eq!(self.inner_exclusive_access().thread_count(), 1);
++        // memory_set with elf program headers/trampoline/trap context/user stack
++        let (memory_set, ustack_base, entry_point) = MemorySet::from_elf(elf_data);
++        let new_token = memory_set.token();
++        // substitute memory_set
++        self.inner_exclusive_access().memory_set = memory_set;
++        // then we alloc user resource for main thread again
++        // since memory_set has been changed
++        let task = self.inner_exclusive_access().get_task(0);
++        let mut task_inner = task.inner_exclusive_access();
++        task_inner.res.as_mut().unwrap().ustack_base = ustack_base;
++        task_inner.res.as_mut().unwrap().alloc_user_res();
++        task_inner.trap_cx_ppn = task_inner.res.as_mut().unwrap().trap_cx_ppn();
++        // push arguments on user stack
++        let mut user_sp = task_inner.res.as_mut().unwrap().ustack_top();
++        user_sp -= (args.len() + 1) * core::mem::size_of::<usize>();
++        let argv_base = user_sp;
++        let mut argv: Vec<_> = (0..=args.len())
++            .map(|arg| {
++                translated_refmut(
++                    new_token,
++                    (argv_base + arg * core::mem::size_of::<usize>()) as *mut usize,
++                )
++            })
++            .collect();
++        *argv[args.len()] = 0;
++        for i in 0..args.len() {
++            user_sp -= args[i].len() + 1;
++            *argv[i] = user_sp;
++            let mut p = user_sp;
++            for c in args[i].as_bytes() {
++                *translated_refmut(new_token, p as *mut u8) = *c;
++                p += 1;
++            }
++            *translated_refmut(new_token, p as *mut u8) = 0;
++        }
++        // make the user_sp aligned to 8B for k210 platform
++        user_sp -= user_sp % core::mem::size_of::<usize>();
++        // initialize trap_cx
++        let mut trap_cx = TrapContext::app_init_context(
++            entry_point,
++            user_sp,
++            KERNEL_SPACE.exclusive_access().token(),
++            task.kstack.get_top(),
++            trap_handler as usize,
++        );
++        trap_cx.x[10] = args.len();
++        trap_cx.x[11] = argv_base;
++        *task_inner.get_trap_cx() = trap_cx;
++    }
++
++    /// Only support processes with a single thread.
++    pub fn fork(self: &Arc<Self>) -> Arc<Self> {
++        let mut parent = self.inner_exclusive_access();
++        assert_eq!(parent.thread_count(), 1);
++        // clone parent's memory_set completely including trampoline/ustacks/trap_cxs
++        let memory_set = MemorySet::from_existed_user(&parent.memory_set);
++        // alloc a pid
++        let pid = pid_alloc();
++        // copy fd table
++        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
++        for fd in parent.fd_table.iter() {
++            if let Some(file) = fd {
++                new_fd_table.push(Some(file.clone()));
++            } else {
++                new_fd_table.push(None);
++            }
++        }
++        // create child process pcb
++        let child = Arc::new(Self {
++            pid,
++            inner: unsafe {
++                UPIntrFreeCell::new(ProcessControlBlockInner {
++                    is_zombie: false,
++                    memory_set,
++                    parent: Some(Arc::downgrade(self)),
++                    children: Vec::new(),
++                    exit_code: 0,
++                    fd_table: new_fd_table,
++                    signals: SignalFlags::empty(),
++                    tasks: Vec::new(),
++                    task_res_allocator: RecycleAllocator::new(),
++                    mutex_list: Vec::new(),
++                    semaphore_list: Vec::new(),
++                    condvar_list: Vec::new(),
++                })
++            },
++        });
++        // add child
++        parent.children.push(Arc::clone(&child));
++        // create main thread of child process
++        let task = Arc::new(TaskControlBlock::new(
++            Arc::clone(&child),
++            parent
++                .get_task(0)
++                .inner_exclusive_access()
++                .res
++                .as_ref()
++                .unwrap()
++                .ustack_base(),
++            // here we do not allocate trap_cx or ustack again
++            // but mention that we allocate a new kstack here
++            false,
++        ));
++        // attach task to child process
++        let mut child_inner = child.inner_exclusive_access();
++        child_inner.tasks.push(Some(Arc::clone(&task)));
++        drop(child_inner);
++        // modify kstack_top in trap_cx of this thread
++        let task_inner = task.inner_exclusive_access();
++        let trap_cx = task_inner.get_trap_cx();
++        trap_cx.kernel_sp = task.kstack.get_top();
++        drop(task_inner);
++        insert_into_pid2process(child.getpid(), Arc::clone(&child));
++        // add this thread to scheduler
++        add_task(task);
++        child
++    }
++
++    pub fn getpid(&self) -> usize {
++        self.pid.0
++    }
++}
+diff --git a/task/src/processor.rs b/task/src/processor.rs
+new file mode 100644
+index 0000000..ec459b6
+--- /dev/null
++++ b/task/src/processor.rs
+@@ -0,0 +1,104 @@
++// TODO safe_cell trap lazy_static
++use crate::__switch;
++use crate::{fetch_task, TaskStatus};
++use crate::{ProcessControlBlock, TaskContext, TaskControlBlock};
++use safe_cell::UPIntrFreeCell;
++use trap::TrapContext;
++use alloc::sync::Arc;
++use lazy_static::*;
++
++pub struct Processor {
++    current: Option<Arc<TaskControlBlock>>,
++    idle_task_cx: TaskContext,
++}
++
++impl Processor {
++    pub fn new() -> Self {
++        Self {
++            current: None,
++            idle_task_cx: TaskContext::zero_init(),
++        }
++    }
++    fn get_idle_task_cx_ptr(&mut self) -> *mut TaskContext {
++        &mut self.idle_task_cx as *mut _
++    }
++    pub fn take_current(&mut self) -> Option<Arc<TaskControlBlock>> {
++        self.current.take()
++    }
++    pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
++        self.current.as_ref().map(Arc::clone)
++    }
++}
++
++lazy_static! {
++    pub static ref PROCESSOR: UPIntrFreeCell<Processor> =
++        unsafe { UPIntrFreeCell::new(Processor::new()) };
++}
++
++pub fn run_tasks() {
++    loop {
++        let mut processor = PROCESSOR.exclusive_access();
++        if let Some(task) = fetch_task() {
++            let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
++            // access coming task TCB exclusively
++            let next_task_cx_ptr = task.inner.exclusive_session(|task_inner| {
++                task_inner.task_status = TaskStatus::Running;
++                &task_inner.task_cx as *const TaskContext
++            });
++            processor.current = Some(task);
++            // release processor manually
++            drop(processor);
++            unsafe {
++                __switch(idle_task_cx_ptr, next_task_cx_ptr);
++            }
++        } else {
++            println!("no tasks available in run_tasks");
++        }
++    }
++}
++
++pub fn take_current_task() -> Option<Arc<TaskControlBlock>> {
++    PROCESSOR.exclusive_access().take_current()
++}
++
++pub fn current_task() -> Option<Arc<TaskControlBlock>> {
++    PROCESSOR.exclusive_access().current()
++}
++
++pub fn current_process() -> Arc<ProcessControlBlock> {
++    current_task().unwrap().process.upgrade().unwrap()
++}
++
++pub fn current_user_token() -> usize {
++    let task = current_task().unwrap();
++    task.get_user_token()
++}
++
++pub fn current_trap_cx() -> &'static mut TrapContext {
++    current_task()
++        .unwrap()
++        .inner_exclusive_access()
++        .get_trap_cx()
++}
++
++pub fn current_trap_cx_user_va() -> usize {
++    current_task()
++        .unwrap()
++        .inner_exclusive_access()
++        .res
++        .as_ref()
++        .unwrap()
++        .trap_cx_user_va()
++}
++
++pub fn current_kstack_top() -> usize {
++    current_task().unwrap().kstack.get_top()
++}
++
++pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
++    let idle_task_cx_ptr =
++        PROCESSOR.exclusive_session(|processor| processor.get_idle_task_cx_ptr());
++    unsafe {
++        __switch(switched_task_cx_ptr, idle_task_cx_ptr);
++    }
++}
+diff --git a/task/src/signal.rs b/task/src/signal.rs
+new file mode 100644
+index 0000000..7b01eb7
+--- /dev/null
++++ b/task/src/signal.rs
+@@ -0,0 +1,30 @@
++// TODO bitflag
++use bitflags::*;
++
++bitflags! {
++    pub struct SignalFlags: u32 {
++        const SIGINT    = 1 << 2;
++        const SIGILL    = 1 << 4;
++        const SIGABRT   = 1 << 6;
++        const SIGFPE    = 1 << 8;
++        const SIGSEGV   = 1 << 11;
++    }
++}
++
++impl SignalFlags {
++    pub fn check_error(&self) -> Option<(i32, &'static str)> {
++        if self.contains(Self::SIGINT) {
++            Some((-2, "Killed, SIGINT=2"))
++        } else if self.contains(Self::SIGILL) {
++            Some((-4, "Illegal Instruction, SIGILL=4"))
++        } else if self.contains(Self::SIGABRT) {
++            Some((-6, "Aborted, SIGABRT=6"))
++        } else if self.contains(Self::SIGFPE) {
++            Some((-8, "Erroneous Arithmetic Operation, SIGFPE=8"))
++        } else if self.contains(Self::SIGSEGV) {
++            Some((-11, "Segmentation Fault, SIGSEGV=11"))
++        } else {
++            None
++        }
++    }
++}
+diff --git a/task/src/switch.S b/task/src/switch.S
+new file mode 100644
+index 0000000..138a382
+--- /dev/null
++++ b/task/src/switch.S
+@@ -0,0 +1,33 @@
++.altmacro
++.macro SAVE_SN n
++    sd s\n, (\n+2)*8(a0)
++.endm
++.macro LOAD_SN n
++    ld s\n, (\n+2)*8(a1)
++.endm
++    .section .text
++    .globl __switch
++__switch:
++    # __switch(
++    #     current_task_cx_ptr: *mut TaskContext,
++    #     next_task_cx_ptr: *const TaskContext
++    # )
++    # save kernel stack of current task
++    sd sp, 8(a0)
++    # save ra & s0~s11 of current execution
++    sd ra, 0(a0)
++    .set n, 0
++    .rept 12
++        SAVE_SN %n
++        .set n, n + 1
++    .endr
++    # restore ra & s0~s11 of next execution
++    ld ra, 0(a1)
++    .set n, 0
++    .rept 12
++        LOAD_SN %n
++        .set n, n + 1
++    .endr
++    # restore kernel stack of next task
++    ld sp, 8(a1)
++    ret
+diff --git a/task/src/switch.rs b/task/src/switch.rs
+new file mode 100644
+index 0000000..5eba236
+--- /dev/null
++++ b/task/src/switch.rs
+@@ -0,0 +1,8 @@
++use crate::TaskContext;
++use core::arch::global_asm;
++
++global_asm!(include_str!("switch.S"));
++
++extern "C" {
++    pub fn __switch(current_task_cx_ptr: *mut TaskContext, next_task_cx_ptr: *const TaskContext);
++}
+diff --git a/task/src/task.rs b/task/src/task.rs
+new file mode 100644
+index 0000000..4bc3fc3
+--- /dev/null
++++ b/task/src/task.rs
+@@ -0,0 +1,80 @@
++// TODO trap mm safe_cell
++use crate::id::TaskUserRes;
++use crate::{kstack_alloc, KernelStack, ProcessControlBlock, TaskContext};
++use trap::TrapContext;
++use mm::PhysPageNum;
++use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
++
++use alloc::sync::{Arc, Weak};
++
++pub struct TaskControlBlock {
++    // immutable
++    pub process: Weak<ProcessControlBlock>,
++    pub kstack: KernelStack,
++    // mutable
++    pub inner: UPIntrFreeCell<TaskControlBlockInner>,
++}
++
++impl TaskControlBlock {
++    pub fn inner_exclusive_access(&self) -> UPIntrRefMut<'_, TaskControlBlockInner> {
++        self.inner.exclusive_access()
++    }
++
++    pub fn get_user_token(&self) -> usize {
++        let process = self.process.upgrade().unwrap();
++        let inner = process.inner_exclusive_access();
++        inner.memory_set.token()
++    }
++}
++
++pub struct TaskControlBlockInner {
++    pub res: Option<TaskUserRes>,
++    pub trap_cx_ppn: PhysPageNum,
++    pub task_cx: TaskContext,
++    pub task_status: TaskStatus,
++    pub exit_code: Option<i32>,
++}
++
++impl TaskControlBlockInner {
++    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
++        self.trap_cx_ppn.get_mut()
++    }
++
++    #[allow(unused)]
++    fn get_status(&self) -> TaskStatus {
++        self.task_status
++    }
++}
++
++impl TaskControlBlock {
++    pub fn new(
++        process: Arc<ProcessControlBlock>,
++        ustack_base: usize,
++        alloc_user_res: bool,
++    ) -> Self {
++        let res = TaskUserRes::new(Arc::clone(&process), ustack_base, alloc_user_res);
++        let trap_cx_ppn = res.trap_cx_ppn();
++        let kstack = kstack_alloc();
++        let kstack_top = kstack.get_top();
++        Self {
++            process: Arc::downgrade(&process),
++            kstack,
++            inner: unsafe {
++                UPIntrFreeCell::new(TaskControlBlockInner {
++                    res: Some(res),
++                    trap_cx_ppn,
++                    task_cx: TaskContext::goto_trap_return(kstack_top),
++                    task_status: TaskStatus::Ready,
++                    exit_code: None,
++                })
++            },
++        }
++    }
++}
++
++#[derive(Copy, Clone, PartialEq)]
++pub enum TaskStatus {
++    Ready,
++    Running,
++    Blocked,
++}
+-- 
+2.34.1
+

@@ -1,0 +1,50 @@
+From dc383233a5e11fb558e1d0532c69ec2f861df192 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 17 Feb 2023 11:15:02 -0500
+Subject: [PATCH 27/80] UPIntrFreeCell is in sync crate, while I quadrature it
+ and UPIntrFreeCell well split from sync to safe_cell.
+
+---
+ drivers/src/chardev/ns16550a.rs | 2 +-
+ drivers/src/gpu/mod.rs          | 2 +-
+ drivers/src/input/mod.rs        | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/src/chardev/ns16550a.rs b/drivers/src/chardev/ns16550a.rs
+index 7029a5d..2e1f5bd 100644
+--- a/drivers/src/chardev/ns16550a.rs
++++ b/drivers/src/chardev/ns16550a.rs
+@@ -2,7 +2,7 @@
+ ///! Ref: ns16550a datasheet: https://datasheetspdf.com/pdf-file/605590/NationalSemiconductor/NS16550A/1
+ ///! Ref: ns16450 datasheet: https://datasheetspdf.com/pdf-file/1311818/NationalSemiconductor/NS16450/1
+ use crate::chardev::CharDevice;
+-// TODO sync task bitflags volatile
++// TODO sync safe_cell task bitflags volatile
+ use sync::Condvar;
+ use safe_cell::UPIntrFreeCell;
+ use task::schedule;
+diff --git a/drivers/src/gpu/mod.rs b/drivers/src/gpu/mod.rs
+index f6840bc..9d60356 100644
+--- a/drivers/src/gpu/mod.rs
++++ b/drivers/src/gpu/mod.rs
+@@ -1,5 +1,5 @@
+ use crate::bus::virtio::VirtioHal;
+-// TODO sync embedded_graphics tinybmp virtio_drivers
++// TODO safe_cell embedded_graphics tinybmp virtio_drivers
+ use safe_cell::UPIntrFreeCell;
+ use alloc::{sync::Arc, vec::Vec};
+ use core::any::Any;
+diff --git a/drivers/src/input/mod.rs b/drivers/src/input/mod.rs
+index 8d78681..aeb57e8 100644
+--- a/drivers/src/input/mod.rs
++++ b/drivers/src/input/mod.rs
+@@ -1,5 +1,5 @@
+ use crate::bus::virtio::VirtioHal;
+-// TODO sync task virtio_drivers
++// TODO sync safe_cell task virtio_drivers
+ use sync::Condvar; 
+ use safe_cell::UPIntrFreeCell;
+ use task::schedule;
+-- 
+2.34.1
+

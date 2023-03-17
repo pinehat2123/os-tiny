@@ -1,0 +1,129 @@
+From 1831ad64873cf4303653b66f1f4f24f0b39a14f1 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 02:10:57 -0500
+Subject: [PATCH 69/80] some error in syscall.
+
+---
+ application/user/src/syscall.rs | 71 ++++++++++++++-------------------
+ syscall/src/lib.rs              | 21 +++++++++-
+ 2 files changed, 50 insertions(+), 42 deletions(-)
+
+diff --git a/application/user/src/syscall.rs b/application/user/src/syscall.rs
+index 46af83c..386cc73 100644
+--- a/application/user/src/syscall.rs
++++ b/application/user/src/syscall.rs
+@@ -1,44 +1,33 @@
+-const SYSCALL_DUP: usize = 24;
+-const SYSCALL_OPEN: usize = 56;
+-const SYSCALL_CLOSE: usize = 57;
+-const SYSCALL_PIPE: usize = 59;
+-const SYSCALL_READ: usize = 63;
+-const SYSCALL_WRITE: usize = 64;
+-const SYSCALL_EXIT: usize = 93;
+-const SYSCALL_SLEEP: usize = 101;
+-const SYSCALL_YIELD: usize = 124;
+-const SYSCALL_KILL: usize = 129;
+-const SYSCALL_GET_TIME: usize = 169;
+-const SYSCALL_GETPID: usize = 172;
+-const SYSCALL_FORK: usize = 220;
+-const SYSCALL_EXEC: usize = 221;
+-const SYSCALL_WAITPID: usize = 260;
+-const SYSCALL_THREAD_CREATE: usize = 1000;
+-const SYSCALL_GETTID: usize = 1001;
+-const SYSCALL_WAITTID: usize = 1002;
+-const SYSCALL_MUTEX_CREATE: usize = 1010;
+-const SYSCALL_MUTEX_LOCK: usize = 1011;
+-const SYSCALL_MUTEX_UNLOCK: usize = 1012;
+-const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
+-const SYSCALL_SEMAPHORE_UP: usize = 1021;
+-const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
+-const SYSCALL_CONDVAR_CREATE: usize = 1030;
+-const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
+-const SYSCALL_CONDVAR_WAIT: usize = 1032;
+-
+-fn syscall(id: usize, args: [usize; 3]) -> isize {
+-    let mut ret: isize;
+-    unsafe {
+-        core::arch::asm!(
+-            "ecall",
+-            inlateout("x10") args[0] => ret,
+-            in("x11") args[1],
+-            in("x12") args[2],
+-            in("x17") id
+-        );
+-    }
+-    ret
+-}
++use syscall_macro::syscall_number::kernel::*;
++// const SYSCALL_DUP: usize = 24;
++// const SYSCALL_OPEN: usize = 56;
++// const SYSCALL_CLOSE: usize = 57;
++// const SYSCALL_PIPE: usize = 59;
++// const SYSCALL_READ: usize = 63;
++// const SYSCALL_WRITE: usize = 64;
++// const SYSCALL_EXIT: usize = 93;
++// const SYSCALL_SLEEP: usize = 101;
++// const SYSCALL_YIELD: usize = 124;
++// const SYSCALL_KILL: usize = 129;
++// const SYSCALL_GET_TIME: usize = 169;
++// const SYSCALL_GETPID: usize = 172;
++// const SYSCALL_FORK: usize = 220;
++// const SYSCALL_EXEC: usize = 221;
++// const SYSCALL_WAITPID: usize = 260;
++// const SYSCALL_THREAD_CREATE: usize = 1000;
++// const SYSCALL_GETTID: usize = 1001;
++// const SYSCALL_WAITTID: usize = 1002;
++// const SYSCALL_MUTEX_CREATE: usize = 1010;
++// const SYSCALL_MUTEX_LOCK: usize = 1011;
++// const SYSCALL_MUTEX_UNLOCK: usize = 1012;
++// const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
++// const SYSCALL_SEMAPHORE_UP: usize = 1021;
++// const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
++// const SYSCALL_CONDVAR_CREATE: usize = 1030;
++// const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
++// const SYSCALL_CONDVAR_WAIT: usize = 1032;
++use syscall_macro::syscall;
++
+ 
+ pub fn sys_dup(fd: usize) -> isize {
+     syscall(SYSCALL_DUP, [fd, 0, 0])
+diff --git a/syscall/src/lib.rs b/syscall/src/lib.rs
+index 616b774..a1774d7 100644
+--- a/syscall/src/lib.rs
++++ b/syscall/src/lib.rs
+@@ -60,7 +60,7 @@ macro_rules! syscall {
+     ($($name:ident($a:ident, $($b:ident, $($c:ident, $($d:ident, $($e:ident, $($f:ident, $($g:ident, $($h:ident, )?)?)?)?)?)?)?);)+) => {
+         $(
+             pub unsafe fn $name($a: usize, $($b: usize, $($c: usize, $($d: usize, $($e: usize, $($f: usize, $($g: usize, $($h: usize, )?)?)?)?)?)?)?) -> isize {
+-                let _ret: usize;
++                let _ret: isize;
+ 
+                 core::arch::asm!(
+                     "ecall",
+@@ -105,3 +105,22 @@ syscall! {
+     syscall5(a, b, c, d, e, f, z, );
+     syscall6(a, b, c, d, e, f, g, z, );
+ }
++
++fn syscall_3(id: usize, args: [usize; 3]) -> isize {
++    let mut ret: isize;
++    unsafe {
++        core::arch::asm!(
++            "ecall",
++            in("a0") args[0],
++            in("a1") args[1],
++            in("a2") args[2],
++            in("a7") id,
++            lateout("a0") ret,
++            options(nostack),
++        );
++    }
++    ret
++    // todo: [error] unsafe { syscall2(id, args[0], args[1], args[2]) }
++}
++
++pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3(id, args) }
+\ No newline at end of file
+-- 
+2.34.1
+

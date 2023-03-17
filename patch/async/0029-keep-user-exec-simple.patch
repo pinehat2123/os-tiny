@@ -1,0 +1,3175 @@
+From f6efe14fb82a22bc62e3e9f92ba74fc017b9bede Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 20 Feb 2023 22:08:16 -0500
+Subject: [PATCH 29/80] keep user exec simple!
+
+---
+ application/user/src/bin/adder.rs             |  57 ---
+ application/user/src/bin/adder_atomic.rs      |  74 ----
+ .../user/src/bin/adder_mutex_blocking.rs      |  61 ---
+ application/user/src/bin/adder_mutex_spin.rs  |  62 ----
+ .../user/src/bin/adder_peterson_spin.rs       |  95 -----
+ .../user/src/bin/adder_peterson_yield.rs      |  94 -----
+ application/user/src/bin/adder_simple_spin.rs |  70 ----
+ .../user/src/bin/adder_simple_yield.rs        |  72 ----
+ application/user/src/bin/barrier_condvar.rs   |  83 -----
+ application/user/src/bin/barrier_fail.rs      |  33 --
+ application/user/src/bin/condsync_condvar.rs  |  59 ---
+ application/user/src/bin/condsync_sem.rs      |  64 ----
+ application/user/src/bin/count_lines.rs       |  30 --
+ application/user/src/bin/eisenberg.rs         | 138 -------
+ application/user/src/bin/forktest.rs          |  34 --
+ application/user/src/bin/forktest2.rs         |  34 --
+ application/user/src/bin/forktree.rs          |  45 ---
+ application/user/src/bin/gui_rect.rs          |  71 ----
+ application/user/src/bin/gui_simple.rs        |  23 --
+ application/user/src/bin/gui_snake.rs         | 351 ------------------
+ application/user/src/bin/gui_uart.rs          | 125 -------
+ application/user/src/bin/huge_write.rs        |  33 --
+ application/user/src/bin/huge_write_mt.rs     |  56 ---
+ application/user/src/bin/infloop.rs           |  10 -
+ application/user/src/bin/inputdev_event.rs    |  25 --
+ application/user/src/bin/matrix.rs            |  69 ----
+ application/user/src/bin/mpsc_sem.rs          |  73 ----
+ application/user/src/bin/peterson.rs          |  80 ----
+ application/user/src/bin/phil_din_mutex.rs    | 107 ------
+ application/user/src/bin/pipe_large_test.rs   |  71 ----
+ application/user/src/bin/priv_csr.rs          |  17 -
+ application/user/src/bin/priv_inst.rs         |  17 -
+ application/user/src/bin/race_adder_arg.rs    |  56 ---
+ application/user/src/bin/random_num.rs        |  16 -
+ application/user/src/bin/run_pipe_test.rs     |  21 --
+ application/user/src/bin/sleep.rs             |  30 --
+ application/user/src/bin/sleep_simple.rs      |  23 --
+ application/user/src/bin/stack_overflow.rs    |  20 -
+ .../user/src/bin/stackless_coroutine.rs       | 129 -------
+ application/user/src/bin/store_fault.rs       |  15 -
+ application/user/src/bin/sync_sem.rs          |  45 ---
+ application/user/src/bin/threads.rs           |  45 ---
+ application/user/src/bin/threads_arg.rs       |  44 ---
+ application/user/src/bin/until_timeout.rs     |  46 ---
+ application/user/src/bin/usertests.rs         |  68 ++--
+ 45 files changed, 34 insertions(+), 2757 deletions(-)
+ delete mode 100644 application/user/src/bin/adder.rs
+ delete mode 100644 application/user/src/bin/adder_atomic.rs
+ delete mode 100644 application/user/src/bin/adder_mutex_blocking.rs
+ delete mode 100644 application/user/src/bin/adder_mutex_spin.rs
+ delete mode 100644 application/user/src/bin/adder_peterson_spin.rs
+ delete mode 100644 application/user/src/bin/adder_peterson_yield.rs
+ delete mode 100644 application/user/src/bin/adder_simple_spin.rs
+ delete mode 100644 application/user/src/bin/adder_simple_yield.rs
+ delete mode 100644 application/user/src/bin/barrier_condvar.rs
+ delete mode 100644 application/user/src/bin/barrier_fail.rs
+ delete mode 100644 application/user/src/bin/condsync_condvar.rs
+ delete mode 100644 application/user/src/bin/condsync_sem.rs
+ delete mode 100644 application/user/src/bin/count_lines.rs
+ delete mode 100644 application/user/src/bin/eisenberg.rs
+ delete mode 100644 application/user/src/bin/forktest.rs
+ delete mode 100644 application/user/src/bin/forktest2.rs
+ delete mode 100644 application/user/src/bin/forktree.rs
+ delete mode 100644 application/user/src/bin/gui_rect.rs
+ delete mode 100644 application/user/src/bin/gui_simple.rs
+ delete mode 100644 application/user/src/bin/gui_snake.rs
+ delete mode 100644 application/user/src/bin/gui_uart.rs
+ delete mode 100644 application/user/src/bin/huge_write.rs
+ delete mode 100644 application/user/src/bin/huge_write_mt.rs
+ delete mode 100644 application/user/src/bin/infloop.rs
+ delete mode 100644 application/user/src/bin/inputdev_event.rs
+ delete mode 100644 application/user/src/bin/matrix.rs
+ delete mode 100644 application/user/src/bin/mpsc_sem.rs
+ delete mode 100644 application/user/src/bin/peterson.rs
+ delete mode 100644 application/user/src/bin/phil_din_mutex.rs
+ delete mode 100644 application/user/src/bin/pipe_large_test.rs
+ delete mode 100644 application/user/src/bin/priv_csr.rs
+ delete mode 100644 application/user/src/bin/priv_inst.rs
+ delete mode 100644 application/user/src/bin/race_adder_arg.rs
+ delete mode 100644 application/user/src/bin/random_num.rs
+ delete mode 100644 application/user/src/bin/run_pipe_test.rs
+ delete mode 100644 application/user/src/bin/sleep.rs
+ delete mode 100644 application/user/src/bin/sleep_simple.rs
+ delete mode 100644 application/user/src/bin/stack_overflow.rs
+ delete mode 100644 application/user/src/bin/stackless_coroutine.rs
+ delete mode 100644 application/user/src/bin/store_fault.rs
+ delete mode 100644 application/user/src/bin/sync_sem.rs
+ delete mode 100644 application/user/src/bin/threads.rs
+ delete mode 100644 application/user/src/bin/threads_arg.rs
+ delete mode 100644 application/user/src/bin/until_timeout.rs
+
+diff --git a/application/user/src/bin/adder.rs b/application/user/src/bin/adder.rs
+deleted file mode 100644
+index d1addf1..0000000
+--- a/application/user/src/bin/adder.rs
++++ /dev/null
+@@ -1,57 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        critical_section(&mut t);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_atomic.rs b/application/user/src/bin/adder_atomic.rs
+deleted file mode 100644
+index 8fb5639..0000000
+--- a/application/user/src/bin/adder_atomic.rs
++++ /dev/null
+@@ -1,74 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use core::sync::atomic::{AtomicBool, Ordering};
+-use user_lib::{exit, get_time, thread_create, waittid, yield_};
+-
+-static mut A: usize = 0;
+-static OCCUPIED: AtomicBool = AtomicBool::new(false);
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-fn lock() {
+-    while OCCUPIED
+-        .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+-        .is_err()
+-    {
+-        yield_();
+-    }
+-}
+-
+-fn unlock() {
+-    OCCUPIED.store(false, Ordering::Relaxed);
+-}
+-
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        lock();
+-        critical_section(&mut t);
+-        unlock();
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_mutex_blocking.rs b/application/user/src/bin/adder_mutex_blocking.rs
+deleted file mode 100644
+index 79bb3c3..0000000
+--- a/application/user/src/bin/adder_mutex_blocking.rs
++++ /dev/null
+@@ -1,61 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid};
+-use user_lib::{mutex_blocking_create, mutex_lock, mutex_unlock};
+-
+-static mut A: usize = 0;
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        mutex_lock(0);
+-        critical_section(&mut t);
+-        mutex_unlock(0);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-
+-    let start = get_time();
+-    assert_eq!(mutex_blocking_create(), 0);
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_mutex_spin.rs b/application/user/src/bin/adder_mutex_spin.rs
+deleted file mode 100644
+index 315a338..0000000
+--- a/application/user/src/bin/adder_mutex_spin.rs
++++ /dev/null
+@@ -1,62 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid};
+-use user_lib::{mutex_create, mutex_lock, mutex_unlock};
+-
+-static mut A: usize = 0;
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        mutex_lock(0);
+-        critical_section(&mut t);
+-        mutex_unlock(0);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-
+-    let start = get_time();
+-    assert_eq!(mutex_create(), 0);
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_peterson_spin.rs b/application/user/src/bin/adder_peterson_spin.rs
+deleted file mode 100644
+index 35fd0d3..0000000
+--- a/application/user/src/bin/adder_peterson_spin.rs
++++ /dev/null
+@@ -1,95 +0,0 @@
+-//! It only works on a single CPU!
+-
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use core::sync::atomic::{compiler_fence, Ordering};
+-use user_lib::{exit, get_time, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-static mut FLAG: [bool; 2] = [false; 2];
+-static mut TURN: usize = 0;
+-const PER_THREAD_DEFAULT: usize = 2000;
+-const THREAD_COUNT_DEFAULT: usize = 2;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn lock(id: usize) {
+-    FLAG[id] = true;
+-    let j = 1 - id;
+-    TURN = j;
+-    // Tell the compiler not to reorder memory operations
+-    // across this fence.
+-    compiler_fence(Ordering::SeqCst);
+-    // Why do we need to use volatile_read here?
+-    // Otherwise the compiler will assume that they will never
+-    // be changed on this thread. Thus, they will be accessed
+-    // only once!
+-    while vload!(&FLAG[j]) && vload!(&TURN) == j {}
+-}
+-
+-unsafe fn unlock(id: usize) {
+-    FLAG[id] = false;
+-}
+-
+-unsafe fn f(id: usize) -> ! {
+-    let mut t = 2usize;
+-    for _iter in 0..PER_THREAD {
+-        lock(id);
+-        critical_section(&mut t);
+-        unlock(id);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-
+-    // uncomment this if you want to check the assembly
+-    // println!(
+-    //     "addr: lock={:#x}, unlock={:#x}",
+-    //     lock as usize,
+-    //     unlock as usize
+-    // );
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    assert_eq!(
+-        thread_count, 2,
+-        "Peterson works when there are only 2 threads."
+-    );
+-    for id in 0..thread_count {
+-        v.push(thread_create(f as usize, id) as usize);
+-    }
+-    let mut time_cost = Vec::new();
+-    for tid in v.iter() {
+-        time_cost.push(waittid(*tid));
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_peterson_yield.rs b/application/user/src/bin/adder_peterson_yield.rs
+deleted file mode 100644
+index 7b905e3..0000000
+--- a/application/user/src/bin/adder_peterson_yield.rs
++++ /dev/null
+@@ -1,94 +0,0 @@
+-//! It only works on a single CPU!
+-
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use core::sync::atomic::{compiler_fence, Ordering};
+-use user_lib::{exit, get_time, thread_create, waittid, yield_};
+-
+-static mut A: usize = 0;
+-static mut FLAG: [bool; 2] = [false; 2];
+-static mut TURN: usize = 0;
+-const PER_THREAD_DEFAULT: usize = 2000;
+-const THREAD_COUNT_DEFAULT: usize = 2;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn lock(id: usize) {
+-    FLAG[id] = true;
+-    let j = 1 - id;
+-    TURN = j;
+-    // Tell the compiler not to reorder memory operations
+-    // across this fence.
+-    compiler_fence(Ordering::SeqCst);
+-    while FLAG[j] && TURN == j {
+-        yield_();
+-    }
+-}
+-
+-unsafe fn unlock(id: usize) {
+-    FLAG[id] = false;
+-}
+-
+-unsafe fn f(id: usize) -> ! {
+-    let mut t = 2usize;
+-    for _iter in 0..PER_THREAD {
+-        lock(id);
+-        critical_section(&mut t);
+-        unlock(id);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-
+-    // uncomment this if you want to check the assembly
+-    // println!(
+-    //     "addr: lock={:#x}, unlock={:#x}",
+-    //     lock as usize,
+-    //     unlock as usize
+-    // );
+-
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    assert_eq!(
+-        thread_count, 2,
+-        "Peterson works when there are only 2 threads."
+-    );
+-    for id in 0..thread_count {
+-        v.push(thread_create(f as usize, id) as usize);
+-    }
+-    let mut time_cost = Vec::new();
+-    for tid in v.iter() {
+-        time_cost.push(waittid(*tid));
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_simple_spin.rs b/application/user/src/bin/adder_simple_spin.rs
+deleted file mode 100644
+index ad5b328..0000000
+--- a/application/user/src/bin/adder_simple_spin.rs
++++ /dev/null
+@@ -1,70 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-static mut OCCUPIED: bool = false;
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn lock() {
+-    while vload!(&OCCUPIED) {}
+-    OCCUPIED = true;
+-}
+-
+-unsafe fn unlock() {
+-    OCCUPIED = false;
+-}
+-
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        lock();
+-        critical_section(&mut t);
+-        unlock();
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/adder_simple_yield.rs b/application/user/src/bin/adder_simple_yield.rs
+deleted file mode 100644
+index 355b401..0000000
+--- a/application/user/src/bin/adder_simple_yield.rs
++++ /dev/null
+@@ -1,72 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid, yield_};
+-
+-static mut A: usize = 0;
+-static mut OCCUPIED: bool = false;
+-const PER_THREAD_DEFAULT: usize = 10000;
+-const THREAD_COUNT_DEFAULT: usize = 16;
+-static mut PER_THREAD: usize = 0;
+-
+-unsafe fn critical_section(t: &mut usize) {
+-    let a = &mut A as *mut usize;
+-    let cur = a.read_volatile();
+-    for _ in 0..500 {
+-        *t = (*t) * (*t) % 10007;
+-    }
+-    a.write_volatile(cur + 1);
+-}
+-
+-unsafe fn lock() {
+-    while OCCUPIED {
+-        yield_();
+-    }
+-    OCCUPIED = true;
+-}
+-
+-unsafe fn unlock() {
+-    OCCUPIED = false;
+-}
+-
+-unsafe fn f() -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        lock();
+-        critical_section(&mut t);
+-        unlock();
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let mut thread_count = THREAD_COUNT_DEFAULT;
+-    let mut per_thread = PER_THREAD_DEFAULT;
+-    if argc >= 2 {
+-        thread_count = argv[1].parse().unwrap();
+-        if argc >= 3 {
+-            per_thread = argv[2].parse().unwrap();
+-        }
+-    }
+-    unsafe {
+-        PER_THREAD = per_thread;
+-    }
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    for _ in 0..thread_count {
+-        v.push(thread_create(f as usize, 0) as usize);
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid);
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
+-    0
+-}
+diff --git a/application/user/src/bin/barrier_condvar.rs b/application/user/src/bin/barrier_condvar.rs
+deleted file mode 100644
+index 7157772..0000000
+--- a/application/user/src/bin/barrier_condvar.rs
++++ /dev/null
+@@ -1,83 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use core::cell::UnsafeCell;
+-use lazy_static::*;
+-use user_lib::{
+-    condvar_create, condvar_signal, condvar_wait, exit, mutex_create, mutex_lock, mutex_unlock,
+-    thread_create, waittid,
+-};
+-
+-const THREAD_NUM: usize = 3;
+-
+-struct Barrier {
+-    mutex_id: usize,
+-    condvar_id: usize,
+-    count: UnsafeCell<usize>,
+-}
+-
+-impl Barrier {
+-    pub fn new() -> Self {
+-        Self {
+-            mutex_id: mutex_create() as usize,
+-            condvar_id: condvar_create() as usize,
+-            count: UnsafeCell::new(0),
+-        }
+-    }
+-    pub fn block(&self) {
+-        mutex_lock(self.mutex_id);
+-        let count = self.count.get();
+-        // SAFETY: Here, the accesses of the count is in the
+-        // critical section protected by the mutex.
+-        unsafe {
+-            *count = *count + 1;
+-        }
+-        if unsafe { *count } == THREAD_NUM {
+-            condvar_signal(self.condvar_id);
+-        } else {
+-            condvar_wait(self.condvar_id, self.mutex_id);
+-            condvar_signal(self.condvar_id);
+-        }
+-        mutex_unlock(self.mutex_id);
+-    }
+-}
+-
+-unsafe impl Sync for Barrier {}
+-
+-lazy_static! {
+-    static ref BARRIER_AB: Barrier = Barrier::new();
+-    static ref BARRIER_BC: Barrier = Barrier::new();
+-}
+-
+-fn thread_fn() {
+-    for _ in 0..300 {
+-        print!("a");
+-    }
+-    BARRIER_AB.block();
+-    for _ in 0..300 {
+-        print!("b");
+-    }
+-    BARRIER_BC.block();
+-    for _ in 0..300 {
+-        print!("c");
+-    }
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v: Vec<isize> = Vec::new();
+-    for _ in 0..THREAD_NUM {
+-        v.push(thread_create(thread_fn as usize, 0));
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid as usize);
+-    }
+-    println!("\nOK!");
+-    0
+-}
+diff --git a/application/user/src/bin/barrier_fail.rs b/application/user/src/bin/barrier_fail.rs
+deleted file mode 100644
+index 11604ca..0000000
+--- a/application/user/src/bin/barrier_fail.rs
++++ /dev/null
+@@ -1,33 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, thread_create, waittid};
+-
+-const THREAD_NUM: usize = 3;
+-
+-fn thread_fn() {
+-    for ch in 'a'..='c' {
+-        for _ in 0..300 {
+-            print!("{}", ch);
+-        }
+-    }
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v: Vec<isize> = Vec::new();
+-    for _ in 0..THREAD_NUM {
+-        v.push(thread_create(thread_fn as usize, 0));
+-    }
+-    for tid in v.into_iter() {
+-        waittid(tid as usize);
+-    }
+-    println!("\nOK!");
+-    0
+-}
+diff --git a/application/user/src/bin/condsync_condvar.rs b/application/user/src/bin/condsync_condvar.rs
+deleted file mode 100644
+index 78605ad..0000000
+--- a/application/user/src/bin/condsync_condvar.rs
++++ /dev/null
+@@ -1,59 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-extern crate alloc;
+-
+-use alloc::vec;
+-use user_lib::exit;
+-use user_lib::{
+-    condvar_create, condvar_signal, condvar_wait, mutex_blocking_create, mutex_lock, mutex_unlock,
+-};
+-use user_lib::{sleep, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-
+-const CONDVAR_ID: usize = 0;
+-const MUTEX_ID: usize = 0;
+-
+-unsafe fn first() -> ! {
+-    sleep(10);
+-    println!("First work, Change A --> 1 and wakeup Second");
+-    mutex_lock(MUTEX_ID);
+-    A = 1;
+-    condvar_signal(CONDVAR_ID);
+-    mutex_unlock(MUTEX_ID);
+-    exit(0)
+-}
+-
+-unsafe fn second() -> ! {
+-    println!("Second want to continue,but need to wait A=1");
+-    mutex_lock(MUTEX_ID);
+-    while A == 0 {
+-        println!("Second: A is {}", A);
+-        condvar_wait(CONDVAR_ID, MUTEX_ID);
+-    }
+-    println!("A is {}, Second can work now", A);
+-    mutex_unlock(MUTEX_ID);
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // create condvar & mutex
+-    assert_eq!(condvar_create() as usize, CONDVAR_ID);
+-    assert_eq!(mutex_blocking_create() as usize, MUTEX_ID);
+-    // create threads
+-    let threads = vec![
+-        thread_create(first as usize, 0),
+-        thread_create(second as usize, 0),
+-    ];
+-    // wait for all threads to complete
+-    for thread in threads.iter() {
+-        waittid(*thread as usize);
+-    }
+-    println!("test_condvar passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/condsync_sem.rs b/application/user/src/bin/condsync_sem.rs
+deleted file mode 100644
+index ee08fac..0000000
+--- a/application/user/src/bin/condsync_sem.rs
++++ /dev/null
+@@ -1,64 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-extern crate alloc;
+-
+-use alloc::vec;
+-use user_lib::exit;
+-use user_lib::{
+-    mutex_blocking_create, mutex_lock, mutex_unlock, semaphore_create, semaphore_down, semaphore_up,
+-};
+-use user_lib::{sleep, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-
+-const SEM_ID: usize = 0;
+-const MUTEX_ID: usize = 0;
+-
+-unsafe fn first() -> ! {
+-    sleep(10);
+-    println!("First work, Change A --> 1 and wakeup Second");
+-    mutex_lock(MUTEX_ID);
+-    A = 1;
+-    semaphore_up(SEM_ID);
+-    mutex_unlock(MUTEX_ID);
+-    exit(0)
+-}
+-
+-unsafe fn second() -> ! {
+-    println!("Second want to continue,but need to wait A=1");
+-    loop {
+-        mutex_lock(MUTEX_ID);
+-        if A == 0 {
+-            println!("Second: A is {}", A);
+-            mutex_unlock(MUTEX_ID);
+-            semaphore_down(SEM_ID);
+-        } else {
+-            mutex_unlock(MUTEX_ID);
+-            break;
+-        }
+-    }
+-    println!("A is {}, Second can work now", A);
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // create semaphore & mutex
+-    assert_eq!(semaphore_create(0) as usize, SEM_ID);
+-    assert_eq!(mutex_blocking_create() as usize, MUTEX_ID);
+-    // create threads
+-    let threads = vec![
+-        thread_create(first as usize, 0),
+-        thread_create(second as usize, 0),
+-    ];
+-    // wait for all threads to complete
+-    for thread in threads.iter() {
+-        waittid(*thread as usize);
+-    }
+-    println!("test_condvar passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/count_lines.rs b/application/user/src/bin/count_lines.rs
+deleted file mode 100644
+index f4d9c9a..0000000
+--- a/application/user/src/bin/count_lines.rs
++++ /dev/null
+@@ -1,30 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::read;
+-
+-#[no_mangle]
+-pub fn main(_argc: usize, _argv: &[&str]) -> i32 {
+-    let mut buf = [0u8; 256];
+-    let mut lines = 0usize;
+-    let mut total_size = 0usize;
+-    loop {
+-        let len = read(0, &mut buf) as usize;
+-        if len == 0 {
+-            break;
+-        }
+-        total_size += len;
+-        let string = core::str::from_utf8(&buf[..len]).unwrap();
+-        lines += string
+-            .chars()
+-            .fold(0, |acc, c| acc + if c == '\n' { 1 } else { 0 });
+-    }
+-    if total_size > 0 {
+-        lines += 1;
+-    }
+-    println!("{}", lines);
+-    0
+-}
+diff --git a/application/user/src/bin/eisenberg.rs b/application/user/src/bin/eisenberg.rs
+deleted file mode 100644
+index d39edd1..0000000
+--- a/application/user/src/bin/eisenberg.rs
++++ /dev/null
+@@ -1,138 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-extern crate core;
+-
+-use alloc::vec::Vec;
+-use core::sync::atomic::{AtomicUsize, Ordering};
+-use user_lib::{exit, sleep, thread_create, waittid};
+-
+-const N: usize = 2;
+-const THREAD_NUM: usize = 10;
+-
+-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+-enum FlagState {
+-    Out,
+-    Want,
+-    In,
+-}
+-
+-static mut TURN: usize = 0;
+-static mut FLAG: [FlagState; THREAD_NUM] = [FlagState::Out; THREAD_NUM];
+-
+-static GUARD: AtomicUsize = AtomicUsize::new(0);
+-
+-fn critical_test_enter() {
+-    assert_eq!(GUARD.fetch_add(1, Ordering::SeqCst), 0);
+-}
+-
+-fn critical_test_claim() {
+-    assert_eq!(GUARD.load(Ordering::SeqCst), 1);
+-}
+-
+-fn critical_test_exit() {
+-    assert_eq!(GUARD.fetch_sub(1, Ordering::SeqCst), 1);
+-}
+-
+-fn eisenberg_enter_critical(id: usize) {
+-    /* announce that we want to enter */
+-    loop {
+-        println!("Thread[{}] try enter", id);
+-        vstore!(&FLAG[id], FlagState::Want);
+-        loop {
+-            /* check if any with higher priority is `Want` or `In` */
+-            let mut prior_thread: Option<usize> = None;
+-            let turn = vload!(&TURN);
+-            let ring_id = if id < turn { id + THREAD_NUM } else { id };
+-            // FLAG.iter() may lead to some errors, use for-loop instead
+-            for i in turn..ring_id {
+-                if vload!(&FLAG[i % THREAD_NUM]) != FlagState::Out {
+-                    prior_thread = Some(i % THREAD_NUM);
+-                    break;
+-                }
+-            }
+-            if prior_thread.is_none() {
+-                break;
+-            }
+-            println!(
+-                "Thread[{}]: prior thread {} exist, sleep and retry",
+-                id,
+-                prior_thread.unwrap()
+-            );
+-            sleep(1);
+-        }
+-        /* now tentatively claim the resource */
+-        vstore!(&FLAG[id], FlagState::In);
+-        /* enforce the order of `claim` and `conflict check`*/
+-        memory_fence!();
+-        /* check if anthor thread is also `In`, which imply a conflict*/
+-        let mut conflict = false;
+-        for i in 0..THREAD_NUM {
+-            if i != id && vload!(&FLAG[i]) == FlagState::In {
+-                conflict = true;
+-            }
+-        }
+-        if !conflict {
+-            break;
+-        }
+-        println!("Thread[{}]: CONFLECT!", id);
+-        /* no need to sleep */
+-    }
+-    /* clain the trun */
+-    vstore!(&TURN, id);
+-    println!("Thread[{}] enter", id);
+-}
+-
+-fn eisenberg_exit_critical(id: usize) {
+-    /* find next one who wants to enter and give the turn to it*/
+-    let mut next = id;
+-    let ring_id = id + THREAD_NUM;
+-    for i in (id + 1)..ring_id {
+-        let idx = i % THREAD_NUM;
+-        if vload!(&FLAG[idx]) == FlagState::Want {
+-            next = idx;
+-            break;
+-        }
+-    }
+-    vstore!(&TURN, next);
+-    /* All done */
+-    vstore!(&FLAG[id], FlagState::Out);
+-    println!("Thread[{}] exit, give turn to {}", id, next);
+-}
+-
+-pub fn thread_fn(id: usize) -> ! {
+-    println!("Thread[{}] init.", id);
+-    for _ in 0..N {
+-        eisenberg_enter_critical(id);
+-        critical_test_enter();
+-        for _ in 0..3 {
+-            critical_test_claim();
+-            sleep(2);
+-        }
+-        critical_test_exit();
+-        eisenberg_exit_critical(id);
+-    }
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v = Vec::new();
+-    // TODO: really shuffle
+-    assert_eq!(THREAD_NUM, 10);
+-    let shuffle: [usize; 10] = [0, 7, 4, 6, 2, 9, 8, 1, 3, 5];
+-    for i in 0..THREAD_NUM {
+-        v.push(thread_create(thread_fn as usize, shuffle[i]));
+-    }
+-    for tid in v.iter() {
+-        let exit_code = waittid(*tid as usize);
+-        assert_eq!(exit_code, 0, "thread conflict happened!");
+-        println!("thread#{} exited with code {}", tid, exit_code);
+-    }
+-    println!("main thread exited.");
+-    0
+-}
+diff --git a/application/user/src/bin/forktest.rs b/application/user/src/bin/forktest.rs
+deleted file mode 100644
+index f4e387d..0000000
+--- a/application/user/src/bin/forktest.rs
++++ /dev/null
+@@ -1,34 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exit, fork, wait};
+-
+-const MAX_CHILD: usize = 30;
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    for i in 0..MAX_CHILD {
+-        let pid = fork();
+-        if pid == 0 {
+-            println!("I am child {}", i);
+-            exit(0);
+-        } else {
+-            println!("forked child pid = {}", pid);
+-        }
+-        assert!(pid > 0);
+-    }
+-    let mut exit_code: i32 = 0;
+-    for _ in 0..MAX_CHILD {
+-        if wait(&mut exit_code) <= 0 {
+-            panic!("wait stopped early");
+-        }
+-    }
+-    if wait(&mut exit_code) > 0 {
+-        panic!("wait got too many");
+-    }
+-    println!("forktest pass.");
+-    0
+-}
+diff --git a/application/user/src/bin/forktest2.rs b/application/user/src/bin/forktest2.rs
+deleted file mode 100644
+index 1c211cd..0000000
+--- a/application/user/src/bin/forktest2.rs
++++ /dev/null
+@@ -1,34 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exit, fork, get_time, getpid, sleep, wait};
+-
+-static NUM: usize = 30;
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    for _ in 0..NUM {
+-        let pid = fork();
+-        if pid == 0 {
+-            let current_time = get_time();
+-            let sleep_length =
+-                (current_time as i32 as isize) * (current_time as i32 as isize) % 1000 + 1000;
+-            println!("pid {} sleep for {} ms", getpid(), sleep_length);
+-            sleep(sleep_length as usize);
+-            println!("pid {} OK!", getpid());
+-            exit(0);
+-        }
+-    }
+-
+-    let mut exit_code: i32 = 0;
+-    for _ in 0..NUM {
+-        assert!(wait(&mut exit_code) > 0);
+-        assert_eq!(exit_code, 0);
+-    }
+-    assert!(wait(&mut exit_code) < 0);
+-    println!("forktest2 test passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/forktree.rs b/application/user/src/bin/forktree.rs
+deleted file mode 100644
+index ccf92a2..0000000
+--- a/application/user/src/bin/forktree.rs
++++ /dev/null
+@@ -1,45 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exit, fork, getpid, sleep, wait, yield_};
+-
+-const DEPTH: usize = 4;
+-
+-fn fork_child(cur: &str, branch: char) {
+-    let mut next = [0u8; DEPTH + 1];
+-    let l = cur.len();
+-    if l >= DEPTH {
+-        return;
+-    }
+-    next[..l].copy_from_slice(cur.as_bytes());
+-    next[l] = branch as u8;
+-    if fork() == 0 {
+-        fork_tree(core::str::from_utf8(&next[..l + 1]).unwrap());
+-        yield_();
+-        exit(0);
+-    }
+-}
+-
+-fn fork_tree(cur: &str) {
+-    println!("pid{}: {}", getpid(), cur);
+-    fork_child(cur, '0');
+-    fork_child(cur, '1');
+-    let mut exit_code: i32 = 0;
+-    for _ in 0..2 {
+-        wait(&mut exit_code);
+-    }
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    fork_tree("");
+-    let mut exit_code: i32 = 0;
+-    for _ in 0..2 {
+-        wait(&mut exit_code);
+-    }
+-    sleep(3000);
+-    0
+-}
+diff --git a/application/user/src/bin/gui_rect.rs b/application/user/src/bin/gui_rect.rs
+deleted file mode 100644
+index b73162b..0000000
+--- a/application/user/src/bin/gui_rect.rs
++++ /dev/null
+@@ -1,71 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-extern crate alloc;
+-extern crate user_lib;
+-
+-use user_lib::{Display, VIRTGPU_XRES, VIRTGPU_YRES};
+-
+-use embedded_graphics::pixelcolor::Rgb888;
+-use embedded_graphics::prelude::{DrawTarget, Drawable, Point, RgbColor, Size};
+-use embedded_graphics::primitives::{Circle, Primitive, PrimitiveStyle, Rectangle, Triangle};
+-
+-const INIT_X: i32 = 80;
+-const INIT_Y: i32 = 400;
+-const RECT_SIZE: u32 = 150;
+-
+-pub struct DrawingBoard {
+-    disp: Display,
+-    latest_pos: Point,
+-}
+-
+-impl DrawingBoard {
+-    pub fn new() -> Self {
+-        Self {
+-            disp: Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES)),
+-            latest_pos: Point::new(INIT_X, INIT_Y),
+-        }
+-    }
+-    fn paint(&mut self) {
+-        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
+-            .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 10))
+-            .draw(&mut self.disp)
+-            .ok();
+-        Circle::new(self.latest_pos + Point::new(-70, -300), 150)
+-            .into_styled(PrimitiveStyle::with_fill(Rgb888::BLUE))
+-            .draw(&mut self.disp)
+-            .ok();
+-        Triangle::new(
+-            self.latest_pos + Point::new(0, 150),
+-            self.latest_pos + Point::new(80, 200),
+-            self.latest_pos + Point::new(-120, 300),
+-        )
+-        .into_styled(PrimitiveStyle::with_stroke(Rgb888::GREEN, 10))
+-        .draw(&mut self.disp)
+-        .ok();
+-    }
+-    fn unpaint(&mut self) {
+-        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
+-            .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLACK, 10))
+-            .draw(&mut self.disp)
+-            .ok();
+-    }
+-    pub fn move_rect(&mut self, dx: i32, dy: i32) {
+-        self.unpaint();
+-        self.latest_pos.x += dx;
+-        self.latest_pos.y += dy;
+-        self.paint();
+-    }
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut board = DrawingBoard::new();
+-    let _ = board.disp.clear(Rgb888::BLACK).unwrap();
+-    for _i in 0..5 {
+-        board.latest_pos.x += RECT_SIZE as i32 + 20;
+-        //board.latest_pos.y += i;
+-        board.paint();
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/gui_simple.rs b/application/user/src/bin/gui_simple.rs
+deleted file mode 100644
+index f30b1fc..0000000
+--- a/application/user/src/bin/gui_simple.rs
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-extern crate user_lib;
+-
+-use embedded_graphics::prelude::Size;
+-use user_lib::{Display, VIRTGPU_XRES, VIRTGPU_YRES};
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut disp = Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES));
+-    disp.paint_on_framebuffer(|fb| {
+-        for y in 0..VIRTGPU_YRES as usize {
+-            for x in 0..VIRTGPU_XRES as usize {
+-                let idx = (y * VIRTGPU_XRES as usize + x) * 4;
+-                fb[idx] = x as u8;
+-                fb[idx + 1] = y as u8;
+-                fb[idx + 2] = (x + y) as u8;
+-            }
+-        }
+-    });
+-    0
+-}
+diff --git a/application/user/src/bin/gui_snake.rs b/application/user/src/bin/gui_snake.rs
+deleted file mode 100644
+index 0411824..0000000
+--- a/application/user/src/bin/gui_snake.rs
++++ /dev/null
+@@ -1,351 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-extern crate alloc;
+-extern crate user_lib;
+-
+-use user_lib::console::getchar;
+-use user_lib::{key_pressed, sleep, Display, VIRTGPU_XRES, VIRTGPU_YRES};
+-
+-use embedded_graphics::pixelcolor::*;
+-use embedded_graphics::prelude::{Drawable, Point, RgbColor, Size};
+-use embedded_graphics::primitives::Primitive;
+-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+-use embedded_graphics::Pixel;
+-use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
+-use oorandom; //random generator
+-
+-struct Snake<T: PixelColor, const MAX_SIZE: usize> {
+-    parts: [Pixel<T>; MAX_SIZE],
+-    len: usize,
+-    direction: Direction,
+-    size_x: u32,
+-    size_y: u32,
+-}
+-
+-struct SnakeIntoIterator<'a, T: PixelColor, const MAX_SIZE: usize> {
+-    snake: &'a Snake<T, MAX_SIZE>,
+-    index: usize,
+-}
+-
+-impl<'a, T: PixelColor, const MAX_SIZE: usize> IntoIterator for &'a Snake<T, MAX_SIZE> {
+-    type Item = Pixel<T>;
+-    type IntoIter = SnakeIntoIterator<'a, T, MAX_SIZE>;
+-
+-    fn into_iter(self) -> Self::IntoIter {
+-        SnakeIntoIterator {
+-            snake: self,
+-            index: 0,
+-        }
+-    }
+-}
+-
+-impl<'a, T: PixelColor, const MAX_SIZE: usize> Iterator for SnakeIntoIterator<'a, T, MAX_SIZE> {
+-    type Item = Pixel<T>;
+-
+-    fn next(&mut self) -> Option<Self::Item> {
+-        let cur = self.snake.parts[self.index];
+-        if self.index < self.snake.len {
+-            self.index += 1;
+-            return Some(cur);
+-        }
+-        None
+-    }
+-}
+-
+-impl<T: PixelColor, const MAX_SIZE: usize> Snake<T, MAX_SIZE> {
+-    fn new(color: T, size_x: u32, size_y: u32) -> Snake<T, MAX_SIZE> {
+-        Snake {
+-            parts: [Pixel::<T>(Point { x: 0, y: 0 }, color); MAX_SIZE],
+-            len: 1,
+-            direction: Direction::None,
+-            size_x,
+-            size_y,
+-        }
+-    }
+-    fn set_direction(&mut self, direction: Direction) {
+-        self.direction = direction;
+-    }
+-    fn contains(&self, this: Point) -> bool {
+-        for part in self.into_iter() {
+-            if part.0 == this {
+-                return true;
+-            };
+-        }
+-        false
+-    }
+-    fn grow(&mut self) {
+-        if self.len < MAX_SIZE - 1 {
+-            self.len += 1;
+-        }
+-    }
+-    fn make_step(&mut self) {
+-        let mut i = self.len;
+-        while i > 0 {
+-            self.parts[i] = self.parts[i - 1];
+-            i -= 1;
+-        }
+-        match self.direction {
+-            Direction::Left => {
+-                if self.parts[0].0.x == 0 {
+-                    self.parts[0].0.x = (self.size_x - 1) as i32;
+-                } else {
+-                    self.parts[0].0.x -= 1;
+-                }
+-            }
+-            Direction::Right => {
+-                if self.parts[0].0.x == (self.size_x - 1) as i32 {
+-                    self.parts[0].0.x = 0;
+-                } else {
+-                    self.parts[0].0.x += 1;
+-                }
+-            }
+-            Direction::Up => {
+-                if self.parts[0].0.y == 0 {
+-                    self.parts[0].0.y = (self.size_y - 1) as i32;
+-                } else {
+-                    self.parts[0].0.y -= 1;
+-                }
+-            }
+-            Direction::Down => {
+-                if self.parts[0].0.y == (self.size_y - 1) as i32 {
+-                    self.parts[0].0.y = 0;
+-                } else {
+-                    self.parts[0].0.y += 1;
+-                }
+-            }
+-            Direction::None => {}
+-        }
+-    }
+-}
+-
+-struct Food<T: PixelColor> {
+-    size_x: u32,
+-    size_y: u32,
+-    place: Pixel<T>,
+-    rng: oorandom::Rand32,
+-}
+-
+-impl<T: PixelColor> Food<T> {
+-    pub fn new(color: T, size_x: u32, size_y: u32) -> Self {
+-        let seed = 4;
+-        let rng = oorandom::Rand32::new(seed);
+-        Food {
+-            size_x,
+-            size_y,
+-            place: Pixel(Point { x: 0, y: 0 }, color),
+-            rng,
+-        }
+-    }
+-    fn replace<'a, const MAX_SIZE: usize>(&mut self, iter_source: &Snake<T, MAX_SIZE>) {
+-        let mut p: Point;
+-        'outer: loop {
+-            let random_number = self.rng.rand_u32();
+-            let blocked_positions = iter_source.into_iter();
+-            p = Point {
+-                x: ((random_number >> 24) as u16 % self.size_x as u16).into(),
+-                y: ((random_number >> 16) as u16 % self.size_y as u16).into(),
+-            };
+-            for blocked_position in blocked_positions {
+-                if p == blocked_position.0 {
+-                    continue 'outer;
+-                }
+-            }
+-            break;
+-        }
+-        self.place = Pixel::<T> {
+-            0: p,
+-            1: self.place.1,
+-        }
+-    }
+-    fn get_pixel(&self) -> Pixel<T> {
+-        self.place
+-    }
+-}
+-
+-#[derive(PartialEq, Debug, Clone, Copy)]
+-pub enum Direction {
+-    Left,
+-    Right,
+-    Up,
+-    Down,
+-    None,
+-}
+-
+-pub struct SnakeGame<const MAX_SNAKE_SIZE: usize, T: PixelColor> {
+-    snake: Snake<T, MAX_SNAKE_SIZE>,
+-    food: Food<T>,
+-    food_age: u32,
+-    food_lifetime: u32,
+-    size_x: u32,
+-    size_y: u32,
+-    scale_x: u32,
+-    scale_y: u32,
+-}
+-
+-impl<const MAX_SIZE: usize, T: PixelColor> SnakeGame<MAX_SIZE, T> {
+-    pub fn new(
+-        size_x: u32,
+-        size_y: u32,
+-        scale_x: u32,
+-        scale_y: u32,
+-        snake_color: T,
+-        food_color: T,
+-        food_lifetime: u32,
+-    ) -> Self {
+-        let snake = Snake::<T, MAX_SIZE>::new(snake_color, size_x / scale_x, size_y / scale_y);
+-        let mut food = Food::<T>::new(food_color, size_x / scale_x, size_y / scale_y);
+-        food.replace(&snake);
+-        SnakeGame {
+-            snake,
+-            food,
+-            food_age: 0,
+-            food_lifetime,
+-            size_x,
+-            size_y,
+-            scale_x,
+-            scale_y,
+-        }
+-    }
+-    pub fn set_direction(&mut self, direction: Direction) {
+-        self.snake.set_direction(direction);
+-    }
+-    pub fn draw<D>(&mut self, target: &mut D) -> ()
+-    where
+-        D: DrawTarget<Color = T>,
+-    {
+-        self.snake.make_step();
+-        let hit = self.snake.contains(self.food.get_pixel().0);
+-        if hit {
+-            self.snake.grow();
+-        }
+-        self.food_age += 1;
+-        if self.food_age >= self.food_lifetime || hit {
+-            self.food.replace(&self.snake);
+-            self.food_age = 0;
+-        }
+-
+-        let mut scaled_display = ScaledDisplay::<D> {
+-            real_display: target,
+-            size_x: self.size_x / self.scale_x,
+-            size_y: self.size_y / self.scale_y,
+-            scale_x: self.scale_x,
+-            scale_y: self.scale_y,
+-        };
+-
+-        for part in self.snake.into_iter() {
+-            _ = part.draw(&mut scaled_display);
+-        }
+-        _ = self.food.get_pixel().draw(&mut scaled_display);
+-    }
+-}
+-
+-/// A dummy DrawTarget implementation that can magnify each pixel so the user code does not need to adapt for scaling things
+-struct ScaledDisplay<'a, T: DrawTarget> {
+-    real_display: &'a mut T,
+-    size_x: u32,
+-    size_y: u32,
+-    scale_x: u32,
+-    scale_y: u32,
+-}
+-
+-impl<'a, T: DrawTarget> DrawTarget for ScaledDisplay<'a, T> {
+-    type Color = T::Color;
+-    type Error = T::Error;
+-
+-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+-    where
+-        I: IntoIterator<Item = Pixel<Self::Color>>,
+-    {
+-        for pixel in pixels {
+-            let style = PrimitiveStyle::with_fill(pixel.1);
+-            Rectangle::new(
+-                Point::new(
+-                    pixel.0.x * self.scale_x as i32,
+-                    pixel.0.y * self.scale_y as i32,
+-                ),
+-                Size::new(self.scale_x as u32, self.scale_y as u32),
+-            )
+-            .into_styled(style)
+-            .draw(self.real_display)?;
+-        }
+-        Ok(())
+-    }
+-}
+-
+-impl<'a, T: DrawTarget> OriginDimensions for ScaledDisplay<'a, T> {
+-    fn size(&self) -> Size {
+-        Size::new(self.size_x as u32, self.size_y as u32)
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-
+-    use crate::Snake;
+-    use embedded_graphics::pixelcolor::*;
+-    use embedded_graphics::prelude::*;
+-
+-    #[test]
+-    fn snake_basic() {
+-        let mut snake = Snake::<Rgb888, 20>::new(Rgb888::RED, 8, 8);
+-        snake.set_direction(crate::Direction::Right);
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
+-            snake.into_iter().next().unwrap()
+-        );
+-        snake.make_step();
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 1, y: 0 }, Rgb888::RED),
+-            snake.into_iter().nth(0).unwrap()
+-        );
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
+-            snake.into_iter().nth(1).unwrap()
+-        );
+-        snake.set_direction(crate::Direction::Down);
+-        snake.make_step();
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 1, y: 1 }, Rgb888::RED),
+-            snake.into_iter().nth(0).unwrap()
+-        );
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 1, y: 0 }, Rgb888::RED),
+-            snake.into_iter().nth(1).unwrap()
+-        );
+-        assert_eq!(
+-            Pixel::<Rgb888>(Point { x: 0, y: 0 }, Rgb888::RED),
+-            snake.into_iter().nth(2).unwrap()
+-        );
+-        assert_eq!(true, snake.contains(Point { x: 0, y: 0 }));
+-        assert_eq!(true, snake.contains(Point { x: 1, y: 0 }));
+-        assert_eq!(true, snake.contains(Point { x: 1, y: 1 }));
+-    }
+-}
+-
+-const LF: u8 = 0x0au8;
+-const CR: u8 = 0x0du8;
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut disp = Display::new(Size::new(VIRTGPU_XRES, VIRTGPU_YRES));
+-    let mut game = SnakeGame::<20, Rgb888>::new(1280, 800, 20, 20, Rgb888::RED, Rgb888::YELLOW, 50);
+-    let _ = disp.clear(Rgb888::BLACK).unwrap();
+-    loop {
+-        if key_pressed() {
+-            let c = getchar();
+-            match c {
+-                LF => break,
+-                CR => break,
+-                b'w' => game.set_direction(Direction::Up),
+-                b's' => game.set_direction(Direction::Down),
+-                b'a' => game.set_direction(Direction::Left),
+-                b'd' => game.set_direction(Direction::Right),
+-                _ => (),
+-            }
+-        }
+-        let _ = disp.clear(Rgb888::BLACK).unwrap();
+-        game.draw(&mut disp);
+-        sleep(10);
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/gui_uart.rs b/application/user/src/bin/gui_uart.rs
+deleted file mode 100644
+index 8e9c9b8..0000000
+--- a/application/user/src/bin/gui_uart.rs
++++ /dev/null
+@@ -1,125 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use user_lib::console::getchar;
+-use user_lib::{framebuffer, framebuffer_flush};
+-
+-use embedded_graphics::pixelcolor::Rgb888;
+-use embedded_graphics::prelude::{Drawable, Point, RgbColor, Size};
+-use embedded_graphics::primitives::Primitive;
+-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+-use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
+-
+-pub const VIRTGPU_XRES: usize = 1280;
+-pub const VIRTGPU_YRES: usize = 800;
+-pub const VIRTGPU_LEN: usize = VIRTGPU_XRES * VIRTGPU_YRES * 4;
+-
+-const INIT_X: i32 = 640;
+-const INIT_Y: i32 = 400;
+-const RECT_SIZE: u32 = 40;
+-
+-pub struct Display {
+-    pub size: Size,
+-    pub point: Point,
+-    //pub fb: Arc<&'static mut [u8]>,
+-    pub fb: &'static mut [u8],
+-}
+-
+-impl Display {
+-    pub fn new(size: Size, point: Point) -> Self {
+-        let fb_ptr = framebuffer() as *mut u8;
+-        println!(
+-            "Hello world from user mode program! 0x{:X} , len {}",
+-            fb_ptr as usize, VIRTGPU_LEN
+-        );
+-        let fb =
+-            unsafe { core::slice::from_raw_parts_mut(fb_ptr as *mut u8, VIRTGPU_LEN as usize) };
+-        Self { size, point, fb }
+-    }
+-}
+-
+-impl OriginDimensions for Display {
+-    fn size(&self) -> Size {
+-        self.size
+-    }
+-}
+-
+-impl DrawTarget for Display {
+-    type Color = Rgb888;
+-
+-    type Error = core::convert::Infallible;
+-
+-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+-    where
+-        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+-    {
+-        pixels.into_iter().for_each(|px| {
+-            let idx = ((self.point.y + px.0.y) * VIRTGPU_XRES as i32 + self.point.x + px.0.x)
+-                as usize
+-                * 4;
+-            if idx + 2 >= self.fb.len() {
+-                return;
+-            }
+-            self.fb[idx] = px.1.b();
+-            self.fb[idx + 1] = px.1.g();
+-            self.fb[idx + 2] = px.1.r();
+-        });
+-        framebuffer_flush();
+-        Ok(())
+-    }
+-}
+-
+-pub struct DrawingBoard {
+-    disp: Display,
+-    latest_pos: Point,
+-}
+-
+-impl DrawingBoard {
+-    pub fn new() -> Self {
+-        Self {
+-            disp: Display::new(Size::new(1280, 800), Point::new(0, 0)),
+-            latest_pos: Point::new(INIT_X, INIT_Y),
+-        }
+-    }
+-    fn paint(&mut self) {
+-        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
+-            .into_styled(PrimitiveStyle::with_stroke(Rgb888::WHITE, 1))
+-            .draw(&mut self.disp)
+-            .ok();
+-    }
+-    fn unpaint(&mut self) {
+-        Rectangle::with_center(self.latest_pos, Size::new(RECT_SIZE, RECT_SIZE))
+-            .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLACK, 1))
+-            .draw(&mut self.disp)
+-            .ok();
+-    }
+-    pub fn move_rect(&mut self, dx: i32, dy: i32) {
+-        self.unpaint();
+-        self.latest_pos.x += dx;
+-        self.latest_pos.y += dy;
+-        self.paint();
+-    }
+-}
+-
+-const LF: u8 = 0x0au8;
+-const CR: u8 = 0x0du8;
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // let fb_ptr = framebuffer() as *mut u8;
+-    let mut board = DrawingBoard::new();
+-    let _ = board.disp.clear(Rgb888::BLACK).unwrap();
+-    for i in 0..20 {
+-        let c = getchar();
+-        if c == LF || c == CR {
+-            break;
+-        }
+-        board.latest_pos.x += i;
+-        board.latest_pos.y += i;
+-        board.paint();
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/huge_write.rs b/application/user/src/bin/huge_write.rs
+deleted file mode 100644
+index dd9814a..0000000
+--- a/application/user/src/bin/huge_write.rs
++++ /dev/null
+@@ -1,33 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{close, get_time, open, write, OpenFlags};
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut buffer = [0u8; 1024]; // 1KiB
+-    for (i, ch) in buffer.iter_mut().enumerate() {
+-        *ch = i as u8;
+-    }
+-    let f = open("testf\0", OpenFlags::CREATE | OpenFlags::WRONLY);
+-    if f < 0 {
+-        panic!("Open test file failed!");
+-    }
+-    let f = f as usize;
+-    let start = get_time();
+-    let size_mb = 1usize;
+-    for _ in 0..1024 * size_mb {
+-        write(f, &buffer);
+-    }
+-    close(f);
+-    let time_ms = (get_time() - start) as usize;
+-    let speed_kbs = (size_mb << 20) / time_ms;
+-    println!(
+-        "{}MiB written, time cost = {}ms, write speed = {}KiB/s",
+-        size_mb, time_ms, speed_kbs
+-    );
+-    0
+-}
+diff --git a/application/user/src/bin/huge_write_mt.rs b/application/user/src/bin/huge_write_mt.rs
+deleted file mode 100644
+index c2e1e65..0000000
+--- a/application/user/src/bin/huge_write_mt.rs
++++ /dev/null
+@@ -1,56 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::{fmt::format, vec::Vec};
+-use user_lib::{close, get_time, gettid, open, write, OpenFlags};
+-use user_lib::{exit, thread_create, waittid};
+-
+-fn worker(size_kib: usize) {
+-    let mut buffer = [0u8; 1024]; // 1KiB
+-    for (i, ch) in buffer.iter_mut().enumerate() {
+-        *ch = i as u8;
+-    }
+-    let filename = format(format_args!("testf{}\0", gettid()));
+-    let f = open(filename.as_str(), OpenFlags::CREATE | OpenFlags::WRONLY);
+-    if f < 0 {
+-        panic!("Open test file failed!");
+-    }
+-    let f = f as usize;
+-    for _ in 0..size_kib {
+-        write(f, &buffer);
+-    }
+-    close(f);
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    assert_eq!(argc, 2, "wrong argument");
+-    let size_mb = 1usize;
+-    let size_kb = size_mb << 10;
+-    let workers = argv[1].parse::<usize>().expect("wrong argument");
+-    assert!(workers >= 1 && size_kb % workers == 0, "wrong argument");
+-
+-    let start = get_time();
+-
+-    let mut v = Vec::new();
+-    let size_mb = 1usize;
+-    for _ in 0..workers {
+-        v.push(thread_create(worker as usize, size_kb / workers));
+-    }
+-    for tid in v.iter() {
+-        assert_eq!(0, waittid(*tid as usize));
+-    }
+-
+-    let time_ms = (get_time() - start) as usize;
+-    let speed_kbs = size_kb * 1000 / time_ms;
+-    println!(
+-        "{}MiB written by {} threads, time cost = {}ms, write speed = {}KiB/s",
+-        size_mb, workers, time_ms, speed_kbs
+-    );
+-    0
+-}
+diff --git a/application/user/src/bin/infloop.rs b/application/user/src/bin/infloop.rs
+deleted file mode 100644
+index 9a38a09..0000000
+--- a/application/user/src/bin/infloop.rs
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![allow(clippy::empty_loop)]
+-
+-extern crate user_lib;
+-
+-#[no_mangle]
+-pub fn main(_argc: usize, _argv: &[&str]) -> ! {
+-    loop {}
+-}
+diff --git a/application/user/src/bin/inputdev_event.rs b/application/user/src/bin/inputdev_event.rs
+deleted file mode 100644
+index ea56f3a..0000000
+--- a/application/user/src/bin/inputdev_event.rs
++++ /dev/null
+@@ -1,25 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-use user_lib::{event_get, DecodeType, Key, KeyType};
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    println!("Input device event test");
+-    loop {
+-        if let Some(event) = event_get() {
+-            if let Some(decoder_type) = event.decode() {
+-                println!("{:?}", decoder_type);
+-                if let DecodeType::Key(key, keytype) = decoder_type {
+-                    if key == Key::Enter && keytype == KeyType::Press {
+-                        break;
+-                    }
+-                }
+-            }
+-        }
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/matrix.rs b/application/user/src/bin/matrix.rs
+deleted file mode 100644
+index 1909124..0000000
+--- a/application/user/src/bin/matrix.rs
++++ /dev/null
+@@ -1,69 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![allow(clippy::needless_range_loop)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exit, fork, get_time, getpid, wait, yield_};
+-
+-static NUM: usize = 30;
+-const N: usize = 10;
+-static P: i32 = 10007;
+-type Arr = [[i32; N]; N];
+-
+-fn work(times: isize) {
+-    let mut a: Arr = Default::default();
+-    let mut b: Arr = Default::default();
+-    let mut c: Arr = Default::default();
+-    for i in 0..N {
+-        for j in 0..N {
+-            a[i][j] = 1;
+-            b[i][j] = 1;
+-        }
+-    }
+-    yield_();
+-    println!("pid {} is running ({} times)!.", getpid(), times);
+-    for _ in 0..times {
+-        for i in 0..N {
+-            for j in 0..N {
+-                c[i][j] = 0;
+-                for k in 0..N {
+-                    c[i][j] = (c[i][j] + a[i][k] * b[k][j]) % P;
+-                }
+-            }
+-        }
+-        for i in 0..N {
+-            for j in 0..N {
+-                a[i][j] = c[i][j];
+-                b[i][j] = c[i][j];
+-            }
+-        }
+-    }
+-    println!("pid {} done!.", getpid());
+-    exit(0);
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    for _ in 0..NUM {
+-        let pid = fork();
+-        if pid == 0 {
+-            let current_time = get_time();
+-            let times = (current_time as i32 as isize) * (current_time as i32 as isize) % 1000;
+-            work(times * 10);
+-        }
+-    }
+-
+-    println!("fork ok.");
+-
+-    let mut exit_code: i32 = 0;
+-    for _ in 0..NUM {
+-        if wait(&mut exit_code) < 0 {
+-            panic!("wait failed.");
+-        }
+-    }
+-    assert!(wait(&mut exit_code) < 0);
+-    println!("matrix passed.");
+-    0
+-}
+diff --git a/application/user/src/bin/mpsc_sem.rs b/application/user/src/bin/mpsc_sem.rs
+deleted file mode 100644
+index 861f3db..0000000
+--- a/application/user/src/bin/mpsc_sem.rs
++++ /dev/null
+@@ -1,73 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![allow(clippy::println_empty_string)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::exit;
+-use user_lib::{semaphore_create, semaphore_down, semaphore_up};
+-use user_lib::{thread_create, waittid};
+-
+-const SEM_MUTEX: usize = 0;
+-const SEM_EMPTY: usize = 1;
+-const SEM_AVAIL: usize = 2;
+-const BUFFER_SIZE: usize = 8;
+-static mut BUFFER: [usize; BUFFER_SIZE] = [0; BUFFER_SIZE];
+-static mut FRONT: usize = 0;
+-static mut TAIL: usize = 0;
+-const PRODUCER_COUNT: usize = 4;
+-const NUMBER_PER_PRODUCER: usize = 100;
+-
+-unsafe fn producer(id: *const usize) -> ! {
+-    let id = *id;
+-    for _ in 0..NUMBER_PER_PRODUCER {
+-        semaphore_down(SEM_EMPTY);
+-        semaphore_down(SEM_MUTEX);
+-        BUFFER[TAIL] = id;
+-        TAIL = (TAIL + 1) % BUFFER_SIZE;
+-        semaphore_up(SEM_MUTEX);
+-        semaphore_up(SEM_AVAIL);
+-    }
+-    exit(0)
+-}
+-
+-unsafe fn consumer() -> ! {
+-    for _ in 0..PRODUCER_COUNT * NUMBER_PER_PRODUCER {
+-        semaphore_down(SEM_AVAIL);
+-        semaphore_down(SEM_MUTEX);
+-        print!("{} ", BUFFER[FRONT]);
+-        FRONT = (FRONT + 1) % BUFFER_SIZE;
+-        semaphore_up(SEM_MUTEX);
+-        semaphore_up(SEM_EMPTY);
+-    }
+-    println!("");
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // create semaphores
+-    assert_eq!(semaphore_create(1) as usize, SEM_MUTEX);
+-    assert_eq!(semaphore_create(BUFFER_SIZE) as usize, SEM_EMPTY);
+-    assert_eq!(semaphore_create(0) as usize, SEM_AVAIL);
+-    // create threads
+-    let ids: Vec<_> = (0..PRODUCER_COUNT).collect();
+-    let mut threads = Vec::new();
+-    for i in 0..PRODUCER_COUNT {
+-        threads.push(thread_create(
+-            producer as usize,
+-            &ids.as_slice()[i] as *const _ as usize,
+-        ));
+-    }
+-    threads.push(thread_create(consumer as usize, 0));
+-    // wait for all threads to complete
+-    for thread in threads.iter() {
+-        waittid(*thread as usize);
+-    }
+-    println!("mpsc_sem passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/peterson.rs b/application/user/src/bin/peterson.rs
+deleted file mode 100644
+index ee8ff93..0000000
+--- a/application/user/src/bin/peterson.rs
++++ /dev/null
+@@ -1,80 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![feature(core_intrinsics)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-extern crate core;
+-
+-use alloc::vec::Vec;
+-use core::sync::atomic::{AtomicUsize, Ordering};
+-use user_lib::{exit, sleep, thread_create, waittid};
+-const N: usize = 1000;
+-
+-static mut TURN: usize = 0;
+-static mut FLAG: [bool; 2] = [false; 2];
+-static GUARD: AtomicUsize = AtomicUsize::new(0);
+-
+-fn critical_test_enter() {
+-    assert_eq!(GUARD.fetch_add(1, Ordering::SeqCst), 0);
+-}
+-
+-fn critical_test_claim() {
+-    assert_eq!(GUARD.load(Ordering::SeqCst), 1);
+-}
+-
+-fn critical_test_exit() {
+-    assert_eq!(GUARD.fetch_sub(1, Ordering::SeqCst), 1);
+-}
+-
+-fn peterson_enter_critical(id: usize, peer_id: usize) {
+-    // println!("Thread[{}] try enter", id);
+-    vstore!(&FLAG[id], true);
+-    vstore!(&TURN, peer_id);
+-    memory_fence!();
+-    while vload!(&FLAG[peer_id]) && vload!(&TURN) == peer_id {
+-        // println!("Thread[{}] enter fail", id);
+-        sleep(1);
+-        // println!("Thread[{}] retry enter", id);
+-    }
+-    // println!("Thread[{}] enter", id);
+-}
+-
+-fn peterson_exit_critical(id: usize) {
+-    vstore!(&FLAG[id], false);
+-    // println!("Thread[{}] exit", id);
+-}
+-
+-pub fn thread_fn(id: usize) -> ! {
+-    // println!("Thread[{}] init.", id);
+-    let peer_id: usize = id ^ 1;
+-    for iter in 0..N {
+-        if iter % 10 == 0 {
+-            println!("[{}] it={}", id, iter);
+-        }
+-        peterson_enter_critical(id, peer_id);
+-        critical_test_enter();
+-        for _ in 0..3 {
+-            critical_test_claim();
+-            sleep(2);
+-        }
+-        critical_test_exit();
+-        peterson_exit_critical(id);
+-    }
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v = Vec::new();
+-    v.push(thread_create(thread_fn as usize, 0));
+-    // v.push(thread_create(thread_fn as usize, 1));
+-    for tid in v.iter() {
+-        let exit_code = waittid(*tid as usize);
+-        assert_eq!(exit_code, 0, "thread conflict happened!");
+-        println!("thread#{} exited with code {}", tid, exit_code);
+-    }
+-    println!("main thread exited.");
+-    0
+-}
+diff --git a/application/user/src/bin/phil_din_mutex.rs b/application/user/src/bin/phil_din_mutex.rs
+deleted file mode 100644
+index c2815de..0000000
+--- a/application/user/src/bin/phil_din_mutex.rs
++++ /dev/null
+@@ -1,107 +0,0 @@
+-#![no_std]
+-#![no_main]
+-#![allow(clippy::println_empty_string)]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, sleep};
+-use user_lib::{mutex_blocking_create, mutex_lock, mutex_unlock};
+-use user_lib::{thread_create, waittid};
+-
+-const N: usize = 5;
+-const ROUND: usize = 4;
+-// A round: think -> wait for forks -> eat
+-const GRAPH_SCALE: usize = 100;
+-
+-fn get_time_u() -> usize {
+-    get_time() as usize
+-}
+-
+-// Time unit: ms
+-const ARR: [[usize; ROUND * 2]; N] = [
+-    [700, 800, 1000, 400, 500, 600, 200, 400],
+-    [300, 600, 200, 700, 1000, 100, 300, 600],
+-    [500, 200, 900, 200, 400, 600, 1200, 400],
+-    [500, 1000, 600, 500, 800, 600, 200, 900],
+-    [600, 100, 600, 600, 200, 500, 600, 200],
+-];
+-static mut THINK: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
+-static mut EAT: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
+-
+-fn philosopher_dining_problem(id: *const usize) {
+-    let id = unsafe { *id };
+-    let left = id;
+-    let right = if id == N - 1 { 0 } else { id + 1 };
+-    let min = if left < right { left } else { right };
+-    let max = left + right - min;
+-    for round in 0..ROUND {
+-        // thinking
+-        unsafe {
+-            THINK[id][2 * round] = get_time_u();
+-        }
+-        sleep(ARR[id][2 * round]);
+-        unsafe {
+-            THINK[id][2 * round + 1] = get_time_u();
+-        }
+-        // wait for forks
+-        mutex_lock(min);
+-        mutex_lock(max);
+-        // eating
+-        unsafe {
+-            EAT[id][2 * round] = get_time_u();
+-        }
+-        sleep(ARR[id][2 * round + 1]);
+-        unsafe {
+-            EAT[id][2 * round + 1] = get_time_u();
+-        }
+-        mutex_unlock(max);
+-        mutex_unlock(min);
+-    }
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v = Vec::new();
+-    let ids: Vec<_> = (0..N).collect();
+-    let start = get_time_u();
+-    for i in 0..N {
+-        assert_eq!(mutex_blocking_create(), i as isize);
+-        v.push(thread_create(
+-            philosopher_dining_problem as usize,
+-            &ids.as_slice()[i] as *const _ as usize,
+-        ));
+-    }
+-    for tid in v.iter() {
+-        waittid(*tid as usize);
+-    }
+-    let time_cost = get_time_u() - start;
+-    println!("time cost = {}", time_cost);
+-    println!("'-' -> THINKING; 'x' -> EATING; ' ' -> WAITING ");
+-    for id in (0..N).into_iter().chain(0..=0) {
+-        print!("#{}:", id);
+-        for j in 0..time_cost / GRAPH_SCALE {
+-            let current_time = j * GRAPH_SCALE + start;
+-            if (0..ROUND).any(|round| unsafe {
+-                let start_thinking = THINK[id][2 * round];
+-                let end_thinking = THINK[id][2 * round + 1];
+-                start_thinking <= current_time && current_time <= end_thinking
+-            }) {
+-                print!("-");
+-            } else if (0..ROUND).any(|round| unsafe {
+-                let start_eating = EAT[id][2 * round];
+-                let end_eating = EAT[id][2 * round + 1];
+-                start_eating <= current_time && current_time <= end_eating
+-            }) {
+-                print!("x");
+-            } else {
+-                print!(" ");
+-            };
+-        }
+-        println!("");
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/pipe_large_test.rs b/application/user/src/bin/pipe_large_test.rs
+deleted file mode 100644
+index eeddbf1..0000000
+--- a/application/user/src/bin/pipe_large_test.rs
++++ /dev/null
+@@ -1,71 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-extern crate alloc;
+-
+-use alloc::format;
+-use user_lib::{close, fork, get_time, pipe, read, wait, write};
+-
+-const LENGTH: usize = 3000;
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // create pipes
+-    // parent write to child
+-    let mut down_pipe_fd = [0usize; 2];
+-    // child write to parent
+-    let mut up_pipe_fd = [0usize; 2];
+-    pipe(&mut down_pipe_fd);
+-    pipe(&mut up_pipe_fd);
+-    let mut random_str = [0u8; LENGTH];
+-    if fork() == 0 {
+-        // close write end of down pipe
+-        close(down_pipe_fd[1]);
+-        // close read end of up pipe
+-        close(up_pipe_fd[0]);
+-        assert_eq!(read(down_pipe_fd[0], &mut random_str) as usize, LENGTH);
+-        close(down_pipe_fd[0]);
+-        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
+-        println!("sum = {}(child)", sum);
+-        let sum_str = format!("{}", sum);
+-        write(up_pipe_fd[1], sum_str.as_bytes());
+-        close(up_pipe_fd[1]);
+-        println!("Child process exited!");
+-        0
+-    } else {
+-        // close read end of down pipe
+-        close(down_pipe_fd[0]);
+-        // close write end of up pipe
+-        close(up_pipe_fd[1]);
+-        // generate a long random string
+-        for ch in random_str.iter_mut() {
+-            *ch = get_time() as u8;
+-        }
+-        // send it
+-        assert_eq!(
+-            write(down_pipe_fd[1], &random_str) as usize,
+-            random_str.len()
+-        );
+-        // close write end of down pipe
+-        close(down_pipe_fd[1]);
+-        // calculate sum(parent)
+-        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
+-        println!("sum = {}(parent)", sum);
+-        // recv sum(child)
+-        let mut child_result = [0u8; 32];
+-        let result_len = read(up_pipe_fd[0], &mut child_result) as usize;
+-        close(up_pipe_fd[0]);
+-        // check
+-        assert_eq!(
+-            sum,
+-            str::parse::<usize>(core::str::from_utf8(&child_result[..result_len]).unwrap())
+-                .unwrap()
+-        );
+-        let mut _unused: i32 = 0;
+-        wait(&mut _unused);
+-        println!("pipe_large_test passed!");
+-        0
+-    }
+-}
+diff --git a/application/user/src/bin/priv_csr.rs b/application/user/src/bin/priv_csr.rs
+deleted file mode 100644
+index 397e339..0000000
+--- a/application/user/src/bin/priv_csr.rs
++++ /dev/null
+@@ -1,17 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use riscv::register::sstatus::{self, SPP};
+-
+-#[no_mangle]
+-fn main() -> i32 {
+-    println!("Try to access privileged CSR in U Mode");
+-    println!("Kernel should kill this application!");
+-    unsafe {
+-        sstatus::set_spp(SPP::User);
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/priv_inst.rs b/application/user/src/bin/priv_inst.rs
+deleted file mode 100644
+index f37595b..0000000
+--- a/application/user/src/bin/priv_inst.rs
++++ /dev/null
+@@ -1,17 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use core::arch::asm;
+-
+-#[no_mangle]
+-fn main() -> i32 {
+-    println!("Try to execute privileged instruction in U Mode");
+-    println!("Kernel should kill this application!");
+-    unsafe {
+-        asm!("sret");
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/race_adder_arg.rs b/application/user/src/bin/race_adder_arg.rs
+deleted file mode 100644
+index 988de77..0000000
+--- a/application/user/src/bin/race_adder_arg.rs
++++ /dev/null
+@@ -1,56 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use crate::alloc::string::ToString;
+-use alloc::vec::Vec;
+-use user_lib::{exit, get_time, thread_create, waittid};
+-
+-static mut A: usize = 0;
+-const PER_THREAD: usize = 1000;
+-const THREAD_COUNT: usize = 16;
+-
+-unsafe fn f(count: usize) -> ! {
+-    let mut t = 2usize;
+-    for _ in 0..PER_THREAD {
+-        let a = &mut A as *mut usize;
+-        let cur = a.read_volatile();
+-        for _ in 0..count {
+-            t = t * t % 10007;
+-        }
+-        a.write_volatile(cur + 1);
+-    }
+-    exit(t as i32)
+-}
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    let count: usize;
+-    if argc == 1 {
+-        count = THREAD_COUNT;
+-    } else if argc == 2 {
+-        count = argv[1].to_string().parse::<usize>().unwrap();
+-    } else {
+-        println!(
+-            "ERROR in argv, argc is {}, argv[0] {} , argv[1] {} , argv[2] {}",
+-            argc, argv[0], argv[1], argv[2]
+-        );
+-        exit(-1);
+-    }
+-
+-    let start = get_time();
+-    let mut v = Vec::new();
+-    for _ in 0..THREAD_COUNT {
+-        v.push(thread_create(f as usize, count) as usize);
+-    }
+-    let mut time_cost = Vec::new();
+-    for tid in v.iter() {
+-        time_cost.push(waittid(*tid));
+-    }
+-    println!("time cost is {}ms", get_time() - start);
+-    assert_eq!(unsafe { A }, PER_THREAD * THREAD_COUNT);
+-    0
+-}
+diff --git a/application/user/src/bin/random_num.rs b/application/user/src/bin/random_num.rs
+deleted file mode 100644
+index d68bb13..0000000
+--- a/application/user/src/bin/random_num.rs
++++ /dev/null
+@@ -1,16 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-use oorandom;
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    println!("random num  program!");
+-    let seed = 4;
+-    let mut rng = oorandom::Rand32::new(seed);
+-    println!("OORandom: Random number 32bit: {}", rng.rand_i32());
+-    println!("OORandom: Random number range: {}", rng.rand_range(1..100));
+-    0
+-}
+diff --git a/application/user/src/bin/run_pipe_test.rs b/application/user/src/bin/run_pipe_test.rs
+deleted file mode 100644
+index 97f3bb9..0000000
+--- a/application/user/src/bin/run_pipe_test.rs
++++ /dev/null
+@@ -1,21 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exec, fork, wait};
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    for i in 0..5 {
+-        if fork() == 0 {
+-            exec("pipe_large_test\0", &[core::ptr::null::<u8>()]);
+-        } else {
+-            let mut _unused: i32 = 0;
+-            wait(&mut _unused);
+-            println!("Iter {} OK.", i);
+-        }
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/sleep.rs b/application/user/src/bin/sleep.rs
+deleted file mode 100644
+index 7fea2fa..0000000
+--- a/application/user/src/bin/sleep.rs
++++ /dev/null
+@@ -1,30 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exit, fork, get_time, sleep, waitpid};
+-
+-fn sleepy() {
+-    let time: usize = 100;
+-    for i in 0..5 {
+-        sleep(time);
+-        println!("sleep {} x {} msecs.", i + 1, time);
+-    }
+-    exit(0);
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let current_time = get_time();
+-    let pid = fork();
+-    let mut exit_code: i32 = 0;
+-    if pid == 0 {
+-        sleepy();
+-    }
+-    assert!(waitpid(pid as usize, &mut exit_code) == pid && exit_code == 0);
+-    println!("use {} msecs.", get_time() - current_time);
+-    println!("sleep pass.");
+-    0
+-}
+diff --git a/application/user/src/bin/sleep_simple.rs b/application/user/src/bin/sleep_simple.rs
+deleted file mode 100644
+index 624efbe..0000000
+--- a/application/user/src/bin/sleep_simple.rs
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{get_time, sleep};
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    println!("into sleep test!");
+-    let start = get_time();
+-    println!("current time_msec = {}", start);
+-    sleep(100);
+-    let end = get_time();
+-    println!(
+-        "time_msec = {} after sleeping 100 ticks, delta = {}ms!",
+-        end,
+-        end - start
+-    );
+-    println!("r_sleep passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/stack_overflow.rs b/application/user/src/bin/stack_overflow.rs
+deleted file mode 100644
+index cd6cdff..0000000
+--- a/application/user/src/bin/stack_overflow.rs
++++ /dev/null
+@@ -1,20 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-#[allow(unconditional_recursion)]
+-fn f(depth: usize) {
+-    if depth % 10 == 0 {
+-        println!("depth = {}", depth);
+-    }
+-    f(depth + 1);
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    println!("It should trigger segmentation fault!");
+-    f(0);
+-    0
+-}
+diff --git a/application/user/src/bin/stackless_coroutine.rs b/application/user/src/bin/stackless_coroutine.rs
+deleted file mode 100644
+index e67cab2..0000000
+--- a/application/user/src/bin/stackless_coroutine.rs
++++ /dev/null
+@@ -1,129 +0,0 @@
+-// https://blog.aloni.org/posts/a-stack-less-rust-coroutine-100-loc/
+-// https://github.com/chyyuu/example-coroutine-and-thread/tree/stackless-coroutine-x86
+-#![no_std]
+-#![no_main]
+-
+-use core::future::Future;
+-use core::pin::Pin;
+-use core::task::{Context, Poll};
+-use core::task::{RawWaker, RawWakerVTable, Waker};
+-
+-extern crate alloc;
+-use alloc::collections::VecDeque;
+-
+-use alloc::boxed::Box;
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-enum State {
+-    Halted,
+-    Running,
+-}
+-
+-struct Task {
+-    state: State,
+-}
+-
+-impl Task {
+-    fn waiter<'a>(&'a mut self) -> Waiter<'a> {
+-        Waiter { task: self }
+-    }
+-}
+-
+-struct Waiter<'a> {
+-    task: &'a mut Task,
+-}
+-
+-impl<'a> Future for Waiter<'a> {
+-    type Output = ();
+-
+-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
+-        match self.task.state {
+-            State::Halted => {
+-                self.task.state = State::Running;
+-                Poll::Ready(())
+-            }
+-            State::Running => {
+-                self.task.state = State::Halted;
+-                Poll::Pending
+-            }
+-        }
+-    }
+-}
+-
+-struct Executor {
+-    tasks: VecDeque<Pin<Box<dyn Future<Output = ()>>>>,
+-}
+-
+-impl Executor {
+-    fn new() -> Self {
+-        Executor {
+-            tasks: VecDeque::new(),
+-        }
+-    }
+-
+-    fn push<C, F>(&mut self, closure: C)
+-    where
+-        F: Future<Output = ()> + 'static,
+-        C: FnOnce(Task) -> F,
+-    {
+-        let task = Task {
+-            state: State::Running,
+-        };
+-        self.tasks.push_back(Box::pin(closure(task)));
+-    }
+-
+-    fn run(&mut self) {
+-        let waker = create_waker();
+-        let mut context = Context::from_waker(&waker);
+-
+-        while let Some(mut task) = self.tasks.pop_front() {
+-            match task.as_mut().poll(&mut context) {
+-                Poll::Pending => {
+-                    self.tasks.push_back(task);
+-                }
+-                Poll::Ready(()) => {}
+-            }
+-        }
+-    }
+-}
+-
+-pub fn create_waker() -> Waker {
+-    // Safety: The waker points to a vtable with functions that do nothing. Doing
+-    // nothing is memory-safe.
+-    unsafe { Waker::from_raw(RAW_WAKER) }
+-}
+-
+-const RAW_WAKER: RawWaker = RawWaker::new(core::ptr::null(), &VTABLE);
+-const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
+-
+-unsafe fn clone(_: *const ()) -> RawWaker {
+-    RAW_WAKER
+-}
+-unsafe fn wake(_: *const ()) {}
+-unsafe fn wake_by_ref(_: *const ()) {}
+-unsafe fn drop(_: *const ()) {}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    println!("stackless coroutine Begin..");
+-    let mut exec = Executor::new();
+-    println!(" Create futures");
+-    for instance in 1..=3 {
+-        exec.push(move |mut task| async move {
+-            println!("   Task {}: begin state", instance);
+-            task.waiter().await;
+-            println!("   Task {}: next state", instance);
+-            task.waiter().await;
+-            println!("   Task {}: end state", instance);
+-        });
+-    }
+-
+-    println!(" Running");
+-    exec.run();
+-    println!(" Done");
+-    println!("stackless coroutine PASSED");
+-
+-    0
+-}
+diff --git a/application/user/src/bin/store_fault.rs b/application/user/src/bin/store_fault.rs
+deleted file mode 100644
+index a54c376..0000000
+--- a/application/user/src/bin/store_fault.rs
++++ /dev/null
+@@ -1,15 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-#[no_mangle]
+-fn main() -> i32 {
+-    println!("Into Test store_fault, we will insert an invalid store operation...");
+-    println!("Kernel should kill this application!");
+-    unsafe {
+-        core::ptr::null_mut::<u8>().write_volatile(0);
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/sync_sem.rs b/application/user/src/bin/sync_sem.rs
+deleted file mode 100644
+index ef69f35..0000000
+--- a/application/user/src/bin/sync_sem.rs
++++ /dev/null
+@@ -1,45 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-extern crate alloc;
+-
+-use alloc::vec;
+-use user_lib::exit;
+-use user_lib::{semaphore_create, semaphore_down, semaphore_up};
+-use user_lib::{sleep, thread_create, waittid};
+-
+-const SEM_SYNC: usize = 0;
+-
+-unsafe fn first() -> ! {
+-    sleep(10);
+-    println!("First work and wakeup Second");
+-    semaphore_up(SEM_SYNC);
+-    exit(0)
+-}
+-
+-unsafe fn second() -> ! {
+-    println!("Second want to continue,but need to wait first");
+-    semaphore_down(SEM_SYNC);
+-    println!("Second can work now");
+-    exit(0)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    // create semaphores
+-    assert_eq!(semaphore_create(0) as usize, SEM_SYNC);
+-    // create threads
+-    let threads = vec![
+-        thread_create(first as usize, 0),
+-        thread_create(second as usize, 0),
+-    ];
+-    // wait for all threads to complete
+-    for thread in threads.iter() {
+-        waittid(*thread as usize);
+-    }
+-    println!("sync_sem passed!");
+-    0
+-}
+diff --git a/application/user/src/bin/threads.rs b/application/user/src/bin/threads.rs
+deleted file mode 100644
+index b3a18c3..0000000
+--- a/application/user/src/bin/threads.rs
++++ /dev/null
+@@ -1,45 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec;
+-use user_lib::{exit, thread_create, waittid};
+-
+-pub fn thread_a() -> ! {
+-    for _ in 0..1000 {
+-        print!("a");
+-    }
+-    exit(1)
+-}
+-
+-pub fn thread_b() -> ! {
+-    for _ in 0..1000 {
+-        print!("b");
+-    }
+-    exit(2)
+-}
+-
+-pub fn thread_c() -> ! {
+-    for _ in 0..1000 {
+-        print!("c");
+-    }
+-    exit(3)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let v = vec![
+-        thread_create(thread_a as usize, 0),
+-        thread_create(thread_b as usize, 0),
+-        thread_create(thread_c as usize, 0),
+-    ];
+-    for tid in v.iter() {
+-        let exit_code = waittid(*tid as usize);
+-        println!("thread#{} exited with code {}", tid, exit_code);
+-    }
+-    println!("main thread exited.");
+-    0
+-}
+diff --git a/application/user/src/bin/threads_arg.rs b/application/user/src/bin/threads_arg.rs
+deleted file mode 100644
+index f884619..0000000
+--- a/application/user/src/bin/threads_arg.rs
++++ /dev/null
+@@ -1,44 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-extern crate alloc;
+-
+-use alloc::vec::Vec;
+-use user_lib::{exit, thread_create, waittid};
+-
+-struct Argument {
+-    pub ch: char,
+-    pub rc: i32,
+-}
+-
+-fn thread_print(arg: *const Argument) -> ! {
+-    let arg = unsafe { &*arg };
+-    for _ in 0..1000 {
+-        print!("{}", arg.ch);
+-    }
+-    exit(arg.rc)
+-}
+-
+-#[no_mangle]
+-pub fn main() -> i32 {
+-    let mut v = Vec::new();
+-    let args = [
+-        Argument { ch: 'a', rc: 1 },
+-        Argument { ch: 'b', rc: 2 },
+-        Argument { ch: 'c', rc: 3 },
+-    ];
+-    for arg in args.iter() {
+-        v.push(thread_create(
+-            thread_print as usize,
+-            arg as *const _ as usize,
+-        ));
+-    }
+-    for tid in v.iter() {
+-        let exit_code = waittid(*tid as usize);
+-        println!("thread#{} exited with code {}", tid, exit_code);
+-    }
+-    println!("main thread exited.");
+-    0
+-}
+diff --git a/application/user/src/bin/until_timeout.rs b/application/user/src/bin/until_timeout.rs
+deleted file mode 100644
+index 32e5dbe..0000000
+--- a/application/user/src/bin/until_timeout.rs
++++ /dev/null
+@@ -1,46 +0,0 @@
+-#![no_std]
+-#![no_main]
+-
+-#[macro_use]
+-extern crate user_lib;
+-
+-use user_lib::{exec, fork, get_time, kill, waitpid, waitpid_nb, SignalFlags};
+-
+-#[no_mangle]
+-pub fn main(argc: usize, argv: &[&str]) -> i32 {
+-    assert_eq!(argc, 3, "argc must be 3!");
+-    let timeout_ms = argv[2]
+-        .parse::<isize>()
+-        .expect("Error when parsing timeout!");
+-    let pid = fork() as usize;
+-    if pid == 0 {
+-        if exec(argv[1], &[core::ptr::null::<u8>()]) != 0 {
+-            println!("Error when executing '{}'", argv[1]);
+-            return -4;
+-        }
+-    } else {
+-        let start_time = get_time();
+-        let mut child_exited = false;
+-        let mut exit_code: i32 = 0;
+-        loop {
+-            if get_time() - start_time > timeout_ms {
+-                break;
+-            }
+-            if waitpid_nb(pid, &mut exit_code) as usize == pid {
+-                child_exited = true;
+-                println!(
+-                    "child exited in {}ms, exit_code = {}",
+-                    get_time() - start_time,
+-                    exit_code,
+-                );
+-            }
+-        }
+-        if !child_exited {
+-            println!("child has run for {}ms, kill it!", timeout_ms);
+-            kill(pid, SignalFlags::SIGINT.bits());
+-            assert_eq!(waitpid(pid, &mut exit_code) as usize, pid);
+-            println!("exit code of the child is {}", exit_code);
+-        }
+-    }
+-    0
+-}
+diff --git a/application/user/src/bin/usertests.rs b/application/user/src/bin/usertests.rs
+index 4f99c83..b28a570 100644
+--- a/application/user/src/bin/usertests.rs
++++ b/application/user/src/bin/usertests.rs
+@@ -12,49 +12,49 @@ static SUCC_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+     ("filetest_simple\0", "\0", "\0", "\0", 0),
+     ("cat\0", "filea\0", "\0", "\0", 0),
+     ("cmdline_args\0", "1\0", "2\0", "3\0", 0),
+-    ("eisenberg\0", "\0", "\0", "\0", 0),
++    // ("eisenberg\0", "\0", "\0", "\0", 0),
+     ("exit\0", "\0", "\0", "\0", 0),
+     ("fantastic_text\0", "\0", "\0", "\0", 0),
+     ("forktest_simple\0", "\0", "\0", "\0", 0),
+-    ("forktest\0", "\0", "\0", "\0", 0),
+-    ("forktest2\0", "\0", "\0", "\0", 0),
+-    ("forktree\0", "\0", "\0", "\0", 0),
++    // ("forktest\0", "\0", "\0", "\0", 0),
++    // ("forktest2\0", "\0", "\0", "\0", 0),
++    // ("forktree\0", "\0", "\0", "\0", 0),
+     ("hello_world\0", "\0", "\0", "\0", 0),
+-    ("huge_write\0", "\0", "\0", "\0", 0),
+-    ("matrix\0", "\0", "\0", "\0", 0),
+-    ("mpsc_sem\0", "\0", "\0", "\0", 0),
+-    ("peterson\0", "\0", "\0", "\0", 0),
+-    ("phil_din_mutex\0", "\0", "\0", "\0", 0),
+-    ("pipe_large_test\0", "\0", "\0", "\0", 0),
++    // ("huge_write\0", "\0", "\0", "\0", 0),
++    // ("matrix\0", "\0", "\0", "\0", 0),
++    // ("mpsc_sem\0", "\0", "\0", "\0", 0),
++    // ("peterson\0", "\0", "\0", "\0", 0),
++    // ("phil_din_mutex\0", "\0", "\0", "\0", 0),
++    // ("pipe_large_test\0", "\0", "\0", "\0", 0),
+     ("pipetest\0", "\0", "\0", "\0", 0),
+-    ("adder_peterson_spin\0", "\0", "\0", "\0", 0),
+-    ("adder_peterson_yield\0", "\0", "\0", "\0", 0),
+-    ("adder_mutex_blocking\0", "\0", "\0", "\0", 0),
+-    ("adder_mutex_spin\0", "\0", "\0", "\0", 0),
+-    ("run_pipe_test\0", "\0", "\0", "\0", 0),
+-    ("sleep_simple\0", "\0", "\0", "\0", 0),
+-    ("sleep\0", "\0", "\0", "\0", 0),
+-    ("sleep_simple\0", "\0", "\0", "\0", 0),
+-    ("sync_sem\0", "\0", "\0", "\0", 0),
+-    ("condsync_sem\0", "\0", "\0", "\0", 0),
+-    ("condsync_condvar\0", "\0", "\0", "\0", 0),
+-    ("threads_arg\0", "\0", "\0", "\0", 0),
+-    ("threads\0", "\0", "\0", "\0", 0),
++    // ("adder_peterson_spin\0", "\0", "\0", "\0", 0),
++    // ("adder_peterson_yield\0", "\0", "\0", "\0", 0),
++    // ("adder_mutex_blocking\0", "\0", "\0", "\0", 0),
++    // ("adder_mutex_spin\0", "\0", "\0", "\0", 0),
++    // ("run_pipe_test\0", "\0", "\0", "\0", 0),
++    // ("sleep_simple\0", "\0", "\0", "\0", 0),
++    // ("sleep\0", "\0", "\0", "\0", 0),
++    // ("sleep_simple\0", "\0", "\0", "\0", 0),
++    // ("sync_sem\0", "\0", "\0", "\0", 0),
++    // ("condsync_sem\0", "\0", "\0", "\0", 0),
++    // ("condsync_condvar\0", "\0", "\0", "\0", 0),
++    // ("threads_arg\0", "\0", "\0", "\0", 0),
++    // ("threads\0", "\0", "\0", "\0", 0),
+     ("yield\0", "\0", "\0", "\0", 0),
+-    ("barrier_fail\0", "\0", "\0", "\0", 0),
+-    ("barrier_condvar\0", "\0", "\0", "\0", 0),
++    // ("barrier_fail\0", "\0", "\0", "\0", 0),
++    // ("barrier_condvar\0", "\0", "\0", "\0", 0),
+ ];
+ 
+ static FAIL_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+-    ("stack_overflow\0", "\0", "\0", "\0", -11),
+-    ("race_adder_loop\0", "\0", "\0", "\0", -6),
+-    ("priv_csr\0", "\0", "\0", "\0", -4),
+-    ("priv_inst\0", "\0", "\0", "\0", -4),
+-    ("store_fault\0", "\0", "\0", "\0", -11),
+-    ("until_timeout\0", "\0", "\0", "\0", -6),
+-    ("adder\0", "\0", "\0", "\0", -6),
+-    ("adder_simple_spin\0", "\0", "\0", "\0", -6),
+-    ("adder_simple_yield\0", "\0", "\0", "\0", -6),
++    // ("stack_overflow\0", "\0", "\0", "\0", -11),
++    // ("race_adder_loop\0", "\0", "\0", "\0", -6),
++    // ("priv_csr\0", "\0", "\0", "\0", -4),
++    // ("priv_inst\0", "\0", "\0", "\0", -4),
++    // ("store_fault\0", "\0", "\0", "\0", -11),
++    // ("until_timeout\0", "\0", "\0", "\0", -6),
++    // ("adder\0", "\0", "\0", "\0", -6),
++    // ("adder_simple_spin\0", "\0", "\0", "\0", -6),
++    // ("adder_simple_yield\0", "\0", "\0", "\0", -6),
+ ];
+ 
+ use user_lib::{exec, fork, waitpid};
+-- 
+2.34.1
+

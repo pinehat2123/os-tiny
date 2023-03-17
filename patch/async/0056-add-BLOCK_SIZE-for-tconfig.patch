@@ -1,0 +1,25 @@
+From 5719cf2ff54e118f99a88a1b7064d9b3ac4150ec Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 02:08:37 -0500
+Subject: [PATCH 56/80] add `BLOCK_SIZE` for tconfig
+
+---
+ tconfig/src/lib.rs | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tconfig/src/lib.rs b/tconfig/src/lib.rs
+index f4d0381..29f645e 100644
+--- a/tconfig/src/lib.rs
++++ b/tconfig/src/lib.rs
+@@ -14,6 +14,8 @@ pub const TRAP_CONTEXT_BASE: usize = TRAMPOLINE - PAGE_SIZE;
+ 
+ // pub use drivers::board::{CLOCK_FREQ, MMIO};
+ 
++pub const BLOCK_SIZE: usize = 512;
++
+ pub const CLOCK_FREQ: usize = 12500000;
+ 
+ pub const MMIO: &[(usize, usize)] = &[
+-- 
+2.34.1
+

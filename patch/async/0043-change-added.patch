@@ -1,0 +1,2751 @@
+From 8e11a9333e41a356b159f55979d7047a28a6b798 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Tue, 7 Mar 2023 08:22:50 -0500
+Subject: [PATCH 43/80] change added!
+
+---
+ application/user/src/bin/huge_write.rs      |  33 +++
+ application/user/src/bin/matrix.rs          |  69 +++++
+ application/user/src/bin/phil_din_mutex.rs  | 107 ++++++++
+ application/user/src/bin/pipe_large_test.rs |  71 ++++++
+ application/user/src/bin/store_fault.rs     |  15 ++
+ application/user/src/bin/usertests.rs       |  10 +-
+ application/user/src/console.rs             |  78 +++---
+ application/user/src/file.rs                |  30 ---
+ application/user/src/io.rs                  | 116 ---------
+ application/user/src/lang_items.rs          |  36 +--
+ application/user/src/lib.rs                 | 150 ++++++++++-
+ application/user/src/sync.rs                |  32 ---
+ application/user/src/syscall.rs             |  27 +-
+ application/user/src/task.rs                |  82 ------
+ kernel/src/lib.rs                           |   8 +-
+ kernel/src/sync/mod.rs                      |   3 +-
+ kernel/src/sync/up.rs                       | 140 ----------
+ kernel/src/syscall/fs.rs                    | 198 +++++++--------
+ kernel/src/syscall/gui.rs                   |  34 ---
+ kernel/src/syscall/input.rs                 |  28 --
+ kernel/src/syscall/mod.rs                   | 153 ++++++-----
+ kernel/src/syscall/process.rs               | 234 ++++++++---------
+ kernel/src/syscall/sync.rs                  | 268 ++++++++++----------
+ kernel/src/syscall/thread.rs                | 170 ++++++-------
+ kernel/src/trap/context.rs                  |  81 +++---
+ kernel/src/trap/mod.rs                      |   5 +-
+ kernel/src/trap/trap.S                      | 208 +++++++--------
+ ring_scheduler/.cargo/config.toml           |  13 +
+ ring_scheduler/build.rs                     |  22 ++
+ tconfig/src/lib.rs                          |   5 -
+ 30 files changed, 1196 insertions(+), 1230 deletions(-)
+ create mode 100644 application/user/src/bin/huge_write.rs
+ create mode 100644 application/user/src/bin/matrix.rs
+ create mode 100644 application/user/src/bin/phil_din_mutex.rs
+ create mode 100644 application/user/src/bin/pipe_large_test.rs
+ create mode 100644 application/user/src/bin/store_fault.rs
+ delete mode 100644 application/user/src/file.rs
+ delete mode 100644 application/user/src/io.rs
+ delete mode 100644 application/user/src/sync.rs
+ delete mode 100644 application/user/src/task.rs
+ delete mode 100644 kernel/src/sync/up.rs
+ delete mode 100644 kernel/src/syscall/gui.rs
+ delete mode 100644 kernel/src/syscall/input.rs
+ create mode 100644 ring_scheduler/.cargo/config.toml
+ create mode 100644 ring_scheduler/build.rs
+
+diff --git a/application/user/src/bin/huge_write.rs b/application/user/src/bin/huge_write.rs
+new file mode 100644
+index 0000000..2a977c9
+--- /dev/null
++++ b/application/user/src/bin/huge_write.rs
+@@ -0,0 +1,33 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{close, get_time, open, write, OpenFlags};
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut buffer = [0u8; 1024]; // 1KiB
++    for (i, ch) in buffer.iter_mut().enumerate() {
++        *ch = i as u8;
++    }
++    let f = open("testf\0", OpenFlags::CREATE | OpenFlags::WRONLY);
++    if f < 0 {
++        panic!("Open test file failed!");
++    }
++    let f = f as usize;
++    let start = get_time();
++    let size_mb = 1usize;
++    for _ in 0..1024 * size_mb {
++        write(f, &buffer);
++    }
++    close(f);
++    let time_ms = (get_time() - start) as usize;
++    let speed_kbs = (size_mb << 20) / time_ms;
++    println!(
++        "{}MiB written, time cost = {}ms, write speed = {}KiB/s",
++        size_mb, time_ms, speed_kbs
++    );
++    0
++}
+diff --git a/application/user/src/bin/matrix.rs b/application/user/src/bin/matrix.rs
+new file mode 100644
+index 0000000..9ebf48f
+--- /dev/null
++++ b/application/user/src/bin/matrix.rs
+@@ -0,0 +1,69 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::needless_range_loop)]
++
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::{exit, fork, get_time, getpid, wait, yield_};
++
++static NUM: usize = 30;
++const N: usize = 10;
++static P: i32 = 10007;
++type Arr = [[i32; N]; N];
++
++fn work(times: isize) {
++    let mut a: Arr = Default::default();
++    let mut b: Arr = Default::default();
++    let mut c: Arr = Default::default();
++    for i in 0..N {
++        for j in 0..N {
++            a[i][j] = 1;
++            b[i][j] = 1;
++        }
++    }
++    yield_();
++    println!("pid {} is running ({} times)!.", getpid(), times);
++    for _ in 0..times {
++        for i in 0..N {
++            for j in 0..N {
++                c[i][j] = 0;
++                for k in 0..N {
++                    c[i][j] = (c[i][j] + a[i][k] * b[k][j]) % P;
++                }
++            }
++        }
++        for i in 0..N {
++            for j in 0..N {
++                a[i][j] = c[i][j];
++                b[i][j] = c[i][j];
++            }
++        }
++    }
++    println!("pid {} done!.", getpid());
++    exit(0);
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    for _ in 0..NUM {
++        let pid = fork();
++        if pid == 0 {
++            let current_time = get_time();
++            let times = (current_time as i32 as isize) * (current_time as i32 as isize) % 1000;
++            work(times * 10);
++        }
++    }
++
++    println!("fork ok.");
++
++    let mut exit_code: i32 = 0;
++    for _ in 0..NUM {
++        if wait(&mut exit_code) < 0 {
++            panic!("wait failed.");
++        }
++    }
++    assert!(wait(&mut exit_code) < 0);
++    println!("matrix passed.");
++    0
++}
+diff --git a/application/user/src/bin/phil_din_mutex.rs b/application/user/src/bin/phil_din_mutex.rs
+new file mode 100644
+index 0000000..8e7b566
+--- /dev/null
++++ b/application/user/src/bin/phil_din_mutex.rs
+@@ -0,0 +1,107 @@
++#![no_std]
++#![no_main]
++#![allow(clippy::println_empty_string)]
++
++#[macro_use]
++extern crate user_lib;
++extern crate alloc;
++
++use alloc::vec::Vec;
++use user_lib::{exit, get_time, sleep};
++use user_lib::{mutex_blocking_create, mutex_lock, mutex_unlock};
++use user_lib::{thread_create, waittid};
++
++const N: usize = 5;
++const ROUND: usize = 4;
++// A round: think -> wait for forks -> eat
++const GRAPH_SCALE: usize = 100;
++
++fn get_time_u() -> usize {
++    get_time() as usize
++}
++
++// Time unit: ms
++const ARR: [[usize; ROUND * 2]; N] = [
++    [700, 800, 1000, 400, 500, 600, 200, 400],
++    [300, 600, 200, 700, 1000, 100, 300, 600],
++    [500, 200, 900, 200, 400, 600, 1200, 400],
++    [500, 1000, 600, 500, 800, 600, 200, 900],
++    [600, 100, 600, 600, 200, 500, 600, 200],
++];
++static mut THINK: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
++static mut EAT: [[usize; ROUND * 2]; N] = [[0; ROUND * 2]; N];
++
++fn philosopher_dining_problem(id: *const usize) {
++    let id = unsafe { *id };
++    let left = id;
++    let right = if id == N - 1 { 0 } else { id + 1 };
++    let min = if left < right { left } else { right };
++    let max = left + right - min;
++    for round in 0..ROUND {
++        // thinking
++        unsafe {
++            THINK[id][2 * round] = get_time_u();
++        }
++        sleep(ARR[id][2 * round]);
++        unsafe {
++            THINK[id][2 * round + 1] = get_time_u();
++        }
++        // wait for forks
++        mutex_lock(min);
++        mutex_lock(max);
++        // eating
++        unsafe {
++            EAT[id][2 * round] = get_time_u();
++        }
++        sleep(ARR[id][2 * round + 1]);
++        unsafe {
++            EAT[id][2 * round + 1] = get_time_u();
++        }
++        mutex_unlock(max);
++        mutex_unlock(min);
++    }
++    exit(0)
++}
++
++#[no_mangle]
++pub fn main() -> i32 {
++    let mut v = Vec::new();
++    let ids: Vec<_> = (0..N).collect();
++    let start = get_time_u();
++    for i in 0..N {
++        assert_eq!(mutex_blocking_create(), i as isize);
++        v.push(thread_create(
++            philosopher_dining_problem as usize,
++            &ids.as_slice()[i] as *const _ as usize,
++        ));
++    }
++    for tid in v.iter() {
++        waittid(*tid as usize);
++    }
++    let time_cost = get_time_u() - start;
++    println!("time cost = {}", time_cost);
++    println!("'-' -> THINKING; 'x' -> EATING; ' ' -> WAITING ");
++    for id in (0..N).into_iter().chain(0..=0) {
++        print!("#{}:", id);
++        for j in 0..time_cost / GRAPH_SCALE {
++            let current_time = j * GRAPH_SCALE + start;
++            if (0..ROUND).any(|round| unsafe {
++                let start_thinking = THINK[id][2 * round];
++                let end_thinking = THINK[id][2 * round + 1];
++                start_thinking <= current_time && current_time <= end_thinking
++            }) {
++                print!("-");
++            } else if (0..ROUND).any(|round| unsafe {
++                let start_eating = EAT[id][2 * round];
++                let end_eating = EAT[id][2 * round + 1];
++                start_eating <= current_time && current_time <= end_eating
++            }) {
++                print!("x");
++            } else {
++                print!(" ");
++            };
++        }
++        println!("");
++    }
++    0
++}
+diff --git a/application/user/src/bin/pipe_large_test.rs b/application/user/src/bin/pipe_large_test.rs
+new file mode 100644
+index 0000000..e85d0a6
+--- /dev/null
++++ b/application/user/src/bin/pipe_large_test.rs
+@@ -0,0 +1,71 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++extern crate alloc;
++
++use alloc::format;
++use user_lib::{close, fork, get_time, pipe, read, wait, write};
++
++const LENGTH: usize = 3000;
++#[no_mangle]
++pub fn main() -> i32 {
++    // create pipes
++    // parent write to child
++    let mut down_pipe_fd = [0usize; 2];
++    // child write to parent
++    let mut up_pipe_fd = [0usize; 2];
++    pipe(&mut down_pipe_fd);
++    pipe(&mut up_pipe_fd);
++    let mut random_str = [0u8; LENGTH];
++    if fork() == 0 {
++        // close write end of down pipe
++        close(down_pipe_fd[1]);
++        // close read end of up pipe
++        close(up_pipe_fd[0]);
++        assert_eq!(read(down_pipe_fd[0], &mut random_str) as usize, LENGTH);
++        close(down_pipe_fd[0]);
++        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
++        println!("sum = {}(child)", sum);
++        let sum_str = format!("{}", sum);
++        write(up_pipe_fd[1], sum_str.as_bytes());
++        close(up_pipe_fd[1]);
++        println!("Child process exited!");
++        0
++    } else {
++        // close read end of down pipe
++        close(down_pipe_fd[0]);
++        // close write end of up pipe
++        close(up_pipe_fd[1]);
++        // generate a long random string
++        for ch in random_str.iter_mut() {
++            *ch = get_time() as u8;
++        }
++        // send it
++        assert_eq!(
++            write(down_pipe_fd[1], &random_str) as usize,
++            random_str.len()
++        );
++        // close write end of down pipe
++        close(down_pipe_fd[1]);
++        // calculate sum(parent)
++        let sum: usize = random_str.iter().map(|v| *v as usize).sum::<usize>();
++        println!("sum = {}(parent)", sum);
++        // recv sum(child)
++        let mut child_result = [0u8; 32];
++        let result_len = read(up_pipe_fd[0], &mut child_result) as usize;
++        close(up_pipe_fd[0]);
++        // check
++        assert_eq!(
++            sum,
++            str::parse::<usize>(core::str::from_utf8(&child_result[..result_len]).unwrap())
++                .unwrap()
++        );
++        let mut _unused: i32 = 0;
++        wait(&mut _unused);
++        println!("pipe_large_test passed!");
++        0
++    }
++}
+diff --git a/application/user/src/bin/store_fault.rs b/application/user/src/bin/store_fault.rs
+new file mode 100644
+index 0000000..f8023eb
+--- /dev/null
++++ b/application/user/src/bin/store_fault.rs
+@@ -0,0 +1,15 @@
++#![no_std]
++#![no_main]
++
++#[macro_use]
++extern crate user_lib;
++
++#[no_mangle]
++fn main() -> i32 {
++    println!("Into Test store_fault, we will insert an invalid store operation...");
++    println!("Kernel should kill this application!");
++    unsafe {
++        core::ptr::null_mut::<u8>().write_volatile(0);
++    }
++    0
++}
+diff --git a/application/user/src/bin/usertests.rs b/application/user/src/bin/usertests.rs
+index b28a570..9103656 100644
+--- a/application/user/src/bin/usertests.rs
++++ b/application/user/src/bin/usertests.rs
+@@ -20,12 +20,12 @@ static SUCC_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+     // ("forktest2\0", "\0", "\0", "\0", 0),
+     // ("forktree\0", "\0", "\0", "\0", 0),
+     ("hello_world\0", "\0", "\0", "\0", 0),
+-    // ("huge_write\0", "\0", "\0", "\0", 0),
+-    // ("matrix\0", "\0", "\0", "\0", 0),
++    ("huge_write\0", "\0", "\0", "\0", 0),
++    ("matrix\0", "\0", "\0", "\0", 0),
+     // ("mpsc_sem\0", "\0", "\0", "\0", 0),
+     // ("peterson\0", "\0", "\0", "\0", 0),
+-    // ("phil_din_mutex\0", "\0", "\0", "\0", 0),
+-    // ("pipe_large_test\0", "\0", "\0", "\0", 0),
++    ("phil_din_mutex\0", "\0", "\0", "\0", 0),
++    ("pipe_large_test\0", "\0", "\0", "\0", 0),
+     ("pipetest\0", "\0", "\0", "\0", 0),
+     // ("adder_peterson_spin\0", "\0", "\0", "\0", 0),
+     // ("adder_peterson_yield\0", "\0", "\0", "\0", 0),
+@@ -50,7 +50,7 @@ static FAIL_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+     // ("race_adder_loop\0", "\0", "\0", "\0", -6),
+     // ("priv_csr\0", "\0", "\0", "\0", -4),
+     // ("priv_inst\0", "\0", "\0", "\0", -4),
+-    // ("store_fault\0", "\0", "\0", "\0", -11),
++    ("store_fault\0", "\0", "\0", "\0", -11),
+     // ("until_timeout\0", "\0", "\0", "\0", -6),
+     // ("adder\0", "\0", "\0", "\0", -6),
+     // ("adder_simple_spin\0", "\0", "\0", "\0", -6),
+diff --git a/application/user/src/console.rs b/application/user/src/console.rs
+index 35605e2..810ebba 100644
+--- a/application/user/src/console.rs
++++ b/application/user/src/console.rs
+@@ -1,39 +1,39 @@
+-use core::fmt::{self, Write};
+-
+-const STDIN: usize = 0;
+-const STDOUT: usize = 1;
+-
+-use super::{read, write};
+-
+-struct Stdout;
+-
+-impl Write for Stdout {
+-    fn write_str(&mut self, s: &str) -> fmt::Result {
+-        write(STDOUT, s.as_bytes());
+-        Ok(())
+-    }
+-}
+-
+-pub fn print(args: fmt::Arguments) {
+-    Stdout.write_fmt(args).unwrap();
+-}
+-
+-#[macro_export]
+-macro_rules! print {
+-    ($fmt: literal $(, $($arg: tt)+)?) => {
+-        $crate::console::print(format_args!($fmt $(, $($arg)+)?));
+-    }
+-}
+-
+-#[macro_export]
+-macro_rules! println {
+-    ($fmt: literal $(, $($arg: tt)+)?) => {
+-        $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
+-    }
+-}
+-
+-pub fn getchar() -> u8 {
+-    let mut c = [0u8; 1];
+-    read(STDIN, &mut c);
+-    c[0]
+-}
++use core::fmt::{self, Write};
++
++const STDIN: usize = 0;
++const STDOUT: usize = 1;
++
++use super::{read, write};
++
++struct Stdout;
++
++impl Write for Stdout {
++    fn write_str(&mut self, s: &str) -> fmt::Result {
++        write(STDOUT, s.as_bytes());
++        Ok(())
++    }
++}
++
++pub fn print(args: fmt::Arguments) {
++    Stdout.write_fmt(args).unwrap();
++}
++
++#[macro_export]
++macro_rules! print {
++    ($fmt: literal $(, $($arg: tt)+)?) => {
++        $crate::console::print(format_args!($fmt $(, $($arg)+)?));
++    }
++}
++
++#[macro_export]
++macro_rules! println {
++    ($fmt: literal $(, $($arg: tt)+)?) => {
++        $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
++    }
++}
++
++pub fn getchar() -> u8 {
++    let mut c = [0u8; 1];
++    read(STDIN, &mut c);
++    c[0]
++}
+diff --git a/application/user/src/file.rs b/application/user/src/file.rs
+deleted file mode 100644
+index 19e2564..0000000
+--- a/application/user/src/file.rs
++++ /dev/null
+@@ -1,30 +0,0 @@
+-use super::*;
+-
+-bitflags! {
+-    pub struct OpenFlags: u32 {
+-        const RDONLY = 0;
+-        const WRONLY = 1 << 0;
+-        const RDWR = 1 << 1;
+-        const CREATE = 1 << 9;
+-        const TRUNC = 1 << 10;
+-    }
+-}
+-
+-pub fn dup(fd: usize) -> isize {
+-    sys_dup(fd)
+-}
+-pub fn open(path: &str, flags: OpenFlags) -> isize {
+-    sys_open(path, flags.bits)
+-}
+-pub fn close(fd: usize) -> isize {
+-    sys_close(fd)
+-}
+-pub fn pipe(pipe_fd: &mut [usize]) -> isize {
+-    sys_pipe(pipe_fd)
+-}
+-pub fn read(fd: usize, buf: &mut [u8]) -> isize {
+-    sys_read(fd, buf)
+-}
+-pub fn write(fd: usize, buf: &[u8]) -> isize {
+-    sys_write(fd, buf)
+-}
+diff --git a/application/user/src/io.rs b/application/user/src/io.rs
+deleted file mode 100644
+index 30e7a1c..0000000
+--- a/application/user/src/io.rs
++++ /dev/null
+@@ -1,116 +0,0 @@
+-use super::*;
+-use embedded_graphics::pixelcolor::Rgb888;
+-use embedded_graphics::prelude::{RgbColor, Size};
+-use embedded_graphics::{draw_target::DrawTarget, prelude::OriginDimensions};
+-use virtio_input_decoder::Decoder;
+-pub use virtio_input_decoder::{DecodeType, Key, KeyType, Mouse};
+-
+-pub const VIRTGPU_XRES: u32 = 1280;
+-pub const VIRTGPU_YRES: u32 = 800;
+-pub const VIRTGPU_LEN: usize = (VIRTGPU_XRES * VIRTGPU_YRES * 4) as usize;
+-
+-pub fn framebuffer() -> isize {
+-    sys_framebuffer()
+-}
+-pub fn framebuffer_flush() -> isize {
+-    sys_framebuffer_flush()
+-}
+-
+-pub struct Display {
+-    pub size: Size,
+-    pub fb: &'static mut [u8],
+-}
+-
+-impl Display {
+-    pub fn new(size: Size) -> Self {
+-        let fb_ptr = framebuffer() as *mut u8;
+-        let fb = unsafe { core::slice::from_raw_parts_mut(fb_ptr, VIRTGPU_LEN as usize) };
+-        Self { size, fb }
+-    }
+-    pub fn framebuffer(&mut self) -> &mut [u8] {
+-        self.fb
+-    }
+-    pub fn paint_on_framebuffer(&mut self, p: impl FnOnce(&mut [u8]) -> ()) {
+-        p(self.framebuffer());
+-        framebuffer_flush();
+-    }
+-}
+-
+-impl OriginDimensions for Display {
+-    fn size(&self) -> Size {
+-        self.size
+-    }
+-}
+-
+-impl DrawTarget for Display {
+-    type Color = Rgb888;
+-
+-    type Error = core::convert::Infallible;
+-
+-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+-    where
+-        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+-    {
+-        pixels.into_iter().for_each(|px| {
+-            let idx = (px.0.y * VIRTGPU_XRES as i32 + px.0.x) as usize * 4;
+-            if idx + 2 >= self.fb.len() {
+-                return;
+-            }
+-            self.fb[idx] = px.1.b();
+-            self.fb[idx + 1] = px.1.g();
+-            self.fb[idx + 2] = px.1.r();
+-        });
+-        framebuffer_flush();
+-        Ok(())
+-    }
+-}
+-
+-pub fn event_get() -> Option<InputEvent> {
+-    let raw_value = sys_event_get();
+-    if raw_value == 0 {
+-        None
+-    } else {
+-        Some((raw_value as u64).into())
+-    }
+-}
+-
+-pub fn key_pressed() -> bool {
+-    if sys_key_pressed() == 1 {
+-        true
+-    } else {
+-        false
+-    }
+-}
+-
+-#[repr(C)]
+-pub struct InputEvent {
+-    pub event_type: u16,
+-    pub code: u16,
+-    pub value: u32,
+-}
+-
+-impl From<u64> for InputEvent {
+-    fn from(mut v: u64) -> Self {
+-        let value = v as u32;
+-        v >>= 32;
+-        let code = v as u16;
+-        v >>= 16;
+-        let event_type = v as u16;
+-        Self {
+-            event_type,
+-            code,
+-            value,
+-        }
+-    }
+-}
+-
+-impl InputEvent {
+-    pub fn decode(&self) -> Option<DecodeType> {
+-        Decoder::decode(
+-            self.event_type as usize,
+-            self.code as usize,
+-            self.value as usize,
+-        )
+-        .ok()
+-    }
+-}
+diff --git a/application/user/src/lang_items.rs b/application/user/src/lang_items.rs
+index c3e9a0b..df0467c 100644
+--- a/application/user/src/lang_items.rs
++++ b/application/user/src/lang_items.rs
+@@ -1,18 +1,18 @@
+-use super::{getpid, kill, SignalFlags};
+-
+-#[panic_handler]
+-fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
+-    let err = panic_info.message().unwrap();
+-    if let Some(location) = panic_info.location() {
+-        println!(
+-            "Panicked at {}:{}, {}",
+-            location.file(),
+-            location.line(),
+-            err
+-        );
+-    } else {
+-        println!("Panicked: {}", err);
+-    }
+-    kill(getpid() as usize, SignalFlags::SIGABRT.bits());
+-    unreachable!()
+-}
++use super::{getpid, kill, SignalFlags};
++
++#[panic_handler]
++fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
++    let err = panic_info.message().unwrap();
++    if let Some(location) = panic_info.location() {
++        println!(
++            "Panicked at {}:{}, {}",
++            location.file(),
++            location.line(),
++            err
++        );
++    } else {
++        println!("Panicked: {}", err);
++    }
++    kill(getpid() as usize, SignalFlags::SIGABRT.bits());
++    unreachable!()
++}
+diff --git a/application/user/src/lib.rs b/application/user/src/lib.rs
+index 31a8db8..6f57edd 100644
+--- a/application/user/src/lib.rs
++++ b/application/user/src/lib.rs
+@@ -6,12 +6,8 @@
+ 
+ #[macro_use]
+ pub mod console;
+-mod file;
+-mod io;
+ mod lang_items;
+-mod sync;
+ mod syscall;
+-mod task;
+ 
+ extern crate alloc;
+ #[macro_use]
+@@ -19,11 +15,7 @@ extern crate bitflags;
+ 
+ use alloc::vec::Vec;
+ use buddy_system_allocator::LockedHeap;
+-pub use file::*;
+-pub use io::*;
+-pub use sync::*;
+ use syscall::*;
+-pub use task::*;
+ 
+ const USER_HEAP_SIZE: usize = 32768;
+ 
+@@ -67,6 +59,148 @@ fn main(_argc: usize, _argv: &[&str]) -> i32 {
+     panic!("Cannot find main!");
+ }
+ 
++bitflags! {
++    pub struct OpenFlags: u32 {
++        const RDONLY = 0;
++        const WRONLY = 1 << 0;
++        const RDWR = 1 << 1;
++        const CREATE = 1 << 9;
++        const TRUNC = 1 << 10;
++    }
++}
++
++pub fn dup(fd: usize) -> isize {
++    sys_dup(fd)
++}
++pub fn open(path: &str, flags: OpenFlags) -> isize {
++    sys_open(path, flags.bits)
++}
++pub fn close(fd: usize) -> isize {
++    sys_close(fd)
++}
++pub fn pipe(pipe_fd: &mut [usize]) -> isize {
++    sys_pipe(pipe_fd)
++}
++pub fn read(fd: usize, buf: &mut [u8]) -> isize {
++    sys_read(fd, buf)
++}
++pub fn write(fd: usize, buf: &[u8]) -> isize {
++    sys_write(fd, buf)
++}
++pub fn exit(exit_code: i32) -> ! {
++    sys_exit(exit_code);
++}
++pub fn yield_() -> isize {
++    sys_yield()
++}
++pub fn get_time() -> isize {
++    sys_get_time()
++}
++pub fn getpid() -> isize {
++    sys_getpid()
++}
++pub fn fork() -> isize {
++    sys_fork()
++}
++pub fn exec(path: &str, args: &[*const u8]) -> isize {
++    sys_exec(path, args)
++}
++pub fn wait(exit_code: &mut i32) -> isize {
++    loop {
++        match sys_waitpid(-1, exit_code as *mut _) {
++            -2 => {
++                yield_();
++            }
++            // -1 or a real pid
++            exit_pid => return exit_pid,
++        }
++    }
++}
++
++pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
++    loop {
++        match sys_waitpid(pid as isize, exit_code as *mut _) {
++            -2 => {
++                yield_();
++            }
++            // -1 or a real pid
++            exit_pid => return exit_pid,
++        }
++    }
++}
++
++pub fn waitpid_nb(pid: usize, exit_code: &mut i32) -> isize {
++    sys_waitpid(pid as isize, exit_code as *mut _)
++}
++
++bitflags! {
++    pub struct SignalFlags: i32 {
++        const SIGINT    = 1 << 2;
++        const SIGILL    = 1 << 4;
++        const SIGABRT   = 1 << 6;
++        const SIGFPE    = 1 << 8;
++        const SIGSEGV   = 1 << 11;
++    }
++}
++
++pub fn kill(pid: usize, signal: i32) -> isize {
++    sys_kill(pid, signal)
++}
++
++pub fn sleep(sleep_ms: usize) {
++    sys_sleep(sleep_ms);
++}
++
++pub fn thread_create(entry: usize, arg: usize) -> isize {
++    sys_thread_create(entry, arg)
++}
++pub fn gettid() -> isize {
++    sys_gettid()
++}
++pub fn waittid(tid: usize) -> isize {
++    loop {
++        match sys_waittid(tid) {
++            -2 => {
++                yield_();
++            }
++            exit_code => return exit_code,
++        }
++    }
++}
++
++pub fn mutex_create() -> isize {
++    sys_mutex_create(false)
++}
++pub fn mutex_blocking_create() -> isize {
++    sys_mutex_create(true)
++}
++pub fn mutex_lock(mutex_id: usize) {
++    sys_mutex_lock(mutex_id);
++}
++pub fn mutex_unlock(mutex_id: usize) {
++    sys_mutex_unlock(mutex_id);
++}
++pub fn semaphore_create(res_count: usize) -> isize {
++    sys_semaphore_create(res_count)
++}
++pub fn semaphore_up(sem_id: usize) {
++    sys_semaphore_up(sem_id);
++}
++pub fn semaphore_down(sem_id: usize) {
++    sys_semaphore_down(sem_id);
++}
++pub fn condvar_create() -> isize {
++    sys_condvar_create(0)
++}
++pub fn condvar_signal(condvar_id: usize) {
++    sys_condvar_signal(condvar_id);
++}
++pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
++    sys_condvar_wait(condvar_id, mutex_id);
++}
++pub fn create_desktop() {
++    sys_create_desktop();
++}
+ #[macro_export]
+ macro_rules! vstore {
+     ($var_ref: expr, $value: expr) => {
+diff --git a/application/user/src/sync.rs b/application/user/src/sync.rs
+deleted file mode 100644
+index 82cd2a0..0000000
+--- a/application/user/src/sync.rs
++++ /dev/null
+@@ -1,32 +0,0 @@
+-use super::*;
+-
+-pub fn mutex_create() -> isize {
+-    sys_mutex_create(false)
+-}
+-pub fn mutex_blocking_create() -> isize {
+-    sys_mutex_create(true)
+-}
+-pub fn mutex_lock(mutex_id: usize) {
+-    sys_mutex_lock(mutex_id);
+-}
+-pub fn mutex_unlock(mutex_id: usize) {
+-    sys_mutex_unlock(mutex_id);
+-}
+-pub fn semaphore_create(res_count: usize) -> isize {
+-    sys_semaphore_create(res_count)
+-}
+-pub fn semaphore_up(sem_id: usize) {
+-    sys_semaphore_up(sem_id);
+-}
+-pub fn semaphore_down(sem_id: usize) {
+-    sys_semaphore_down(sem_id);
+-}
+-pub fn condvar_create() -> isize {
+-    sys_condvar_create()
+-}
+-pub fn condvar_signal(condvar_id: usize) {
+-    sys_condvar_signal(condvar_id);
+-}
+-pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
+-    sys_condvar_wait(condvar_id, mutex_id);
+-}
+diff --git a/application/user/src/syscall.rs b/application/user/src/syscall.rs
+index 1d0e5a5..3f36f53 100644
+--- a/application/user/src/syscall.rs
++++ b/application/user/src/syscall.rs
+@@ -25,10 +25,6 @@ const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
+ const SYSCALL_CONDVAR_CREATE: usize = 1030;
+ const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
+ const SYSCALL_CONDVAR_WAIT: usize = 1032;
+-const SYSCALL_FRAMEBUFFER: usize = 2000;
+-const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
+-const SYSCALL_EVENT_GET: usize = 3000;
+-const SYSCALL_KEY_PRESSED: usize = 3001;
+ 
+ fn syscall(id: usize, args: [usize; 3]) -> isize {
+     let mut ret: isize;
+@@ -147,8 +143,8 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
+     syscall(SYSCALL_SEMAPHORE_DOWN, [sem_id, 0, 0])
+ }
+ 
+-pub fn sys_condvar_create() -> isize {
+-    syscall(SYSCALL_CONDVAR_CREATE, [0, 0, 0])
++pub fn sys_condvar_create(_arg: usize) -> isize {
++    syscall(SYSCALL_CONDVAR_CREATE, [_arg, 0, 0])
+ }
+ 
+ pub fn sys_condvar_signal(condvar_id: usize) -> isize {
+@@ -158,19 +154,6 @@ pub fn sys_condvar_signal(condvar_id: usize) -> isize {
+ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
+     syscall(SYSCALL_CONDVAR_WAIT, [condvar_id, mutex_id, 0])
+ }
+-
+-pub fn sys_framebuffer() -> isize {
+-    syscall(SYSCALL_FRAMEBUFFER, [0, 0, 0])
+-}
+-
+-pub fn sys_framebuffer_flush() -> isize {
+-    syscall(SYSCALL_FRAMEBUFFER_FLUSH, [0, 0, 0])
+-}
+-
+-pub fn sys_event_get() -> isize {
+-    syscall(SYSCALL_EVENT_GET, [0, 0, 0])
+-}
+-
+-pub fn sys_key_pressed() -> isize {
+-    syscall(SYSCALL_KEY_PRESSED, [0, 0, 0])
+-}
++pub fn sys_create_desktop() -> isize {
++    syscall(2000, [0, 0, 0])
++}
+\ No newline at end of file
+diff --git a/application/user/src/task.rs b/application/user/src/task.rs
+deleted file mode 100644
+index 040ef54..0000000
+--- a/application/user/src/task.rs
++++ /dev/null
+@@ -1,82 +0,0 @@
+-use super::*;
+-
+-pub fn exit(exit_code: i32) -> ! {
+-    sys_exit(exit_code);
+-}
+-pub fn yield_() -> isize {
+-    sys_yield()
+-}
+-pub fn get_time() -> isize {
+-    sys_get_time()
+-}
+-pub fn getpid() -> isize {
+-    sys_getpid()
+-}
+-pub fn fork() -> isize {
+-    sys_fork()
+-}
+-pub fn exec(path: &str, args: &[*const u8]) -> isize {
+-    sys_exec(path, args)
+-}
+-pub fn wait(exit_code: &mut i32) -> isize {
+-    loop {
+-        match sys_waitpid(-1, exit_code as *mut _) {
+-            -2 => {
+-                yield_();
+-            }
+-            // -1 or a real pid
+-            exit_pid => return exit_pid,
+-        }
+-    }
+-}
+-
+-pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
+-    loop {
+-        match sys_waitpid(pid as isize, exit_code as *mut _) {
+-            -2 => {
+-                yield_();
+-            }
+-            // -1 or a real pid
+-            exit_pid => return exit_pid,
+-        }
+-    }
+-}
+-
+-pub fn waitpid_nb(pid: usize, exit_code: &mut i32) -> isize {
+-    sys_waitpid(pid as isize, exit_code as *mut _)
+-}
+-
+-bitflags! {
+-    pub struct SignalFlags: i32 {
+-        const SIGINT    = 1 << 2;
+-        const SIGILL    = 1 << 4;
+-        const SIGABRT   = 1 << 6;
+-        const SIGFPE    = 1 << 8;
+-        const SIGSEGV   = 1 << 11;
+-    }
+-}
+-
+-pub fn kill(pid: usize, signal: i32) -> isize {
+-    sys_kill(pid, signal)
+-}
+-
+-pub fn sleep(sleep_ms: usize) {
+-    sys_sleep(sleep_ms);
+-}
+-
+-pub fn thread_create(entry: usize, arg: usize) -> isize {
+-    sys_thread_create(entry, arg)
+-}
+-pub fn gettid() -> isize {
+-    sys_gettid()
+-}
+-pub fn waittid(tid: usize) -> isize {
+-    loop {
+-        match sys_waittid(tid) {
+-            -2 => {
+-                yield_();
+-            }
+-            exit_code => return exit_code,
+-        }
+-    }
+-}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 82c033f..32638c9 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -1,5 +1,5 @@
+-#![no_main]
+ #![no_std]
++#![no_main]
+ #![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message)]
+ #![deny(warnings, unused_imports, dead_code)]
+ #![allow(unused_imports, dead_code)]
+@@ -37,6 +37,7 @@ mod syscall;
+ mod task;
+ mod timer;
+ mod trap;
++mod hart {}
+ 
+ use crate::drivers::chardev::CharDevice;
+ use crate::drivers::chardev::UART;
+@@ -57,7 +58,10 @@ fn clear_bss() {
+     }
+ }
+ 
+-use config::DEV_NON_BLOCKING_ACCESS;
++lazy_static! {
++    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
++        unsafe { UPIntrFreeCell::new(false) };
++}
+ 
+ // 内核的入口
+ #[no_mangle]
+diff --git a/kernel/src/sync/mod.rs b/kernel/src/sync/mod.rs
+index fb4e9de..573b734 100644
+--- a/kernel/src/sync/mod.rs
++++ b/kernel/src/sync/mod.rs
+@@ -1,9 +1,8 @@
+ mod condvar;
+ mod mutex;
+ mod semaphore;
+-mod up;
+ 
+ pub use condvar::Condvar;
+ pub use mutex::{Mutex, MutexBlocking, MutexSpin};
+ pub use semaphore::Semaphore;
+-pub use up::{UPIntrFreeCell, UPIntrRefMut};
++pub use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
+diff --git a/kernel/src/sync/up.rs b/kernel/src/sync/up.rs
+deleted file mode 100644
+index 4a3b576..0000000
+--- a/kernel/src/sync/up.rs
++++ /dev/null
+@@ -1,140 +0,0 @@
+-use core::cell::{RefCell, RefMut, UnsafeCell};
+-use core::ops::{Deref, DerefMut};
+-use lazy_static::*;
+-use riscv::register::sstatus;
+-
+-/*
+-/// Wrap a static data structure inside it so that we are
+-/// able to access it without any `unsafe`.
+-///
+-/// We should only use it in uniprocessor.
+-///
+-/// In order to get mutable reference of inner data, call
+-/// `exclusive_access`.
+-pub struct UPSafeCell<T> {
+-    /// inner data
+-    inner: RefCell<T>,
+-}
+-
+-unsafe impl<T> Sync for UPSafeCell<T> {}
+-
+-impl<T> UPSafeCell<T> {
+-    /// User is responsible to guarantee that inner struct is only used in
+-    /// uniprocessor.
+-    pub unsafe fn new(value: T) -> Self {
+-        Self {
+-            inner: RefCell::new(value),
+-        }
+-    }
+-    /// Panic if the data has been borrowed.
+-    pub fn exclusive_access(&self) -> RefMut<'_, T> {
+-        self.inner.borrow_mut()
+-    }
+-}
+-*/
+-
+-pub struct UPSafeCellRaw<T> {
+-    inner: UnsafeCell<T>,
+-}
+-
+-unsafe impl<T> Sync for UPSafeCellRaw<T> {}
+-
+-impl<T> UPSafeCellRaw<T> {
+-    pub unsafe fn new(value: T) -> Self {
+-        Self {
+-            inner: UnsafeCell::new(value),
+-        }
+-    }
+-    pub fn get_mut(&self) -> &mut T {
+-        unsafe { &mut (*self.inner.get()) }
+-    }
+-}
+-
+-pub struct IntrMaskingInfo {
+-    nested_level: usize,
+-    sie_before_masking: bool,
+-}
+-
+-lazy_static! {
+-    static ref INTR_MASKING_INFO: UPSafeCellRaw<IntrMaskingInfo> =
+-        unsafe { UPSafeCellRaw::new(IntrMaskingInfo::new()) };
+-}
+-
+-impl IntrMaskingInfo {
+-    pub fn new() -> Self {
+-        Self {
+-            nested_level: 0,
+-            sie_before_masking: false,
+-        }
+-    }
+-
+-    pub fn enter(&mut self) {
+-        let sie = sstatus::read().sie();
+-        unsafe {
+-            sstatus::clear_sie();
+-        }
+-        if self.nested_level == 0 {
+-            self.sie_before_masking = sie;
+-        }
+-        self.nested_level += 1;
+-    }
+-
+-    pub fn exit(&mut self) {
+-        self.nested_level -= 1;
+-        if self.nested_level == 0 && self.sie_before_masking {
+-            unsafe {
+-                sstatus::set_sie();
+-            }
+-        }
+-    }
+-}
+-
+-pub struct UPIntrFreeCell<T> {
+-    /// inner data
+-    inner: RefCell<T>,
+-}
+-
+-unsafe impl<T> Sync for UPIntrFreeCell<T> {}
+-
+-pub struct UPIntrRefMut<'a, T>(Option<RefMut<'a, T>>);
+-
+-impl<T> UPIntrFreeCell<T> {
+-    pub unsafe fn new(value: T) -> Self {
+-        Self {
+-            inner: RefCell::new(value),
+-        }
+-    }
+-
+-    /// Panic if the data has been borrowed.
+-    pub fn exclusive_access(&self) -> UPIntrRefMut<'_, T> {
+-        INTR_MASKING_INFO.get_mut().enter();
+-        UPIntrRefMut(Some(self.inner.borrow_mut()))
+-    }
+-
+-    pub fn exclusive_session<F, V>(&self, f: F) -> V
+-    where
+-        F: FnOnce(&mut T) -> V,
+-    {
+-        let mut inner = self.exclusive_access();
+-        f(inner.deref_mut())
+-    }
+-}
+-
+-impl<'a, T> Drop for UPIntrRefMut<'a, T> {
+-    fn drop(&mut self) {
+-        self.0 = None;
+-        INTR_MASKING_INFO.get_mut().exit();
+-    }
+-}
+-
+-impl<'a, T> Deref for UPIntrRefMut<'a, T> {
+-    type Target = T;
+-    fn deref(&self) -> &Self::Target {
+-        self.0.as_ref().unwrap().deref()
+-    }
+-}
+-impl<'a, T> DerefMut for UPIntrRefMut<'a, T> {
+-    fn deref_mut(&mut self) -> &mut Self::Target {
+-        self.0.as_mut().unwrap().deref_mut()
+-    }
+-}
+diff --git a/kernel/src/syscall/fs.rs b/kernel/src/syscall/fs.rs
+index 37e1c2d..2758825 100644
+--- a/kernel/src/syscall/fs.rs
++++ b/kernel/src/syscall/fs.rs
+@@ -1,99 +1,99 @@
+-use crate::fs::{make_pipe, open_file, OpenFlags};
+-use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
+-use crate::task::{current_process, current_user_token};
+-use alloc::sync::Arc;
+-
+-pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
+-    let token = current_user_token();
+-    let process = current_process();
+-    let inner = process.inner_exclusive_access();
+-    if fd >= inner.fd_table.len() {
+-        return -1;
+-    }
+-    if let Some(file) = &inner.fd_table[fd] {
+-        if !file.writable() {
+-            return -1;
+-        }
+-        let file = file.clone();
+-        // release current task TCB manually to avoid multi-borrow
+-        drop(inner);
+-        file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
+-    } else {
+-        -1
+-    }
+-}
+-
+-pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
+-    let token = current_user_token();
+-    let process = current_process();
+-    let inner = process.inner_exclusive_access();
+-    if fd >= inner.fd_table.len() {
+-        return -1;
+-    }
+-    if let Some(file) = &inner.fd_table[fd] {
+-        let file = file.clone();
+-        if !file.readable() {
+-            return -1;
+-        }
+-        // release current task TCB manually to avoid multi-borrow
+-        drop(inner);
+-        file.read(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
+-    } else {
+-        -1
+-    }
+-}
+-
+-pub fn sys_open(path: *const u8, flags: u32) -> isize {
+-    let process = current_process();
+-    let token = current_user_token();
+-    let path = translated_str(token, path);
+-    if let Some(inode) = open_file(path.as_str(), OpenFlags::from_bits(flags).unwrap()) {
+-        let mut inner = process.inner_exclusive_access();
+-        let fd = inner.alloc_fd();
+-        inner.fd_table[fd] = Some(inode);
+-        fd as isize
+-    } else {
+-        -1
+-    }
+-}
+-
+-pub fn sys_close(fd: usize) -> isize {
+-    let process = current_process();
+-    let mut inner = process.inner_exclusive_access();
+-    if fd >= inner.fd_table.len() {
+-        return -1;
+-    }
+-    if inner.fd_table[fd].is_none() {
+-        return -1;
+-    }
+-    inner.fd_table[fd].take();
+-    0
+-}
+-
+-pub fn sys_pipe(pipe: *mut usize) -> isize {
+-    let process = current_process();
+-    let token = current_user_token();
+-    let mut inner = process.inner_exclusive_access();
+-    let (pipe_read, pipe_write) = make_pipe();
+-    let read_fd = inner.alloc_fd();
+-    inner.fd_table[read_fd] = Some(pipe_read);
+-    let write_fd = inner.alloc_fd();
+-    inner.fd_table[write_fd] = Some(pipe_write);
+-    *translated_refmut(token, pipe) = read_fd;
+-    *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
+-    0
+-}
+-
+-pub fn sys_dup(fd: usize) -> isize {
+-    let process = current_process();
+-    let mut inner = process.inner_exclusive_access();
+-    if fd >= inner.fd_table.len() {
+-        return -1;
+-    }
+-    if inner.fd_table[fd].is_none() {
+-        return -1;
+-    }
+-    let new_fd = inner.alloc_fd();
+-    inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
+-    new_fd as isize
+-}
++use crate::fs::{make_pipe, open_file, OpenFlags};
++use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
++use crate::task::{current_process, current_user_token};
++use alloc::sync::Arc;
++
++pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
++    let token = current_user_token();
++    let process = current_process();
++    let inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if let Some(file) = &inner.fd_table[fd] {
++        if !file.writable() {
++            return -1;
++        }
++        let file = file.clone();
++        // release current task TCB manually to avoid multi-borrow
++        drop(inner);
++        file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
++    let token = current_user_token();
++    let process = current_process();
++    let inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if let Some(file) = &inner.fd_table[fd] {
++        let file = file.clone();
++        if !file.readable() {
++            return -1;
++        }
++        // release current task TCB manually to avoid multi-borrow
++        drop(inner);
++        file.read(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_open(path: *const u8, flags: u32) -> isize {
++    let process = current_process();
++    let token = current_user_token();
++    let path = translated_str(token, path);
++    if let Some(inode) = open_file(path.as_str(), OpenFlags::from_bits(flags).unwrap()) {
++        let mut inner = process.inner_exclusive_access();
++        let fd = inner.alloc_fd();
++        inner.fd_table[fd] = Some(inode);
++        fd as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_close(fd: usize) -> isize {
++    let process = current_process();
++    let mut inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if inner.fd_table[fd].is_none() {
++        return -1;
++    }
++    inner.fd_table[fd].take();
++    0
++}
++
++pub fn sys_pipe(pipe: *mut usize) -> isize {
++    let process = current_process();
++    let token = current_user_token();
++    let mut inner = process.inner_exclusive_access();
++    let (pipe_read, pipe_write) = make_pipe();
++    let read_fd = inner.alloc_fd();
++    inner.fd_table[read_fd] = Some(pipe_read);
++    let write_fd = inner.alloc_fd();
++    inner.fd_table[write_fd] = Some(pipe_write);
++    *translated_refmut(token, pipe) = read_fd;
++    *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
++    0
++}
++
++pub fn sys_dup(fd: usize) -> isize {
++    let process = current_process();
++    let mut inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if inner.fd_table[fd].is_none() {
++        return -1;
++    }
++    let new_fd = inner.alloc_fd();
++    inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
++    new_fd as isize
++}
+diff --git a/kernel/src/syscall/gui.rs b/kernel/src/syscall/gui.rs
+deleted file mode 100644
+index e84351d..0000000
+--- a/kernel/src/syscall/gui.rs
++++ /dev/null
+@@ -1,34 +0,0 @@
+-use crate::drivers::GPU_DEVICE;
+-use crate::mm::{MapArea, MapPermission, MapType, PhysAddr, VirtAddr};
+-use crate::task::current_process;
+-
+-const FB_VADDR: usize = 0x10000000;
+-
+-pub fn sys_framebuffer() -> isize {
+-    let fb = GPU_DEVICE.get_framebuffer();
+-    let len = fb.len();
+-    // println!("[kernel] FrameBuffer: addr 0x{:X}, len {}", fb.as_ptr() as usize , len);
+-    let fb_start_pa = PhysAddr::from(fb.as_ptr() as usize);
+-    assert!(fb_start_pa.aligned());
+-    let fb_start_ppn = fb_start_pa.floor();
+-    let fb_start_vpn = VirtAddr::from(FB_VADDR).floor();
+-    let pn_offset = fb_start_ppn.0 as isize - fb_start_vpn.0 as isize;
+-
+-    let current_process = current_process();
+-    let mut inner = current_process.inner_exclusive_access();
+-    inner.memory_set.push(
+-        MapArea::new(
+-            (FB_VADDR as usize).into(),
+-            (FB_VADDR + len as usize).into(),
+-            MapType::Linear(pn_offset),
+-            MapPermission::R | MapPermission::W | MapPermission::U,
+-        ),
+-        None,
+-    );
+-    FB_VADDR as isize
+-}
+-
+-pub fn sys_framebuffer_flush() -> isize {
+-    GPU_DEVICE.flush();
+-    0
+-}
+diff --git a/kernel/src/syscall/input.rs b/kernel/src/syscall/input.rs
+deleted file mode 100644
+index 274c243..0000000
+--- a/kernel/src/syscall/input.rs
++++ /dev/null
+@@ -1,28 +0,0 @@
+-//use crate::drivers::{KEYBOARD_DEVICE,MOUSE_DEVICE,INPUT_CONDVAR,read_input_event};
+-use crate::drivers::{KEYBOARD_DEVICE, MOUSE_DEVICE};
+-
+-pub fn sys_event_get() -> isize {
+-    let kb = KEYBOARD_DEVICE.clone();
+-    let mouse = MOUSE_DEVICE.clone();
+-    //let input=INPUT_CONDVAR.clone();
+-    //read_input_event() as isize
+-    if !kb.is_empty() {
+-        kb.read_event() as isize
+-    } else if !mouse.is_empty() {
+-        mouse.read_event() as isize
+-    } else {
+-        0
+-    }
+-}
+-
+-use crate::drivers::chardev::UART;
+-
+-/// check UART's read-buffer is empty or not
+-pub fn sys_key_pressed() -> isize {
+-    let res = !UART.read_buffer_is_empty();
+-    if res {
+-        1
+-    } else {
+-        0
+-    }
+-}
+diff --git a/kernel/src/syscall/mod.rs b/kernel/src/syscall/mod.rs
+index 6054f0a..a5ef169 100644
+--- a/kernel/src/syscall/mod.rs
++++ b/kernel/src/syscall/mod.rs
+@@ -1,82 +1,71 @@
+-const SYSCALL_DUP: usize = 24;
+-const SYSCALL_OPEN: usize = 56;
+-const SYSCALL_CLOSE: usize = 57;
+-const SYSCALL_PIPE: usize = 59;
+-const SYSCALL_READ: usize = 63;
+-const SYSCALL_WRITE: usize = 64;
+-const SYSCALL_EXIT: usize = 93;
+-const SYSCALL_SLEEP: usize = 101;
+-const SYSCALL_YIELD: usize = 124;
+-const SYSCALL_KILL: usize = 129;
+-const SYSCALL_GET_TIME: usize = 169;
+-const SYSCALL_GETPID: usize = 172;
+-const SYSCALL_FORK: usize = 220;
+-const SYSCALL_EXEC: usize = 221;
+-const SYSCALL_WAITPID: usize = 260;
+-const SYSCALL_THREAD_CREATE: usize = 1000;
+-const SYSCALL_GETTID: usize = 1001;
+-const SYSCALL_WAITTID: usize = 1002;
+-const SYSCALL_MUTEX_CREATE: usize = 1010;
+-const SYSCALL_MUTEX_LOCK: usize = 1011;
+-const SYSCALL_MUTEX_UNLOCK: usize = 1012;
+-const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
+-const SYSCALL_SEMAPHORE_UP: usize = 1021;
+-const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
+-const SYSCALL_CONDVAR_CREATE: usize = 1030;
+-const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
+-const SYSCALL_CONDVAR_WAIT: usize = 1032;
+-const SYSCALL_FRAMEBUFFER: usize = 2000;
+-const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
+-const SYSCALL_EVENT_GET: usize = 3000;
+-const SYSCALL_KEY_PRESSED: usize = 3001;
+-
+-mod fs;
+-mod gui;
+-mod input;
+-mod process;
+-mod sync;
+-mod thread;
+-
+-use fs::*;
+-use gui::*;
+-use input::*;
+-use process::*;
+-use sync::*;
+-use thread::*;
+-
+-pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+-    match syscall_id {
+-        SYSCALL_DUP => sys_dup(args[0]),
+-        SYSCALL_OPEN => sys_open(args[0] as *const u8, args[1] as u32),
+-        SYSCALL_CLOSE => sys_close(args[0]),
+-        SYSCALL_PIPE => sys_pipe(args[0] as *mut usize),
+-        SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
+-        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
+-        SYSCALL_EXIT => sys_exit(args[0] as i32),
+-        SYSCALL_SLEEP => sys_sleep(args[0]),
+-        SYSCALL_YIELD => sys_yield(),
+-        SYSCALL_KILL => sys_kill(args[0], args[1] as u32),
+-        SYSCALL_GET_TIME => sys_get_time(),
+-        SYSCALL_GETPID => sys_getpid(),
+-        SYSCALL_FORK => sys_fork(),
+-        SYSCALL_EXEC => sys_exec(args[0] as *const u8, args[1] as *const usize),
+-        SYSCALL_WAITPID => sys_waitpid(args[0] as isize, args[1] as *mut i32),
+-        SYSCALL_THREAD_CREATE => sys_thread_create(args[0], args[1]),
+-        SYSCALL_GETTID => sys_gettid(),
+-        SYSCALL_WAITTID => sys_waittid(args[0]) as isize,
+-        SYSCALL_MUTEX_CREATE => sys_mutex_create(args[0] == 1),
+-        SYSCALL_MUTEX_LOCK => sys_mutex_lock(args[0]),
+-        SYSCALL_MUTEX_UNLOCK => sys_mutex_unlock(args[0]),
+-        SYSCALL_SEMAPHORE_CREATE => sys_semaphore_create(args[0]),
+-        SYSCALL_SEMAPHORE_UP => sys_semaphore_up(args[0]),
+-        SYSCALL_SEMAPHORE_DOWN => sys_semaphore_down(args[0]),
+-        SYSCALL_CONDVAR_CREATE => sys_condvar_create(),
+-        SYSCALL_CONDVAR_SIGNAL => sys_condvar_signal(args[0]),
+-        SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
+-        SYSCALL_FRAMEBUFFER => sys_framebuffer(),
+-        SYSCALL_FRAMEBUFFER_FLUSH => sys_framebuffer_flush(),
+-        SYSCALL_EVENT_GET => sys_event_get(),
+-        SYSCALL_KEY_PRESSED => sys_key_pressed(),
+-        _ => panic!("Unsupported syscall_id: {}", syscall_id),
+-    }
+-}
++const SYSCALL_DUP: usize = 24;
++const SYSCALL_OPEN: usize = 56;
++const SYSCALL_CLOSE: usize = 57;
++const SYSCALL_PIPE: usize = 59;
++const SYSCALL_READ: usize = 63;
++const SYSCALL_WRITE: usize = 64;
++const SYSCALL_EXIT: usize = 93;
++const SYSCALL_SLEEP: usize = 101;
++const SYSCALL_YIELD: usize = 124;
++const SYSCALL_KILL: usize = 129;
++const SYSCALL_GET_TIME: usize = 169;
++const SYSCALL_GETPID: usize = 172;
++const SYSCALL_FORK: usize = 220;
++const SYSCALL_EXEC: usize = 221;
++const SYSCALL_WAITPID: usize = 260;
++const SYSCALL_THREAD_CREATE: usize = 1000;
++const SYSCALL_GETTID: usize = 1001;
++const SYSCALL_WAITTID: usize = 1002;
++const SYSCALL_MUTEX_CREATE: usize = 1010;
++const SYSCALL_MUTEX_LOCK: usize = 1011;
++const SYSCALL_MUTEX_UNLOCK: usize = 1012;
++const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
++const SYSCALL_SEMAPHORE_UP: usize = 1021;
++const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
++const SYSCALL_CONDVAR_CREATE: usize = 1030;
++const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
++const SYSCALL_CONDVAR_WAIT: usize = 1032;
++const SYSCALL_CREATE_DESKTOP: usize = 2000;
++mod fs;
++mod process;
++mod sync;
++mod thread;
++use fs::*;
++
++use process::*;
++use sync::*;
++use thread::*;
++
++pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
++    match syscall_id {
++        SYSCALL_DUP => sys_dup(args[0]),
++        SYSCALL_OPEN => sys_open(args[0] as *const u8, args[1] as u32),
++        SYSCALL_CLOSE => sys_close(args[0]),
++        SYSCALL_PIPE => sys_pipe(args[0] as *mut usize),
++        SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
++        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
++        SYSCALL_EXIT => sys_exit(args[0] as i32),
++        SYSCALL_SLEEP => sys_sleep(args[0]),
++        SYSCALL_YIELD => sys_yield(),
++        SYSCALL_KILL => sys_kill(args[0], args[1] as u32),
++        SYSCALL_GET_TIME => sys_get_time(),
++        SYSCALL_GETPID => sys_getpid(),
++        SYSCALL_FORK => sys_fork(),
++        SYSCALL_EXEC => sys_exec(args[0] as *const u8, args[1] as *const usize),
++        SYSCALL_WAITPID => sys_waitpid(args[0] as isize, args[1] as *mut i32),
++        SYSCALL_THREAD_CREATE => sys_thread_create(args[0], args[1]),
++        SYSCALL_GETTID => sys_gettid(),
++        SYSCALL_WAITTID => sys_waittid(args[0]) as isize,
++        SYSCALL_MUTEX_CREATE => sys_mutex_create(args[0] == 1),
++        SYSCALL_MUTEX_LOCK => sys_mutex_lock(args[0]),
++        SYSCALL_MUTEX_UNLOCK => sys_mutex_unlock(args[0]),
++        SYSCALL_SEMAPHORE_CREATE => sys_semaphore_create(args[0]),
++        SYSCALL_SEMAPHORE_UP => sys_semaphore_up(args[0]),
++        SYSCALL_SEMAPHORE_DOWN => sys_semaphore_down(args[0]),
++        SYSCALL_CONDVAR_CREATE => sys_condvar_create(args[0]),
++        SYSCALL_CONDVAR_SIGNAL => sys_condvar_signal(args[0]),
++        SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
++        _ => panic!("Unsupported syscall_id: {}", syscall_id),
++    }
++}
++
+diff --git a/kernel/src/syscall/process.rs b/kernel/src/syscall/process.rs
+index c991877..7d5b67a 100644
+--- a/kernel/src/syscall/process.rs
++++ b/kernel/src/syscall/process.rs
+@@ -1,117 +1,117 @@
+-use crate::fs::{open_file, OpenFlags};
+-use crate::mm::{translated_ref, translated_refmut, translated_str};
+-use crate::task::{
+-    current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
+-    suspend_current_and_run_next, SignalFlags,
+-};
+-use crate::timer::get_time_ms;
+-use alloc::string::String;
+-use alloc::sync::Arc;
+-use alloc::vec::Vec;
+-
+-pub fn sys_exit(exit_code: i32) -> ! {
+-    exit_current_and_run_next(exit_code);
+-    panic!("Unreachable in sys_exit!");
+-}
+-
+-pub fn sys_yield() -> isize {
+-    suspend_current_and_run_next();
+-    0
+-}
+-
+-pub fn sys_get_time() -> isize {
+-    get_time_ms() as isize
+-}
+-
+-pub fn sys_getpid() -> isize {
+-    current_task().unwrap().process.upgrade().unwrap().getpid() as isize
+-}
+-
+-pub fn sys_fork() -> isize {
+-    let current_process = current_process();
+-    let new_process = current_process.fork();
+-    let new_pid = new_process.getpid();
+-    // modify trap context of new_task, because it returns immediately after switching
+-    let new_process_inner = new_process.inner_exclusive_access();
+-    let task = new_process_inner.tasks[0].as_ref().unwrap();
+-    let trap_cx = task.inner_exclusive_access().get_trap_cx();
+-    // we do not have to move to next instruction since we have done it before
+-    // for child process, fork returns 0
+-    trap_cx.x[10] = 0;
+-    new_pid as isize
+-}
+-
+-pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
+-    let token = current_user_token();
+-    let path = translated_str(token, path);
+-    let mut args_vec: Vec<String> = Vec::new();
+-    loop {
+-        let arg_str_ptr = *translated_ref(token, args);
+-        if arg_str_ptr == 0 {
+-            break;
+-        }
+-        args_vec.push(translated_str(token, arg_str_ptr as *const u8));
+-        unsafe {
+-            args = args.add(1);
+-        }
+-    }
+-    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+-        let all_data = app_inode.read_all();
+-        let process = current_process();
+-        let argc = args_vec.len();
+-        process.exec(all_data.as_slice(), args_vec);
+-        // return argc because cx.x[10] will be covered with it later
+-        argc as isize
+-    } else {
+-        -1
+-    }
+-}
+-
+-/// If there is not a child process whose pid is same as given, return -1.
+-/// Else if there is a child process but it is still running, return -2.
+-pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
+-    let process = current_process();
+-    // find a child process
+-
+-    let mut inner = process.inner_exclusive_access();
+-    if !inner
+-        .children
+-        .iter()
+-        .any(|p| pid == -1 || pid as usize == p.getpid())
+-    {
+-        return -1;
+-        // ---- release current PCB
+-    }
+-    let pair = inner.children.iter().enumerate().find(|(_, p)| {
+-        // ++++ temporarily access child PCB exclusively
+-        p.inner_exclusive_access().is_zombie && (pid == -1 || pid as usize == p.getpid())
+-        // ++++ release child PCB
+-    });
+-    if let Some((idx, _)) = pair {
+-        let child = inner.children.remove(idx);
+-        // confirm that child will be deallocated after being removed from children list
+-        assert_eq!(Arc::strong_count(&child), 1);
+-        let found_pid = child.getpid();
+-        // ++++ temporarily access child PCB exclusively
+-        let exit_code = child.inner_exclusive_access().exit_code;
+-        // ++++ release child PCB
+-        *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;
+-        found_pid as isize
+-    } else {
+-        -2
+-    }
+-    // ---- release current PCB automatically
+-}
+-
+-pub fn sys_kill(pid: usize, signal: u32) -> isize {
+-    if let Some(process) = pid2process(pid) {
+-        if let Some(flag) = SignalFlags::from_bits(signal) {
+-            process.inner_exclusive_access().signals |= flag;
+-            0
+-        } else {
+-            -1
+-        }
+-    } else {
+-        -1
+-    }
+-}
++use crate::fs::{open_file, OpenFlags};
++use crate::mm::{translated_ref, translated_refmut, translated_str};
++use crate::task::{
++    current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
++    suspend_current_and_run_next, SignalFlags,
++};
++use crate::timer::get_time_ms;
++use alloc::string::String;
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++
++pub fn sys_exit(exit_code: i32) -> ! {
++    exit_current_and_run_next(exit_code);
++    panic!("Unreachable in sys_exit!");
++}
++
++pub fn sys_yield() -> isize {
++    suspend_current_and_run_next();
++    0
++}
++
++pub fn sys_get_time() -> isize {
++    get_time_ms() as isize
++}
++
++pub fn sys_getpid() -> isize {
++    current_task().unwrap().process.upgrade().unwrap().getpid() as isize
++}
++
++pub fn sys_fork() -> isize {
++    let current_process = current_process();
++    let new_process = current_process.fork();
++    let new_pid = new_process.getpid();
++    // modify trap context of new_task, because it returns immediately after switching
++    let new_process_inner = new_process.inner_exclusive_access();
++    let task = new_process_inner.tasks[0].as_ref().unwrap();
++    let trap_cx = task.inner_exclusive_access().get_trap_cx();
++    // we do not have to move to next instruction since we have done it before
++    // for child process, fork returns 0
++    trap_cx.x[10] = 0;
++    new_pid as isize
++}
++
++pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
++    let token = current_user_token();
++    let path = translated_str(token, path);
++    let mut args_vec: Vec<String> = Vec::new();
++    loop {
++        let arg_str_ptr = *translated_ref(token, args);
++        if arg_str_ptr == 0 {
++            break;
++        }
++        args_vec.push(translated_str(token, arg_str_ptr as *const u8));
++        unsafe {
++            args = args.add(1);
++        }
++    }
++    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
++        let all_data = app_inode.read_all();
++        let process = current_process();
++        let argc = args_vec.len();
++        process.exec(all_data.as_slice(), args_vec);
++        // return argc because cx.x[10] will be covered with it later
++        argc as isize
++    } else {
++        -1
++    }
++}
++
++/// If there is not a child process whose pid is same as given, return -1.
++/// Else if there is a child process but it is still running, return -2.
++pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
++    let process = current_process();
++    // find a child process
++
++    let mut inner = process.inner_exclusive_access();
++    if !inner
++        .children
++        .iter()
++        .any(|p| pid == -1 || pid as usize == p.getpid())
++    {
++        return -1;
++        // ---- release current PCB
++    }
++    let pair = inner.children.iter().enumerate().find(|(_, p)| {
++        // ++++ temporarily access child PCB exclusively
++        p.inner_exclusive_access().is_zombie && (pid == -1 || pid as usize == p.getpid())
++        // ++++ release child PCB
++    });
++    if let Some((idx, _)) = pair {
++        let child = inner.children.remove(idx);
++        // confirm that child will be deallocated after being removed from children list
++        assert_eq!(Arc::strong_count(&child), 1);
++        let found_pid = child.getpid();
++        // ++++ temporarily access child PCB exclusively
++        let exit_code = child.inner_exclusive_access().exit_code;
++        // ++++ release child PCB
++        *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;
++        found_pid as isize
++    } else {
++        -2
++    }
++    // ---- release current PCB automatically
++}
++
++pub fn sys_kill(pid: usize, signal: u32) -> isize {
++    if let Some(process) = pid2process(pid) {
++        if let Some(flag) = SignalFlags::from_bits(signal) {
++            process.inner_exclusive_access().signals |= flag;
++            0
++        } else {
++            -1
++        }
++    } else {
++        -1
++    }
++}
+diff --git a/kernel/src/syscall/sync.rs b/kernel/src/syscall/sync.rs
+index 12f31d9..e08f329 100644
+--- a/kernel/src/syscall/sync.rs
++++ b/kernel/src/syscall/sync.rs
+@@ -1,134 +1,134 @@
+-use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
+-use crate::task::{block_current_and_run_next, current_process, current_task};
+-use crate::timer::{add_timer, get_time_ms};
+-use alloc::sync::Arc;
+-
+-pub fn sys_sleep(ms: usize) -> isize {
+-    let expire_ms = get_time_ms() + ms;
+-    let task = current_task().unwrap();
+-    add_timer(expire_ms, task);
+-    block_current_and_run_next();
+-    0
+-}
+-
+-pub fn sys_mutex_create(blocking: bool) -> isize {
+-    let process = current_process();
+-    let mutex: Option<Arc<dyn Mutex>> = if !blocking {
+-        Some(Arc::new(MutexSpin::new()))
+-    } else {
+-        Some(Arc::new(MutexBlocking::new()))
+-    };
+-    let mut process_inner = process.inner_exclusive_access();
+-    if let Some(id) = process_inner
+-        .mutex_list
+-        .iter()
+-        .enumerate()
+-        .find(|(_, item)| item.is_none())
+-        .map(|(id, _)| id)
+-    {
+-        process_inner.mutex_list[id] = mutex;
+-        id as isize
+-    } else {
+-        process_inner.mutex_list.push(mutex);
+-        process_inner.mutex_list.len() as isize - 1
+-    }
+-}
+-
+-pub fn sys_mutex_lock(mutex_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+-    drop(process_inner);
+-    drop(process);
+-    mutex.lock();
+-    0
+-}
+-
+-pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+-    drop(process_inner);
+-    drop(process);
+-    mutex.unlock();
+-    0
+-}
+-
+-pub fn sys_semaphore_create(res_count: usize) -> isize {
+-    let process = current_process();
+-    let mut process_inner = process.inner_exclusive_access();
+-    let id = if let Some(id) = process_inner
+-        .semaphore_list
+-        .iter()
+-        .enumerate()
+-        .find(|(_, item)| item.is_none())
+-        .map(|(id, _)| id)
+-    {
+-        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));
+-        id
+-    } else {
+-        process_inner
+-            .semaphore_list
+-            .push(Some(Arc::new(Semaphore::new(res_count))));
+-        process_inner.semaphore_list.len() - 1
+-    };
+-    id as isize
+-}
+-
+-pub fn sys_semaphore_up(sem_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+-    drop(process_inner);
+-    sem.up();
+-    0
+-}
+-
+-pub fn sys_semaphore_down(sem_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+-    drop(process_inner);
+-    sem.down();
+-    0
+-}
+-
+-pub fn sys_condvar_create() -> isize {
+-    let process = current_process();
+-    let mut process_inner = process.inner_exclusive_access();
+-    let id = if let Some(id) = process_inner
+-        .condvar_list
+-        .iter()
+-        .enumerate()
+-        .find(|(_, item)| item.is_none())
+-        .map(|(id, _)| id)
+-    {
+-        process_inner.condvar_list[id] = Some(Arc::new(Condvar::new()));
+-        id
+-    } else {
+-        process_inner
+-            .condvar_list
+-            .push(Some(Arc::new(Condvar::new())));
+-        process_inner.condvar_list.len() - 1
+-    };
+-    id as isize
+-}
+-
+-pub fn sys_condvar_signal(condvar_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
+-    drop(process_inner);
+-    condvar.signal();
+-    0
+-}
+-
+-pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
+-    let process = current_process();
+-    let process_inner = process.inner_exclusive_access();
+-    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
+-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+-    drop(process_inner);
+-    condvar.wait_with_mutex(mutex);
+-    0
+-}
++use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
++use crate::task::{block_current_and_run_next, current_process, current_task};
++use crate::timer::{add_timer, get_time_ms};
++use alloc::sync::Arc;
++
++pub fn sys_sleep(ms: usize) -> isize {
++    let expire_ms = get_time_ms() + ms;
++    let task = current_task().unwrap();
++    add_timer(expire_ms, task);
++    block_current_and_run_next();
++    0
++}
++
++pub fn sys_mutex_create(blocking: bool) -> isize {
++    let process = current_process();
++    let mutex: Option<Arc<dyn Mutex>> = if !blocking {
++        Some(Arc::new(MutexSpin::new()))
++    } else {
++        Some(Arc::new(MutexBlocking::new()))
++    };
++    let mut process_inner = process.inner_exclusive_access();
++    if let Some(id) = process_inner
++        .mutex_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.mutex_list[id] = mutex;
++        id as isize
++    } else {
++        process_inner.mutex_list.push(mutex);
++        process_inner.mutex_list.len() as isize - 1
++    }
++}
++
++pub fn sys_mutex_lock(mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    drop(process);
++    mutex.lock();
++    0
++}
++
++pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    drop(process);
++    mutex.unlock();
++    0
++}
++
++pub fn sys_semaphore_create(res_count: usize) -> isize {
++    let process = current_process();
++    let mut process_inner = process.inner_exclusive_access();
++    let id = if let Some(id) = process_inner
++        .semaphore_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));
++        id
++    } else {
++        process_inner
++            .semaphore_list
++            .push(Some(Arc::new(Semaphore::new(res_count))));
++        process_inner.semaphore_list.len() - 1
++    };
++    id as isize
++}
++
++pub fn sys_semaphore_up(sem_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
++    drop(process_inner);
++    sem.up();
++    0
++}
++
++pub fn sys_semaphore_down(sem_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
++    drop(process_inner);
++    sem.down();
++    0
++}
++
++pub fn sys_condvar_create(_arg: usize) -> isize {
++    let process = current_process();
++    let mut process_inner = process.inner_exclusive_access();
++    let id = if let Some(id) = process_inner
++        .condvar_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.condvar_list[id] = Some(Arc::new(Condvar::new()));
++        id
++    } else {
++        process_inner
++            .condvar_list
++            .push(Some(Arc::new(Condvar::new())));
++        process_inner.condvar_list.len() - 1
++    };
++    id as isize
++}
++
++pub fn sys_condvar_signal(condvar_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
++    drop(process_inner);
++    condvar.signal();
++    0
++}
++
++pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    condvar.wait_with_mutex(mutex);
++    0
++}
+diff --git a/kernel/src/syscall/thread.rs b/kernel/src/syscall/thread.rs
+index c36c6d8..3955d9d 100644
+--- a/kernel/src/syscall/thread.rs
++++ b/kernel/src/syscall/thread.rs
+@@ -1,85 +1,85 @@
+-use crate::{
+-    mm::kernel_token,
+-    task::{add_task, current_task, TaskControlBlock},
+-    trap::{trap_handler, TrapContext},
+-};
+-use alloc::sync::Arc;
+-
+-pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
+-    let task = current_task().unwrap();
+-    let process = task.process.upgrade().unwrap();
+-    // create a new thread
+-    let new_task = Arc::new(TaskControlBlock::new(
+-        Arc::clone(&process),
+-        task.inner_exclusive_access()
+-            .res
+-            .as_ref()
+-            .unwrap()
+-            .ustack_base,
+-        true,
+-    ));
+-    // add new task to scheduler
+-    add_task(Arc::clone(&new_task));
+-    let new_task_inner = new_task.inner_exclusive_access();
+-    let new_task_res = new_task_inner.res.as_ref().unwrap();
+-    let new_task_tid = new_task_res.tid;
+-    let mut process_inner = process.inner_exclusive_access();
+-    // add new thread to current process
+-    let tasks = &mut process_inner.tasks;
+-    while tasks.len() < new_task_tid + 1 {
+-        tasks.push(None);
+-    }
+-    tasks[new_task_tid] = Some(Arc::clone(&new_task));
+-    let new_task_trap_cx = new_task_inner.get_trap_cx();
+-    *new_task_trap_cx = TrapContext::app_init_context(
+-        entry,
+-        new_task_res.ustack_top(),
+-        kernel_token(),
+-        new_task.kstack.get_top(),
+-        trap_handler as usize,
+-    );
+-    (*new_task_trap_cx).x[10] = arg;
+-    new_task_tid as isize
+-}
+-
+-pub fn sys_gettid() -> isize {
+-    current_task()
+-        .unwrap()
+-        .inner_exclusive_access()
+-        .res
+-        .as_ref()
+-        .unwrap()
+-        .tid as isize
+-}
+-
+-/// thread does not exist, return -1
+-/// thread has not exited yet, return -2
+-/// otherwise, return thread's exit code
+-pub fn sys_waittid(tid: usize) -> i32 {
+-    let task = current_task().unwrap();
+-    let process = task.process.upgrade().unwrap();
+-    let task_inner = task.inner_exclusive_access();
+-    let mut process_inner = process.inner_exclusive_access();
+-    // a thread cannot wait for itself
+-    if task_inner.res.as_ref().unwrap().tid == tid {
+-        return -1;
+-    }
+-    let mut exit_code: Option<i32> = None;
+-    let waited_task = process_inner.tasks[tid].as_ref();
+-    if let Some(waited_task) = waited_task {
+-        if let Some(waited_exit_code) = waited_task.inner_exclusive_access().exit_code {
+-            exit_code = Some(waited_exit_code);
+-        }
+-    } else {
+-        // waited thread does not exist
+-        return -1;
+-    }
+-    if let Some(exit_code) = exit_code {
+-        // dealloc the exited thread
+-        process_inner.tasks[tid] = None;
+-        exit_code
+-    } else {
+-        // waited thread has not exited
+-        -2
+-    }
+-}
++use crate::{
++    mm::kernel_token,
++    task::{add_task, current_task, TaskControlBlock},
++    trap::{trap_handler, TrapContext},
++};
++use alloc::sync::Arc;
++
++pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
++    let task = current_task().unwrap();
++    let process = task.process.upgrade().unwrap();
++    // create a new thread
++    let new_task = Arc::new(TaskControlBlock::new(
++        Arc::clone(&process),
++        task.inner_exclusive_access()
++            .res
++            .as_ref()
++            .unwrap()
++            .ustack_base,
++        true,
++    ));
++    // add new task to scheduler
++    add_task(Arc::clone(&new_task));
++    let new_task_inner = new_task.inner_exclusive_access();
++    let new_task_res = new_task_inner.res.as_ref().unwrap();
++    let new_task_tid = new_task_res.tid;
++    let mut process_inner = process.inner_exclusive_access();
++    // add new thread to current process
++    let tasks = &mut process_inner.tasks;
++    while tasks.len() < new_task_tid + 1 {
++        tasks.push(None);
++    }
++    tasks[new_task_tid] = Some(Arc::clone(&new_task));
++    let new_task_trap_cx = new_task_inner.get_trap_cx();
++    *new_task_trap_cx = TrapContext::app_init_context(
++        entry,
++        new_task_res.ustack_top(),
++        kernel_token(),
++        new_task.kstack.get_top(),
++        trap_handler as usize,
++    );
++    (*new_task_trap_cx).x[10] = arg;
++    new_task_tid as isize
++}
++
++pub fn sys_gettid() -> isize {
++    current_task()
++        .unwrap()
++        .inner_exclusive_access()
++        .res
++        .as_ref()
++        .unwrap()
++        .tid as isize
++}
++
++/// thread does not exist, return -1
++/// thread has not exited yet, return -2
++/// otherwise, return thread's exit code
++pub fn sys_waittid(tid: usize) -> i32 {
++    let task = current_task().unwrap();
++    let process = task.process.upgrade().unwrap();
++    let task_inner = task.inner_exclusive_access();
++    let mut process_inner = process.inner_exclusive_access();
++    // a thread cannot wait for itself
++    if task_inner.res.as_ref().unwrap().tid == tid {
++        return -1;
++    }
++    let mut exit_code: Option<i32> = None;
++    let waited_task = process_inner.tasks[tid].as_ref();
++    if let Some(waited_task) = waited_task {
++        if let Some(waited_exit_code) = waited_task.inner_exclusive_access().exit_code {
++            exit_code = Some(waited_exit_code);
++        }
++    } else {
++        // waited thread does not exist
++        return -1;
++    }
++    if let Some(exit_code) = exit_code {
++        // dealloc the exited thread
++        process_inner.tasks[tid] = None;
++        exit_code
++    } else {
++        // waited thread has not exited
++        -2
++    }
++}
+diff --git a/kernel/src/trap/context.rs b/kernel/src/trap/context.rs
+index c4823e2..011b7fb 100644
+--- a/kernel/src/trap/context.rs
++++ b/kernel/src/trap/context.rs
+@@ -1,42 +1,39 @@
+-use riscv::register::sstatus::{self, Sstatus, SPP};
+-
+-#[repr(C)]
+-#[derive(Debug)]
+-pub struct TrapContext {
+-    pub x: [usize; 32],
+-    pub sstatus: Sstatus,
+-    pub sepc: usize,
+-    pub kernel_satp: usize,
+-    pub kernel_sp: usize,
+-    pub trap_handler: usize,
+-}
+-
+-impl TrapContext {
+-    pub fn set_sp(&mut self, sp: usize) {
+-        self.x[2] = sp;
+-    }
+-    pub fn app_init_context(
+-        entry: usize,
+-        sp: usize,
+-        kernel_satp: usize,
+-        kernel_sp: usize,
+-        trap_handler: usize,
+-    ) -> Self {
+-        let mut sstatus = sstatus::read();
+-        // set CPU privilege to User after trapping back
+-        sstatus.set_spp(SPP::User);
+-        // unsafe {
+-        //     riscv::register::sstatus::set_spp(SPP::User);
+-        // }
+-        let mut cx = Self {
+-            x: [0; 32],
+-            sstatus,
+-            sepc: entry,
+-            kernel_satp,
+-            kernel_sp,
+-            trap_handler,
+-        };
+-        cx.set_sp(sp);
+-        cx
+-    }
+-}
++use riscv::register::sstatus::{self, Sstatus, SPP};
++
++#[repr(C)]
++#[derive(Debug)]
++pub struct TrapContext {
++    pub x: [usize; 32],
++    pub sstatus: Sstatus,
++    pub sepc: usize,
++    pub kernel_satp: usize,
++    pub kernel_sp: usize,
++    pub trap_handler: usize,
++}
++
++impl TrapContext {
++    pub fn set_sp(&mut self, sp: usize) {
++        self.x[2] = sp;
++    }
++    pub fn app_init_context(
++        entry: usize,
++        sp: usize,
++        kernel_satp: usize,
++        kernel_sp: usize,
++        trap_handler: usize,
++    ) -> Self {
++        let mut sstatus = sstatus::read();
++        // set CPU privilege to User after trapping back
++        sstatus.set_spp(SPP::User);
++        let mut cx = Self {
++            x: [0; 32],
++            sstatus,
++            sepc: entry,
++            kernel_satp,
++            kernel_sp,
++            trap_handler,
++        };
++        cx.set_sp(sp);
++        cx
++    }
++}
+diff --git a/kernel/src/trap/mod.rs b/kernel/src/trap/mod.rs
+index efa203e..ce2aae8 100644
+--- a/kernel/src/trap/mod.rs
++++ b/kernel/src/trap/mod.rs
+@@ -1,5 +1,4 @@
+ mod context;
+-// #[deprecated] mod switch;
+ 
+ use crate::config::TRAMPOLINE;
+ use crate::syscall::syscall;
+@@ -62,7 +61,7 @@ pub fn trap_handler() -> ! {
+     set_kernel_trap_entry();
+     let scause = scause::read();
+     let stval = stval::read();
+-    // println!("into {:?}", scause.cause());
++    //println!("into {:?}", scause.cause());
+     match scause.cause() {
+         Trap::Exception(Exception::UserEnvCall) => {
+             // jump to next instruction anyway
+@@ -168,5 +167,3 @@ pub fn trap_from_kernel(_trap_cx: &TrapContext) {
+ }
+ 
+ pub use context::TrapContext;
+-
+-// pub use switch::*;
+diff --git a/kernel/src/trap/trap.S b/kernel/src/trap/trap.S
+index 940cd89..407307c 100644
+--- a/kernel/src/trap/trap.S
++++ b/kernel/src/trap/trap.S
+@@ -1,104 +1,104 @@
+-.altmacro
+-.macro SAVE_GP n
+-    sd x\n, \n*8(sp)
+-.endm
+-.macro LOAD_GP n
+-    ld x\n, \n*8(sp)
+-.endm
+-    .section .text.trampoline
+-    .globl __alltraps
+-    .globl __restore
+-    .globl __alltraps_k
+-    .globl __restore_k
+-    .align 2
+-__alltraps:
+-    csrrw sp, sscratch, sp
+-    # now sp->*TrapContext in user space, sscratch->user stack
+-    # save other general purpose registers
+-    sd x1, 1*8(sp)
+-    # skip sp(x2), we will save it later
+-    sd x3, 3*8(sp)
+-    # skip tp(x4), application does not use it
+-    # save x5~x31
+-    .set n, 5
+-    .rept 27
+-        SAVE_GP %n
+-        .set n, n+1
+-    .endr
+-    # we can use t0/t1/t2 freely, because they have been saved in TrapContext
+-    csrr t0, sstatus
+-    csrr t1, sepc
+-    sd t0, 32*8(sp)
+-    sd t1, 33*8(sp)
+-    # read user stack from sscratch and save it in TrapContext
+-    csrr t2, sscratch
+-    sd t2, 2*8(sp)
+-    # load kernel_satp into t0
+-    ld t0, 34*8(sp)
+-    # load trap_handler into t1
+-    ld t1, 36*8(sp)
+-    # move to kernel_sp
+-    ld sp, 35*8(sp)
+-    # switch to kernel space
+-    csrw satp, t0
+-    sfence.vma
+-    # jump to trap_handler
+-    jr t1
+-
+-__restore:
+-    # a0: *TrapContext in user space(Constant); a1: user space token
+-    # switch to user space
+-    csrw satp, a1
+-    sfence.vma
+-    csrw sscratch, a0
+-    mv sp, a0
+-    # now sp points to TrapContext in user space, start restoring based on it
+-    # restore sstatus/sepc
+-    ld t0, 32*8(sp)
+-    ld t1, 33*8(sp)
+-    csrw sstatus, t0
+-    csrw sepc, t1
+-    # restore general purpose registers except x0/sp/tp
+-    ld x1, 1*8(sp)
+-    ld x3, 3*8(sp)
+-    .set n, 5
+-    .rept 27
+-        LOAD_GP %n
+-        .set n, n+1
+-    .endr
+-    # back to user stack
+-    ld sp, 2*8(sp)
+-    sret
+-
+-    .align 2
+-__alltraps_k:
+-    addi sp, sp, -34*8 
+-    sd x1, 1*8(sp)
+-    sd x3, 3*8(sp)
+-    .set n, 5
+-    .rept 27
+-        SAVE_GP %n
+-        .set n, n+1
+-    .endr
+-    csrr t0, sstatus
+-    csrr t1, sepc
+-    sd t0, 32*8(sp)
+-    sd t1, 33*8(sp)
+-    mv a0, sp
+-    csrr t2, sscratch
+-    jalr t2
+-
+-__restore_k:
+-    ld t0, 32*8(sp)
+-    ld t1, 33*8(sp)
+-    csrw sstatus, t0
+-    csrw sepc, t1
+-    ld x1, 1*8(sp)
+-    ld x3, 3*8(sp)
+-    .set n, 5
+-    .rept 27
+-        LOAD_GP %n
+-        .set n, n+1
+-    .endr
+-    addi sp, sp, 34*8
+-    sret
++.altmacro
++.macro SAVE_GP n
++    sd x\n, \n*8(sp)
++.endm
++.macro LOAD_GP n
++    ld x\n, \n*8(sp)
++.endm
++    .section .text.trampoline
++    .globl __alltraps
++    .globl __restore
++    .globl __alltraps_k
++    .globl __restore_k
++    .align 2
++__alltraps:
++    csrrw sp, sscratch, sp
++    # now sp->*TrapContext in user space, sscratch->user stack
++    # save other general purpose registers
++    sd x1, 1*8(sp)
++    # skip sp(x2), we will save it later
++    sd x3, 3*8(sp)
++    # skip tp(x4), application does not use it
++    # save x5~x31
++    .set n, 5
++    .rept 27
++        SAVE_GP %n
++        .set n, n+1
++    .endr
++    # we can use t0/t1/t2 freely, because they have been saved in TrapContext
++    csrr t0, sstatus
++    csrr t1, sepc
++    sd t0, 32*8(sp)
++    sd t1, 33*8(sp)
++    # read user stack from sscratch and save it in TrapContext
++    csrr t2, sscratch
++    sd t2, 2*8(sp)
++    # load kernel_satp into t0
++    ld t0, 34*8(sp)
++    # load trap_handler into t1
++    ld t1, 36*8(sp)
++    # move to kernel_sp
++    ld sp, 35*8(sp)
++    # switch to kernel space
++    csrw satp, t0
++    sfence.vma
++    # jump to trap_handler
++    jr t1
++
++__restore:
++    # a0: *TrapContext in user space(Constant); a1: user space token
++    # switch to user space
++    csrw satp, a1
++    sfence.vma
++    csrw sscratch, a0
++    mv sp, a0
++    # now sp points to TrapContext in user space, start restoring based on it
++    # restore sstatus/sepc
++    ld t0, 32*8(sp)
++    ld t1, 33*8(sp)
++    csrw sstatus, t0
++    csrw sepc, t1
++    # restore general purpose registers except x0/sp/tp
++    ld x1, 1*8(sp)
++    ld x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        LOAD_GP %n
++        .set n, n+1
++    .endr
++    # back to user stack
++    ld sp, 2*8(sp)
++    sret
++
++    .align 2
++__alltraps_k:
++    addi sp, sp, -34*8 
++    sd x1, 1*8(sp)
++    sd x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        SAVE_GP %n
++        .set n, n+1
++    .endr
++    csrr t0, sstatus
++    csrr t1, sepc
++    sd t0, 32*8(sp)
++    sd t1, 33*8(sp)
++    mv a0, sp
++    csrr t2, sscratch
++    jalr t2
++
++__restore_k:
++    ld t0, 32*8(sp)
++    ld t1, 33*8(sp)
++    csrw sstatus, t0
++    csrw sepc, t1
++    ld x1, 1*8(sp)
++    ld x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        LOAD_GP %n
++        .set n, n+1
++    .endr
++    addi sp, sp, 34*8
++    sret
+diff --git a/ring_scheduler/.cargo/config.toml b/ring_scheduler/.cargo/config.toml
+new file mode 100644
+index 0000000..e1317cc
+--- /dev/null
++++ b/ring_scheduler/.cargo/config.toml
+@@ -0,0 +1,13 @@
++## tornado-user/.cargo/config.toml-COMMENT: 2022-11-04 Fri Andre :] change the riscv64imac-unknown-none-elf -> riscv64gc-unknown-none-elf
++## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-linux-gnu:error
++## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-none-elfhf:error
++[build]
++target = "riscv64gc-unknown-none-elf"
++
++## tornado-user/.cargo/config.toml-COMMENT: 2022-11-04 Fri Andre :] change the riscv64imac-unknown-none-elf -> riscv64gc-unknown-none-elf
++## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-linux-gnu: error
++## shared-scheduler/.cargo/config.toml-COMMENT: 2022-11-06 Sun Andre :] change the riscv64gc-unknown-none-elf -> riscv64gc-unknown-none-elfhf:error
++[target.riscv64gc-unknown-none-elf]
++rustflags = [
++    "-C", "link-arg=-Tlinker.ld",
++]
+diff --git a/ring_scheduler/build.rs b/ring_scheduler/build.rs
+new file mode 100644
+index 0000000..63dbda7
+--- /dev/null
++++ b/ring_scheduler/build.rs
+@@ -0,0 +1,22 @@
++use std::env;
++use std::fs;
++use std::io::Write;
++use std::path::PathBuf;
++
++fn main() {
++    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
++    // let platform = env::var("PLATFORM").expect("no specified platform");
++    let platform = String::from("qemu");
++    // Put the linker script somewhere the linker can find it
++    let mut linker = fs::File::create(out_dir.join("linker.ld")).unwrap();
++    match platform.as_str() {
++        "qemu" => linker
++            .write_all(include_bytes!("src/linker.ld"))
++            .unwrap(),
++        p => panic!("haven't supported platform: {}", p),
++    }
++    println!("cargo:rustc-link-search={}", out_dir.display());
++
++    println!("cargo:rerun-if-changed=build.rs");
++    println!("cargo:rerun-if-changed=src/linker.ld");
++}
+diff --git a/tconfig/src/lib.rs b/tconfig/src/lib.rs
+index af61ace..0584cf7 100644
+--- a/tconfig/src/lib.rs
++++ b/tconfig/src/lib.rs
+@@ -1,7 +1,6 @@
+ #![no_std]
+ #[allow(unused)]
+ use lazy_static::*;
+-use safe_cell::UPIntrFreeCell;
+ 
+ pub const USER_STACK_SIZE: usize = 4096 * 2;
+ pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
+@@ -24,7 +23,3 @@ pub const MMIO: &[(usize, usize)] = &[
+     (0x10000000, 0x9000),  // VIRT_UART0 with GPU  in virt machine
+ ];
+ 
+-lazy_static! {
+-    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+-        unsafe { UPIntrFreeCell::new(false) };
+-}
+-- 
+2.34.1
+

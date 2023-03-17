@@ -1,0 +1,286 @@
+From dc7f1a97516370c9c2a2c7404360f4fe47e4d76c Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 07:33:30 -0500
+Subject: [PATCH 40/80] clean the kernel crate
+
+---
+ kernel/Cargo.toml                             | 12 ----
+ kernel/src/boot.rs                            | 22 +++++++
+ kernel/src/lib.rs                             |  6 +-
+ kernel/src/plantform/arch/mod.rs              |  5 --
+ .../src/plantform/arch/riscv64gc/asm/entry.S  | 11 ----
+ .../plantform/arch/riscv64gc/link/linker.ld   | 59 -------------------
+ kernel/src/plantform/arch/riscv64gc/mod.rs    | 26 --------
+ kernel/src/plantform/mod.rs                   | 29 ---------
+ 8 files changed, 25 insertions(+), 145 deletions(-)
+ create mode 100644 kernel/src/boot.rs
+ delete mode 100644 kernel/src/plantform/arch/mod.rs
+ delete mode 100644 kernel/src/plantform/arch/riscv64gc/asm/entry.S
+ delete mode 100644 kernel/src/plantform/arch/riscv64gc/link/linker.ld
+ delete mode 100644 kernel/src/plantform/arch/riscv64gc/mod.rs
+ delete mode 100644 kernel/src/plantform/mod.rs
+
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index f0d1a54..373efaa 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -16,11 +16,8 @@ easy-fs = { path = "../easy-fs" }
+ embedded-graphics = "0.7.1"
+ tinybmp = "0.3.1"
+ config = { path = "../tconfig", package = "tconfig" }
+-# sbi = { path = "../sbi", package = "sbi" }
+ mm = { path = "../memory", package = "memory" }
+ safe_cell = { path = "../safe_cell", package = "safe_cell" }
+-# sync = { path = "../sync", package = "sync" }
+-# task = { path = "../task", package = "task" }
+ 
+ [dependencies.riscv]
+ git = "https://github.com/Andre-HJR/riscv.git"
+@@ -29,15 +26,6 @@ rev = "031d548a"
+ version = "0.4"
+ features = []
+ 
+-
+-# [dependencies.sbi-rt]
+-# version = "^0.0.2"
+-# features = ["legacy"]
+-
+-[dependencies.linker]
+-path = "../other_libs/linker"
+-
+-
+ [build-dependencies.linker]
+ path = "../other_libs/linker"
+ 
+diff --git a/kernel/src/boot.rs b/kernel/src/boot.rs
+new file mode 100644
+index 0000000..d9b6069
+--- /dev/null
++++ b/kernel/src/boot.rs
+@@ -0,0 +1,22 @@
++use crate::rcore_main;
++
++macro_rules! boot0 {
++    ($entry:ident; stack = $stack:expr) => {
++        #[naked]
++        #[no_mangle]
++        #[link_section = ".text.entry"]
++        unsafe extern "C" fn _start() -> ! {
++            #[link_section = ".boot.stack"]
++            static mut STACK: [u8; $stack] = [0u8; $stack];
++
++            core::arch::asm!(
++                "la sp, __end",
++                "j  {main}",
++                main = sym $entry,
++                options(noreturn),
++            )
++        }
++    };
++}
++
++boot0!(rcore_main; stack = 16 * 4096);
+\ No newline at end of file
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 784ea07..6f8438e 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -11,7 +11,7 @@ extern crate alloc;
+ #[cfg(test)]
+ mod test {}
+ 
+-mod plantform;
++mod boot;
+ 
+ #[macro_use]
+ extern crate bitflags;
+@@ -44,7 +44,6 @@ use crate::drivers::chardev::UART;
+ use lazy_static::*;
+ use safe_cell::UPIntrFreeCell;
+ 
+-// core::arch::global_asm!(include_str!("plantform/arch/riscv64gc/asm/entry.S"));
+ core::arch::global_asm!(include_str!("entry.S"));
+ 
+ fn clear_bss() {
+@@ -60,6 +59,7 @@ fn clear_bss() {
+ 
+ use config::DEV_NON_BLOCKING_ACCESS;
+ 
++
+ // 内核的入口
+ #[no_mangle]
+ extern "C" fn rcore_main() -> ! {
+@@ -78,8 +78,8 @@ extern "C" fn rcore_main() -> ! {
+     trap::enable_timer_interrupt();
+     timer::set_next_trigger();
+     board::device_init();
+-    fs::list_apps();
+     async_rt::init();
++    fs::list_apps();
+     task::add_initproc();
+     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
+     task::run_tasks();
+diff --git a/kernel/src/plantform/arch/mod.rs b/kernel/src/plantform/arch/mod.rs
+deleted file mode 100644
+index 3974001..0000000
+--- a/kernel/src/plantform/arch/mod.rs
++++ /dev/null
+@@ -1,5 +0,0 @@
+-// arch dependent kernel code
+-// for arch or device dependent code, e.g. boot, drivers -> use src/drivers or support/arch
+-
+-// #[cfg(target_arch = "riscv64")]
+-pub mod riscv64gc;
+diff --git a/kernel/src/plantform/arch/riscv64gc/asm/entry.S b/kernel/src/plantform/arch/riscv64gc/asm/entry.S
+deleted file mode 100644
+index 53a42ba..0000000
+--- a/kernel/src/plantform/arch/riscv64gc/asm/entry.S
++++ /dev/null
+@@ -1,11 +0,0 @@
+-    .section .text.entry
+-    # .globl _start
+-_start:
+-    la sp, boot_stack_top
+-    call rcore_main
+-    .section .bss.stack
+-    # .globl boot_stack_lower_bound
+-boot_stack_lower_bound:
+-    .space 4096 * 16
+-    # .globl boot_stack_top
+-boot_stack_top:
+diff --git a/kernel/src/plantform/arch/riscv64gc/link/linker.ld b/kernel/src/plantform/arch/riscv64gc/link/linker.ld
+deleted file mode 100644
+index 2fdce28..0000000
+--- a/kernel/src/plantform/arch/riscv64gc/link/linker.ld
++++ /dev/null
+@@ -1,59 +0,0 @@
+-OUTPUT_ARCH(riscv)
+-ENTRY(_start)
+-BASE_ADDRESS = 0x80200000;
+-
+-SECTIONS
+-{
+-    . = BASE_ADDRESS;
+-    skernel = .;
+-
+-    stext = .;
+-    .text : {
+-        *(.text.entry)
+-        . = ALIGN(4K);
+-        strampoline = .;
+-        *(.text.trampoline);
+-        . = ALIGN(4K);
+-        *(.text .text.*)
+-                . = ALIGN(4K);
+-        _swap_frame = .;
+-        *(.swap)
+-        ASSERT(. - _swap_frame <= 4K, "swap frame larger than one page");
+-        _etext = .;
+-    }
+-
+-    . = ALIGN(4K);
+-    etext = .;
+-    srodata = .;
+-    .rodata : {
+-        *(.rodata .rodata.*)
+-        *(.srodata .srodata.*)
+-    }
+-
+-    . = ALIGN(4K);
+-    erodata = .;
+-    sdata = .;
+-    .data : {
+-        *(.data .data.*)
+-        *(.sdata .sdata.*)
+-    }
+-
+-    . = ALIGN(4K);
+-    edata = .;
+-    sbss_with_stack = .;
+-    .bss : {
+-        *(.bss.stack)
+-        sbss = .;
+-        *(.bss .bss.*)
+-        *(.sbss .sbss.*)
+-    }
+-
+-    . = ALIGN(4K);
+-    ebss = .;
+-    __end = .;
+-    ekernel = .;
+-
+-    /DISCARD/ : {
+-        *(.eh_frame)
+-    }
+-}
+\ No newline at end of file
+diff --git a/kernel/src/plantform/arch/riscv64gc/mod.rs b/kernel/src/plantform/arch/riscv64gc/mod.rs
+deleted file mode 100644
+index d570898..0000000
+--- a/kernel/src/plantform/arch/riscv64gc/mod.rs
++++ /dev/null
+@@ -1,26 +0,0 @@
+-// Supervisor 汇编入口。
+-//
+-// 设置栈并跳转到 Rust。
+-//
+-// #[naked]
+-// #[no_mangle]
+-// #[link_section = ".text.entry"]
+-// unsafe extern "C" fn _start() -> ! {
+-//     const STACK_SIZE: usize = 4096;
+-//
+-//     #[link_section = ".bss.uninit"]
+-//     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
+-//
+-//     core::arch::asm!(
+-//         "la sp, {stack} + {stack_size}",
+-//         "j  {main}",
+-//         stack_size = const STACK_SIZE,
+-//         stack      =   sym STACK,
+-//         main       =   sym rcore_main,
+-//         options(noreturn),
+-//     )
+-// }
+-//
+-use crate::rcore_main;
+-
+-linker::boot0!(rcore_main; stack = 16 * 4096);
+diff --git a/kernel/src/plantform/mod.rs b/kernel/src/plantform/mod.rs
+deleted file mode 100644
+index 5f798bc..0000000
+--- a/kernel/src/plantform/mod.rs
++++ /dev/null
+@@ -1,29 +0,0 @@
+-// ARCH DEPENDENT STUFF
+-
+-pub mod arch;
+-// pub mod posix; // not finished
+-
+-// INTERFACE TO HANDLE DEPENDENT + INDEPENDENT CODE TOGETHER
+-// prob cant test directly, at least easily
+-
+-// NON-ARCH KERNEL STUFF
+-
+-// extern crate alloc;
+-// use alloc::vec;
+-
+-// use crate::filesystem::{Filesystem, File};
+-
+-// pub struct KernelManager {
+-//     filesystem: Filesystem
+-// }
+-
+-// impl KernelManager {
+-//     fn k_main(&self) {
+-//         loop {}
+-//     }
+-
+-//     // create a default Kernel Manager with a single empty file (dir) in the HFS
+-//     pub fn new() -> KernelManager {
+-//         KernelManager {filesystem: Filesystem{files: vec!(File{size: 0})}}
+-//     }
+-// }
+-- 
+2.34.1
+

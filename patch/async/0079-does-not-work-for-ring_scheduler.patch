@@ -1,0 +1,72 @@
+From e43d6e3653c4bb27b0165942b08b424d6eb7951b Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sun, 12 Mar 2023 11:10:27 -0400
+Subject: [PATCH 79/80] does not work  for ring_scheduler.
+
+---
+ kernel/Cargo.toml          |  1 +
+ kernel/src/async_rt/mod.rs | 18 +++++++++++++++---
+ kernel/src/lib.rs          |  2 ++
+ 3 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index d9fe97c..83b951b 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -35,6 +35,7 @@ features = []
+ path = "../other_libs/linker"
+ 
+ [features]
++default = ["async_tiny"]
+ async_tiny = []
+ 
+ [lib]
+diff --git a/kernel/src/async_rt/mod.rs b/kernel/src/async_rt/mod.rs
+index 98e340e..7020f48 100644
+--- a/kernel/src/async_rt/mod.rs
++++ b/kernel/src/async_rt/mod.rs
+@@ -16,13 +16,25 @@ mod executor;
+ #[cfg(feature = "async_tiny")]
+ mod shared;
+ 
++use config::SHAREDPAYLOAD_BASE;
+ #[cfg(feature = "async_tiny")]
+ pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
+ #[cfg(feature = "async_tiny")]
+ pub use shared::{kernel_should_switch, SharedPayload, TaskState};
+ 
+-use crate::console;
+-
++#[cfg(feature = "async_tiny")]
+ pub fn init() {
+-    println!("async_rt INIT");
++    use crate::console;
++    println!("No Implement");
++    // let _shared_payload = unsafe { SharedPayload::load(SHAREDPAYLOAD_BASE) };
++    // run_until_idle(
++    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
++    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
++    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
++    // );
++    // run_until_idle(
++    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
++    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
++    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
++    // );
+ }
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index a57a4df..d709027 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -90,6 +90,8 @@ extern "C" fn rcore_main() -> ! {
+     trap::enable_timer_interrupt();
+     timer::set_next_trigger();
+     board::device_init();
++    println!("KERN: init async");
++    #[cfg(feature = "async_tiny")]
+     async_rt::init();
+     fs::list_apps();
+     task::add_initproc();
+-- 
+2.34.1
+

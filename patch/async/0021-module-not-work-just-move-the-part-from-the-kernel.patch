@@ -1,0 +1,2715 @@
+From 9907b21e252b0143054dd4097ded328761fa333b Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sun, 12 Feb 2023 13:33:52 -0500
+Subject: [PATCH 21/80] module not work, just move the part from the kernel.
+
+---
+ Cargo.toml                      |  25 ++-
+ drivers/Cargo.toml              |   4 +-
+ drivers/src/block/mod.rs        |   4 +-
+ drivers/src/block/virtio_blk.rs |   5 +-
+ drivers/src/boards/mod.rs       |  12 +-
+ drivers/src/chardev/mod.rs      |   2 +-
+ drivers/src/lib.rs              |   4 +-
+ fs/Cargo.toml                   |  15 ++
+ fs/src/inode.rs                 | 139 +++++++++++++++++
+ fs/src/lib.rs                   |  17 +++
+ fs/src/pipe.rs                  | 173 +++++++++++++++++++++
+ fs/src/stdio.rs                 |  46 ++++++
+ kernel/Cargo.toml               |   3 +
+ kernel/src/lib.rs               |  16 +-
+ sync/Cargo.toml                 |  17 +++
+ sync/src/lib.rs                 |   6 +-
+ syscall/Cargo.toml              |  14 ++
+ syscall/src/fs.rs               | 100 ++++++++++++
+ syscall/src/gui.rs              |  35 +++++
+ syscall/src/input.rs            |  29 ++++
+ syscall/src/lib.rs              |  84 +++++++++++
+ syscall/src/process.rs          | 118 +++++++++++++++
+ syscall/src/sync.rs             | 135 +++++++++++++++++
+ syscall/src/thread.rs           |  83 ++++++++++
+ task_1/Cargo.toml               |  13 ++
+ task_1/src/context.rs           |  26 ++++
+ task_1/src/id.rs                | 226 +++++++++++++++++++++++++++
+ task_1/src/lib.rs               | 143 ++++++++++++++++++
+ task_1/src/manager.rs           |  63 ++++++++
+ task_1/src/process.rs           | 260 ++++++++++++++++++++++++++++++++
+ task_1/src/task.rs              |  80 ++++++++++
+ timer/Cargo.toml                |  12 ++
+ timer/src/lib.rs                |  75 +++++++++
+ trap/Cargo.toml                 |  16 ++
+ trap/src/lib.rs                 | 171 +++++++++++++++++++++
+ trap/src/trap.S                 | 104 +++++++++++++
+ trap/src/trap_context.rs        |  42 ++++++
+ 37 files changed, 2284 insertions(+), 33 deletions(-)
+ create mode 100644 fs/Cargo.toml
+ create mode 100644 fs/src/inode.rs
+ create mode 100644 fs/src/lib.rs
+ create mode 100644 fs/src/pipe.rs
+ create mode 100644 fs/src/stdio.rs
+ create mode 100644 syscall/Cargo.toml
+ create mode 100644 syscall/src/fs.rs
+ create mode 100644 syscall/src/gui.rs
+ create mode 100644 syscall/src/input.rs
+ create mode 100644 syscall/src/lib.rs
+ create mode 100644 syscall/src/process.rs
+ create mode 100644 syscall/src/sync.rs
+ create mode 100644 syscall/src/thread.rs
+ create mode 100644 task_1/Cargo.toml
+ create mode 100644 task_1/src/context.rs
+ create mode 100644 task_1/src/id.rs
+ create mode 100644 task_1/src/lib.rs
+ create mode 100644 task_1/src/manager.rs
+ create mode 100644 task_1/src/process.rs
+ create mode 100644 task_1/src/task.rs
+ create mode 100644 timer/Cargo.toml
+ create mode 100644 timer/src/lib.rs
+ create mode 100644 trap/Cargo.toml
+ create mode 100644 trap/src/lib.rs
+ create mode 100644 trap/src/trap.S
+ create mode 100644 trap/src/trap_context.rs
+
+diff --git a/Cargo.toml b/Cargo.toml
+index f816604..3e970d6 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,23 +1,32 @@
+ [workspace]
+ members = [
++    "application/easy-fs-fuse",
++    "application/user",
++    "asynchronous",
++    "drivers",
++    "easy-fs", 
++    "fs",
+     "kernel", 
+-    "tconfig",
+     "memory",
++    # mod_mgmt
++    "safe_cell",
++    "sbi",
+     "sync",
++    "syscall",
+     "task",
+-    "sbi",
+-    "drivers",
+-    "safe_cell",
+-    "asynchronous",
++    "task_1",
++    "tconfig",
++    "timer",
++    "tlib",
++    "trap",
+     "xtask", 
+-    "easy-fs", 
+-    "application/easy-fs-fuse",
+-    "application/user",
+     ]
+ default-members = ["xtask"]
+ 
+ exclude = [
++    "mkConfig",
+     "mod_mgmt",
++    "script",
+     "other_libs/*",
+     ]
+ 
+diff --git a/drivers/Cargo.toml b/drivers/Cargo.toml
+index 4dc3de2..2dbe040 100644
+--- a/drivers/Cargo.toml
++++ b/drivers/Cargo.toml
+@@ -18,5 +18,5 @@ tinybmp = "0.3.1"
+ config = { path = "../tconfig", package = "tconfig" }
+ mm = { path = "../memory", package = "memory" }
+ safe_cell = { path = "../safe_cell", package = "safe_cell" }
+-# sync = { path = "../sync", package = "sync" }
+-# task = { path = "../task", package = "task" }
++sync = { path = "../sync", package = "sync" }
++task = { path = "../task", package = "task" }
+diff --git a/drivers/src/block/mod.rs b/drivers/src/block/mod.rs
+index 0a44361..1af064b 100644
+--- a/drivers/src/block/mod.rs
++++ b/drivers/src/block/mod.rs
+@@ -4,7 +4,7 @@ pub use virtio_blk::VirtIOBlock;
+ 
+ // TODO board easy_fs lazy_static
+ extern crate easy_fs;
+-use crate::board::BlockDeviceImpl;
++use crate::boards::BlockDeviceImpl;
+ use alloc::sync::Arc;
+ use easy_fs::BlockDevice;
+ use lazy_static::*;
+@@ -26,5 +26,5 @@ pub fn block_device_test() {
+         block_device.read_block(i as usize, &mut read_buffer);
+         assert_eq!(write_buffer, read_buffer);
+     }
+-    println!("block device test passed!");
++    // println!("block device test passed!");
+ }
+diff --git a/drivers/src/block/virtio_blk.rs b/drivers/src/block/virtio_blk.rs
+index 507f296..f941bd8 100644
+--- a/drivers/src/block/virtio_blk.rs
++++ b/drivers/src/block/virtio_blk.rs
+@@ -1,8 +1,9 @@
+ use crate::block::BlockDevice;
+ use crate::bus::virtio::VirtioHal;
+ // TODO sync task virtio_drivers
+-use crate::sync::{Condvar, UPIntrFreeCell};
+-use crate::task::schedule;
++use sync::Condvar;
++use safe_cell::UPIntrFreeCell;
++use task::schedule;
+ use crate::DEV_NON_BLOCKING_ACCESS;
+ use alloc::collections::BTreeMap;
+ use virtio_drivers::{BlkResp, RespStatus, VirtIOBlk, VirtIOHeader};
+diff --git a/drivers/src/boards/mod.rs b/drivers/src/boards/mod.rs
+index 7b14fd6..2460765 100644
+--- a/drivers/src/boards/mod.rs
++++ b/drivers/src/boards/mod.rs
+@@ -8,8 +8,8 @@
+ // ];
+ pub use config::{CLOCK_FREQ, MMIO};
+ 
+-pub type BlockDeviceImpl = crate::drivers::block::VirtIOBlock;
+-pub type CharDeviceImpl = crate::drivers::chardev::NS16550a<VIRT_UART>;
++pub type BlockDeviceImpl = crate::block::VirtIOBlock;
++pub type CharDeviceImpl = crate::chardev::NS16550a<VIRT_UART>;
+ 
+ pub const VIRT_PLIC: usize = 0xC00_0000;
+ pub const VIRT_UART: usize = 0x1000_0000;
+@@ -19,10 +19,10 @@ pub const VIRTGPU_XRES: u32 = 1280;
+ pub const VIRTGPU_YRES: u32 = 800;
+ 
+ 
+-use crate::drivers::block::BLOCK_DEVICE;
+-use crate::drivers::chardev::{CharDevice, UART};
+-use crate::drivers::plic::{IntrTargetPriority, PLIC};
+-use crate::drivers::{KEYBOARD_DEVICE, MOUSE_DEVICE};
++use crate::block::BLOCK_DEVICE;
++use crate::chardev::{CharDevice, UART};
++use crate::plic::{IntrTargetPriority, PLIC};
++use crate::{KEYBOARD_DEVICE, MOUSE_DEVICE};
+ 
+ pub fn device_init() {
+     use riscv::register::sie;
+diff --git a/drivers/src/chardev/mod.rs b/drivers/src/chardev/mod.rs
+index d2e16bf..007d1db 100644
+--- a/drivers/src/chardev/mod.rs
++++ b/drivers/src/chardev/mod.rs
+@@ -2,7 +2,7 @@ mod ns16550a;
+ 
+ 
+ // TODO lazy_static
+-use crate::board::CharDeviceImpl;
++use crate::boards::CharDeviceImpl;
+ use alloc::sync::Arc;
+ use lazy_static::*;
+ pub use ns16550a::NS16550a;
+diff --git a/drivers/src/lib.rs b/drivers/src/lib.rs
+index 15c2b53..14c946f 100644
+--- a/drivers/src/lib.rs
++++ b/drivers/src/lib.rs
+@@ -1,4 +1,6 @@
+ #![no_std]
++extern crate alloc;
++
+ pub mod block;
+ pub mod bus;
+ pub mod chardev;
+@@ -12,5 +14,5 @@ pub use bus::*;
+ pub use chardev::UART;
+ pub use gpu::*;
+ pub use input::*;
+-pub use board::*;
++pub use boards::*;
+ 
+diff --git a/fs/Cargo.toml b/fs/Cargo.toml
+new file mode 100644
+index 0000000..6bd4c17
+--- /dev/null
++++ b/fs/Cargo.toml
+@@ -0,0 +1,15 @@
++[package]
++name = "fs"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++bitflags = "1.2.1"
++mm = { path = "../memory", package = "memory" }
++drivers = { path = "../drivers", package = "drivers" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
++easy-fs = { path = "../easy-fs", package = "easy-fs" }
++task = { path = "../task_1", package = "task_1" }
+diff --git a/fs/src/inode.rs b/fs/src/inode.rs
+new file mode 100644
+index 0000000..cab7618
+--- /dev/null
++++ b/fs/src/inode.rs
+@@ -0,0 +1,139 @@
++use super::File;
++use drivers::BLOCK_DEVICE;
++use mm::UserBuffer;
++use safe_cell::UPIntrFreeCell;
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++use bitflags::*;
++use easy_fs::{EasyFileSystem, Inode};
++use lazy_static::*;
++
++pub struct OSInode {
++    readable: bool,
++    writable: bool,
++    inner: UPIntrFreeCell<OSInodeInner>,
++}
++
++pub struct OSInodeInner {
++    offset: usize,
++    inode: Arc<Inode>,
++}
++
++impl OSInode {
++    pub fn new(readable: bool, writable: bool, inode: Arc<Inode>) -> Self {
++        Self {
++            readable,
++            writable,
++            inner: unsafe { UPIntrFreeCell::new(OSInodeInner { offset: 0, inode }) },
++        }
++    }
++    pub fn read_all(&self) -> Vec<u8> {
++        let mut inner = self.inner.exclusive_access();
++        let mut buffer = [0u8; 512];
++        let mut v: Vec<u8> = Vec::new();
++        loop {
++            let len = inner.inode.read_at(inner.offset, &mut buffer);
++            if len == 0 {
++                break;
++            }
++            inner.offset += len;
++            v.extend_from_slice(&buffer[..len]);
++        }
++        v
++    }
++}
++
++lazy_static! {
++    pub static ref ROOT_INODE: Arc<Inode> = {
++        let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
++        Arc::new(EasyFileSystem::root_inode(&efs))
++    };
++}
++
++pub fn list_apps() {
++    println!("/**** APPS ****");
++    for app in ROOT_INODE.ls() {
++        println!("{}", app);
++    }
++    println!("**************/")
++}
++
++bitflags! {
++    pub struct OpenFlags: u32 {
++        const RDONLY = 0;
++        const WRONLY = 1 << 0;
++        const RDWR = 1 << 1;
++        const CREATE = 1 << 9;
++        const TRUNC = 1 << 10;
++    }
++}
++
++impl OpenFlags {
++    /// Do not check validity for simplicity
++    /// Return (readable, writable)
++    pub fn read_write(&self) -> (bool, bool) {
++        if self.is_empty() {
++            (true, false)
++        } else if self.contains(Self::WRONLY) {
++            (false, true)
++        } else {
++            (true, true)
++        }
++    }
++}
++
++pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
++    let (readable, writable) = flags.read_write();
++    if flags.contains(OpenFlags::CREATE) {
++        if let Some(inode) = ROOT_INODE.find(name) {
++            // clear size
++            inode.clear();
++            Some(Arc::new(OSInode::new(readable, writable, inode)))
++        } else {
++            // create file
++            ROOT_INODE
++                .create(name)
++                .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
++        }
++    } else {
++        ROOT_INODE.find(name).map(|inode| {
++            if flags.contains(OpenFlags::TRUNC) {
++                inode.clear();
++            }
++            Arc::new(OSInode::new(readable, writable, inode))
++        })
++    }
++}
++
++impl File for OSInode {
++    fn readable(&self) -> bool {
++        self.readable
++    }
++    fn writable(&self) -> bool {
++        self.writable
++    }
++    fn read(&self, mut buf: UserBuffer) -> usize {
++        let mut inner = self.inner.exclusive_access();
++        let mut total_read_size = 0usize;
++        for slice in buf.buffers.iter_mut() {
++            let read_size = inner.inode.read_at(inner.offset, *slice);
++            if read_size == 0 {
++                break;
++            }
++            inner.offset += read_size;
++            total_read_size += read_size;
++        }
++        total_read_size
++    }
++    fn write(&self, buf: UserBuffer) -> usize {
++        let mut inner = self.inner.exclusive_access();
++        let mut total_write_size = 0usize;
++        for slice in buf.buffers.iter() {
++            let write_size = inner.inode.write_at(inner.offset, *slice);
++            assert_eq!(write_size, slice.len());
++            inner.offset += write_size;
++            total_write_size += write_size;
++        }
++        total_write_size
++    }
++}
+diff --git a/fs/src/lib.rs b/fs/src/lib.rs
+new file mode 100644
+index 0000000..ffd950d
+--- /dev/null
++++ b/fs/src/lib.rs
+@@ -0,0 +1,17 @@
++#![no_std]
++mod inode;
++mod pipe;
++mod stdio;
++
++use mm::UserBuffer;
++
++pub trait File: Send + Sync {
++    fn readable(&self) -> bool;
++    fn writable(&self) -> bool;
++    fn read(&self, buf: UserBuffer) -> usize;
++    fn write(&self, buf: UserBuffer) -> usize;
++}
++
++pub use inode::{list_apps, open_file, OSInode, OpenFlags, ROOT_INODE};
++pub use pipe::{make_pipe, Pipe};
++pub use stdio::{Stdin, Stdout};
+diff --git a/fs/src/pipe.rs b/fs/src/pipe.rs
+new file mode 100644
+index 0000000..62aeba7
+--- /dev/null
++++ b/fs/src/pipe.rs
+@@ -0,0 +1,173 @@
++use crate::File;
++use mm::UserBuffer;
++use safe_cell::UPIntrFreeCell;
++use alloc::sync::{Arc, Weak};
++
++use task::suspend_current_and_run_next;
++
++pub struct Pipe {
++    readable: bool,
++    writable: bool,
++    buffer: Arc<UPIntrFreeCell<PipeRingBuffer>>,
++}
++
++impl Pipe {
++    pub fn read_end_with_buffer(buffer: Arc<UPIntrFreeCell<PipeRingBuffer>>) -> Self {
++        Self {
++            readable: true,
++            writable: false,
++            buffer,
++        }
++    }
++    pub fn write_end_with_buffer(buffer: Arc<UPIntrFreeCell<PipeRingBuffer>>) -> Self {
++        Self {
++            readable: false,
++            writable: true,
++            buffer,
++        }
++    }
++}
++
++const RING_BUFFER_SIZE: usize = 32;
++
++#[derive(Copy, Clone, PartialEq)]
++enum RingBufferStatus {
++    Full,
++    Empty,
++    Normal,
++}
++
++pub struct PipeRingBuffer {
++    arr: [u8; RING_BUFFER_SIZE],
++    head: usize,
++    tail: usize,
++    status: RingBufferStatus,
++    write_end: Option<Weak<Pipe>>,
++}
++
++impl PipeRingBuffer {
++    pub fn new() -> Self {
++        Self {
++            arr: [0; RING_BUFFER_SIZE],
++            head: 0,
++            tail: 0,
++            status: RingBufferStatus::Empty,
++            write_end: None,
++        }
++    }
++    pub fn set_write_end(&mut self, write_end: &Arc<Pipe>) {
++        self.write_end = Some(Arc::downgrade(write_end));
++    }
++    pub fn write_byte(&mut self, byte: u8) {
++        self.status = RingBufferStatus::Normal;
++        self.arr[self.tail] = byte;
++        self.tail = (self.tail + 1) % RING_BUFFER_SIZE;
++        if self.tail == self.head {
++            self.status = RingBufferStatus::Full;
++        }
++    }
++    pub fn read_byte(&mut self) -> u8 {
++        self.status = RingBufferStatus::Normal;
++        let c = self.arr[self.head];
++        self.head = (self.head + 1) % RING_BUFFER_SIZE;
++        if self.head == self.tail {
++            self.status = RingBufferStatus::Empty;
++        }
++        c
++    }
++    pub fn available_read(&self) -> usize {
++        if self.status == RingBufferStatus::Empty {
++            0
++        } else if self.tail > self.head {
++            self.tail - self.head
++        } else {
++            self.tail + RING_BUFFER_SIZE - self.head
++        }
++    }
++    pub fn available_write(&self) -> usize {
++        if self.status == RingBufferStatus::Full {
++            0
++        } else {
++            RING_BUFFER_SIZE - self.available_read()
++        }
++    }
++    pub fn all_write_ends_closed(&self) -> bool {
++        self.write_end.as_ref().unwrap().upgrade().is_none()
++    }
++}
++
++/// Return (read_end, write_end)
++pub fn make_pipe() -> (Arc<Pipe>, Arc<Pipe>) {
++    let buffer = Arc::new(unsafe { UPIntrFreeCell::new(PipeRingBuffer::new()) });
++    let read_end = Arc::new(Pipe::read_end_with_buffer(buffer.clone()));
++    let write_end = Arc::new(Pipe::write_end_with_buffer(buffer.clone()));
++    buffer.exclusive_access().set_write_end(&write_end);
++    (read_end, write_end)
++}
++
++impl File for Pipe {
++    fn readable(&self) -> bool {
++        self.readable
++    }
++    fn writable(&self) -> bool {
++        self.writable
++    }
++    fn read(&self, buf: UserBuffer) -> usize {
++        assert!(self.readable());
++        let want_to_read = buf.len();
++        let mut buf_iter = buf.into_iter();
++        let mut already_read = 0usize;
++        loop {
++            let mut ring_buffer = self.buffer.exclusive_access();
++            let loop_read = ring_buffer.available_read();
++            if loop_read == 0 {
++                if ring_buffer.all_write_ends_closed() {
++                    return already_read;
++                }
++                drop(ring_buffer);
++                suspend_current_and_run_next();
++                continue;
++            }
++            for _ in 0..loop_read {
++                if let Some(byte_ref) = buf_iter.next() {
++                    unsafe {
++                        *byte_ref = ring_buffer.read_byte();
++                    }
++                    already_read += 1;
++                    if already_read == want_to_read {
++                        return want_to_read;
++                    }
++                } else {
++                    return already_read;
++                }
++            }
++        }
++    }
++    fn write(&self, buf: UserBuffer) -> usize {
++        assert!(self.writable());
++        let want_to_write = buf.len();
++        let mut buf_iter = buf.into_iter();
++        let mut already_write = 0usize;
++        loop {
++            let mut ring_buffer = self.buffer.exclusive_access();
++            let loop_write = ring_buffer.available_write();
++            if loop_write == 0 {
++                drop(ring_buffer);
++                suspend_current_and_run_next();
++                continue;
++            }
++            // write at most loop_write bytes
++            for _ in 0..loop_write {
++                if let Some(byte_ref) = buf_iter.next() {
++                    ring_buffer.write_byte(unsafe { *byte_ref });
++                    already_write += 1;
++                    if already_write == want_to_write {
++                        return want_to_write;
++                    }
++                } else {
++                    return already_write;
++                }
++            }
++        }
++    }
++}
+diff --git a/fs/src/stdio.rs b/fs/src/stdio.rs
+new file mode 100644
+index 0000000..68d7861
+--- /dev/null
++++ b/fs/src/stdio.rs
+@@ -0,0 +1,46 @@
++use crate::File;
++use drivers::chardev::CharDevice;
++use drivers::chardev::UART;
++use mm::UserBuffer;
++
++pub struct Stdin;
++pub struct Stdout;
++
++impl File for Stdin {
++    fn readable(&self) -> bool {
++        true
++    }
++    fn writable(&self) -> bool {
++        false
++    }
++    fn read(&self, mut user_buf: UserBuffer) -> usize {
++        assert_eq!(user_buf.len(), 1);
++        //println!("before UART.read() in Stdin::read()");
++        let ch = UART.read();
++        unsafe {
++            user_buf.buffers[0].as_mut_ptr().write_volatile(ch);
++        }
++        1
++    }
++    fn write(&self, _user_buf: UserBuffer) -> usize {
++        panic!("Cannot write to stdin!");
++    }
++}
++
++impl File for Stdout {
++    fn readable(&self) -> bool {
++        false
++    }
++    fn writable(&self) -> bool {
++        true
++    }
++    fn read(&self, _user_buf: UserBuffer) -> usize {
++        panic!("Cannot read from stdout!");
++    }
++    fn write(&self, user_buf: UserBuffer) -> usize {
++        for buffer in user_buf.buffers.iter() {
++            print!("{}", core::str::from_utf8(*buffer).unwrap());
++        }
++        user_buf.len()
++    }
++}
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 17052ed..f0d1a54 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -25,6 +25,9 @@ safe_cell = { path = "../safe_cell", package = "safe_cell" }
+ [dependencies.riscv]
+ git = "https://github.com/Andre-HJR/riscv.git"
+ rev = "031d548a"
++[dependencies.log]
++version = "0.4"
++features = []
+ 
+ 
+ # [dependencies.sbi-rt]
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index dbd7855..dba17fa 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -8,6 +8,10 @@
+ use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
+ extern crate alloc;
+ 
++#[cfg(target_arch = "riscv64")]
++use log::info;
++
++
+ #[cfg(test)]
+ mod test {}
+ 
+@@ -21,6 +25,7 @@ extern crate mm;
+ 
+ use config::*;
+ use mm::*;
++
+ #[path = "boards/qemu.rs"]
+ mod board;
+ 
+@@ -65,17 +70,11 @@ lazy_static! {
+ /// 打印 `Hello, World!`，然后关机。
+ #[no_mangle]
+ extern "C" fn rcore_main() -> ! {
+-    // for c in b"Hello, world!" {
+-    //     #[allow(deprecated)]
+-    //     legacy::console_putchar(*c as _);
+-    // }
+-    // system_reset(Shutdown, NoReason);
+-    // unreachable!()
+     clear_bss();
+     mm::init();
+     UART.init();
+-    println!("KERN: init gpu");
+-    let _gpu = GPU_DEVICE.clone();
++    // println!("KERN: init gpu");
++    // let _gpu = GPU_DEVICE.clone();
+     println!("KERN: init keyboard");
+     let _keyboard = KEYBOARD_DEVICE.clone();
+     println!("KERN: init mouse");
+@@ -84,6 +83,7 @@ extern "C" fn rcore_main() -> ! {
+     trap::init();
+     trap::enable_timer_interrupt();
+     timer::set_next_trigger();
++    info!("KERN: init device");
+     board::device_init();
+     fs::list_apps();
+     task::add_initproc();
+diff --git a/sync/Cargo.toml b/sync/Cargo.toml
+index 7489d36..db5bab4 100644
+--- a/sync/Cargo.toml
++++ b/sync/Cargo.toml
+@@ -2,6 +2,23 @@
+ name = "sync"
+ version = "0.1.0"
+ edition = "2021"
++description = """一些记录
++
++```rust
++sync -> task {
++Struct
++    TaskContext,
++    TaskControlBlock,
++fn 
++    block_current_and_run_next,
++    suspend_current_and_run_next,
++    block_current_task,
++    ccurrent_task,
++    wakeup_task
++}
++```
++
++"""
+ 
+ # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+ 
+diff --git a/sync/src/lib.rs b/sync/src/lib.rs
+index b66b14f..751519d 100644
+--- a/sync/src/lib.rs
++++ b/sync/src/lib.rs
+@@ -8,7 +8,7 @@ mod semaphore;
+ 
+ extern crate alloc;
+ 
+-// pub use condvar::Condvar;
+-// pub use mutex::{Mutex, MutexBlocking};
+-// pub use semaphore::Semaphore;
++pub use condvar::Condvar;
++pub use mutex::{Mutex, MutexBlocking};
++pub use semaphore::Semaphore;
+ pub use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
+diff --git a/syscall/Cargo.toml b/syscall/Cargo.toml
+new file mode 100644
+index 0000000..0836b80
+--- /dev/null
++++ b/syscall/Cargo.toml
+@@ -0,0 +1,14 @@
++[package]
++name = "syscall"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++fs = { path = "../fs", package = "fs" }
++mm = { path = "../memory", package = "memory" }
++task = { path = "../task", package = "task" }
++sync = { path = "../sync", package = "sync" }
++drivers = { path = "../drivers", package = "drivers" }
++timer = { path = "../timer", package = "timer" }
+diff --git a/syscall/src/fs.rs b/syscall/src/fs.rs
+new file mode 100644
+index 0000000..20c4011
+--- /dev/null
++++ b/syscall/src/fs.rs
+@@ -0,0 +1,100 @@
++// TODO fs mm task
++use fs::{make_pipe, open_file, OpenFlags};
++use mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
++use task::{current_process, current_user_token};
++use alloc::sync::Arc;
++
++pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
++    let token = current_user_token();
++    let process = current_process();
++    let inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if let Some(file) = &inner.fd_table[fd] {
++        if !file.writable() {
++            return -1;
++        }
++        let file = file.clone();
++        // release current task TCB manually to avoid multi-borrow
++        drop(inner);
++        file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
++    let token = current_user_token();
++    let process = current_process();
++    let inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if let Some(file) = &inner.fd_table[fd] {
++        let file = file.clone();
++        if !file.readable() {
++            return -1;
++        }
++        // release current task TCB manually to avoid multi-borrow
++        drop(inner);
++        file.read(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_open(path: *const u8, flags: u32) -> isize {
++    let process = current_process();
++    let token = current_user_token();
++    let path = translated_str(token, path);
++    if let Some(inode) = open_file(path.as_str(), OpenFlags::from_bits(flags).unwrap()) {
++        let mut inner = process.inner_exclusive_access();
++        let fd = inner.alloc_fd();
++        inner.fd_table[fd] = Some(inode);
++        fd as isize
++    } else {
++        -1
++    }
++}
++
++pub fn sys_close(fd: usize) -> isize {
++    let process = current_process();
++    let mut inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if inner.fd_table[fd].is_none() {
++        return -1;
++    }
++    inner.fd_table[fd].take();
++    0
++}
++
++pub fn sys_pipe(pipe: *mut usize) -> isize {
++    let process = current_process();
++    let token = current_user_token();
++    let mut inner = process.inner_exclusive_access();
++    let (pipe_read, pipe_write) = make_pipe();
++    let read_fd = inner.alloc_fd();
++    inner.fd_table[read_fd] = Some(pipe_read);
++    let write_fd = inner.alloc_fd();
++    inner.fd_table[write_fd] = Some(pipe_write);
++    *translated_refmut(token, pipe) = read_fd;
++    *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
++    0
++}
++
++pub fn sys_dup(fd: usize) -> isize {
++    let process = current_process();
++    let mut inner = process.inner_exclusive_access();
++    if fd >= inner.fd_table.len() {
++        return -1;
++    }
++    if inner.fd_table[fd].is_none() {
++        return -1;
++    }
++    let new_fd = inner.alloc_fd();
++    inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
++    new_fd as isize
++}
+diff --git a/syscall/src/gui.rs b/syscall/src/gui.rs
+new file mode 100644
+index 0000000..d6b867c
+--- /dev/null
++++ b/syscall/src/gui.rs
+@@ -0,0 +1,35 @@
++// TODO drivers mm task
++use drivers::GPU_DEVICE;
++use mm::{MapArea, MapPermission, MapType, PhysAddr, VirtAddr};
++use task::current_process;
++
++const FB_VADDR: usize = 0x10000000;
++
++pub fn sys_framebuffer() -> isize {
++    let fb = GPU_DEVICE.get_framebuffer();
++    let len = fb.len();
++    // println!("[kernel] FrameBuffer: addr 0x{:X}, len {}", fb.as_ptr() as usize , len);
++    let fb_start_pa = PhysAddr::from(fb.as_ptr() as usize);
++    assert!(fb_start_pa.aligned());
++    let fb_start_ppn = fb_start_pa.floor();
++    let fb_start_vpn = VirtAddr::from(FB_VADDR).floor();
++    let pn_offset = fb_start_ppn.0 as isize - fb_start_vpn.0 as isize;
++
++    let current_process = current_process();
++    let mut inner = current_process.inner_exclusive_access();
++    inner.memory_set.push(
++        MapArea::new(
++            (FB_VADDR as usize).into(),
++            (FB_VADDR + len as usize).into(),
++            MapType::Linear(pn_offset),
++            MapPermission::R | MapPermission::W | MapPermission::U,
++        ),
++        None,
++    );
++    FB_VADDR as isize
++}
++
++pub fn sys_framebuffer_flush() -> isize {
++    GPU_DEVICE.flush();
++    0
++}
+diff --git a/syscall/src/input.rs b/syscall/src/input.rs
+new file mode 100644
+index 0000000..301517e
+--- /dev/null
++++ b/syscall/src/input.rs
+@@ -0,0 +1,29 @@
++// TODO drivers
++//use crate::drivers::{KEYBOARD_DEVICE,MOUSE_DEVICE,INPUT_CONDVAR,read_input_event};
++use drivers::{KEYBOARD_DEVICE, MOUSE_DEVICE};
++
++pub fn sys_event_get() -> isize {
++    let kb = KEYBOARD_DEVICE.clone();
++    let mouse = MOUSE_DEVICE.clone();
++    //let input=INPUT_CONDVAR.clone();
++    //read_input_event() as isize
++    if !kb.is_empty() {
++        kb.read_event() as isize
++    } else if !mouse.is_empty() {
++        mouse.read_event() as isize
++    } else {
++        0
++    }
++}
++
++use drivers::chardev::UART;
++
++/// check UART's read-buffer is empty or not
++pub fn sys_key_pressed() -> isize {
++    let res = !UART.read_buffer_is_empty();
++    if res {
++        1
++    } else {
++        0
++    }
++}
+diff --git a/syscall/src/lib.rs b/syscall/src/lib.rs
+new file mode 100644
+index 0000000..2963461
+--- /dev/null
++++ b/syscall/src/lib.rs
+@@ -0,0 +1,84 @@
++#![no_std]
++
++const SYSCALL_DUP: usize = 24;
++const SYSCALL_OPEN: usize = 56;
++const SYSCALL_CLOSE: usize = 57;
++const SYSCALL_PIPE: usize = 59;
++const SYSCALL_READ: usize = 63;
++const SYSCALL_WRITE: usize = 64;
++const SYSCALL_EXIT: usize = 93;
++const SYSCALL_SLEEP: usize = 101;
++const SYSCALL_YIELD: usize = 124;
++const SYSCALL_KILL: usize = 129;
++const SYSCALL_GET_TIME: usize = 169;
++const SYSCALL_GETPID: usize = 172;
++const SYSCALL_FORK: usize = 220;
++const SYSCALL_EXEC: usize = 221;
++const SYSCALL_WAITPID: usize = 260;
++const SYSCALL_THREAD_CREATE: usize = 1000;
++const SYSCALL_GETTID: usize = 1001;
++const SYSCALL_WAITTID: usize = 1002;
++const SYSCALL_MUTEX_CREATE: usize = 1010;
++const SYSCALL_MUTEX_LOCK: usize = 1011;
++const SYSCALL_MUTEX_UNLOCK: usize = 1012;
++const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
++const SYSCALL_SEMAPHORE_UP: usize = 1021;
++const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
++const SYSCALL_CONDVAR_CREATE: usize = 1030;
++const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
++const SYSCALL_CONDVAR_WAIT: usize = 1032;
++const SYSCALL_FRAMEBUFFER: usize = 2000;
++const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
++const SYSCALL_EVENT_GET: usize = 3000;
++const SYSCALL_KEY_PRESSED: usize = 3001;
++
++mod fs;
++mod gui;
++mod input;
++mod process;
++mod sync;
++mod thread;
++
++use fs::*;
++use gui::*;
++use input::*;
++use process::*;
++use sync::*;
++use thread::*;
++
++pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
++    match syscall_id {
++        SYSCALL_DUP => sys_dup(args[0]),
++        SYSCALL_OPEN => sys_open(args[0] as *const u8, args[1] as u32),
++        SYSCALL_CLOSE => sys_close(args[0]),
++        SYSCALL_PIPE => sys_pipe(args[0] as *mut usize),
++        SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
++        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
++        SYSCALL_EXIT => sys_exit(args[0] as i32),
++        SYSCALL_SLEEP => sys_sleep(args[0]),
++        SYSCALL_YIELD => sys_yield(),
++        SYSCALL_KILL => sys_kill(args[0], args[1] as u32),
++        SYSCALL_GET_TIME => sys_get_time(),
++        SYSCALL_GETPID => sys_getpid(),
++        SYSCALL_FORK => sys_fork(),
++        SYSCALL_EXEC => sys_exec(args[0] as *const u8, args[1] as *const usize),
++        SYSCALL_WAITPID => sys_waitpid(args[0] as isize, args[1] as *mut i32),
++        SYSCALL_THREAD_CREATE => sys_thread_create(args[0], args[1]),
++        SYSCALL_GETTID => sys_gettid(),
++        SYSCALL_WAITTID => sys_waittid(args[0]) as isize,
++        SYSCALL_MUTEX_CREATE => sys_mutex_create(args[0] == 1),
++        SYSCALL_MUTEX_LOCK => sys_mutex_lock(args[0]),
++        SYSCALL_MUTEX_UNLOCK => sys_mutex_unlock(args[0]),
++        SYSCALL_SEMAPHORE_CREATE => sys_semaphore_create(args[0]),
++        SYSCALL_SEMAPHORE_UP => sys_semaphore_up(args[0]),
++        SYSCALL_SEMAPHORE_DOWN => sys_semaphore_down(args[0]),
++        SYSCALL_CONDVAR_CREATE => sys_condvar_create(),
++        SYSCALL_CONDVAR_SIGNAL => sys_condvar_signal(args[0]),
++        SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
++        SYSCALL_FRAMEBUFFER => sys_framebuffer(),
++        SYSCALL_FRAMEBUFFER_FLUSH => sys_framebuffer_flush(),
++        SYSCALL_EVENT_GET => sys_event_get(),
++        SYSCALL_KEY_PRESSED => sys_key_pressed(),
++        _ => panic!("Unsupported syscall_id: {}", syscall_id),
++    }
++}
+diff --git a/syscall/src/process.rs b/syscall/src/process.rs
+new file mode 100644
+index 0000000..87e7241
+--- /dev/null
++++ b/syscall/src/process.rs
+@@ -0,0 +1,118 @@
++// TODO fs mm task timer
++use fs::{open_file, OpenFlags};
++use mm::{translated_ref, translated_refmut, translated_str};
++use task::{
++    current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
++    suspend_current_and_run_next, SignalFlags,
++};
++use timer::get_time_ms;
++use alloc::string::String;
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++
++pub fn sys_exit(exit_code: i32) -> ! {
++    exit_current_and_run_next(exit_code);
++    panic!("Unreachable in sys_exit!");
++}
++
++pub fn sys_yield() -> isize {
++    suspend_current_and_run_next();
++    0
++}
++
++pub fn sys_get_time() -> isize {
++    get_time_ms() as isize
++}
++
++pub fn sys_getpid() -> isize {
++    current_task().unwrap().process.upgrade().unwrap().getpid() as isize
++}
++
++pub fn sys_fork() -> isize {
++    let current_process = current_process();
++    let new_process = current_process.fork();
++    let new_pid = new_process.getpid();
++    // modify trap context of new_task, because it returns immediately after switching
++    let new_process_inner = new_process.inner_exclusive_access();
++    let task = new_process_inner.tasks[0].as_ref().unwrap();
++    let trap_cx = task.inner_exclusive_access().get_trap_cx();
++    // we do not have to move to next instruction since we have done it before
++    // for child process, fork returns 0
++    trap_cx.x[10] = 0;
++    new_pid as isize
++}
++
++pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
++    let token = current_user_token();
++    let path = translated_str(token, path);
++    let mut args_vec: Vec<String> = Vec::new();
++    loop {
++        let arg_str_ptr = *translated_ref(token, args);
++        if arg_str_ptr == 0 {
++            break;
++        }
++        args_vec.push(translated_str(token, arg_str_ptr as *const u8));
++        unsafe {
++            args = args.add(1);
++        }
++    }
++    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
++        let all_data = app_inode.read_all();
++        let process = current_process();
++        let argc = args_vec.len();
++        process.exec(all_data.as_slice(), args_vec);
++        // return argc because cx.x[10] will be covered with it later
++        argc as isize
++    } else {
++        -1
++    }
++}
++
++/// If there is not a child process whose pid is same as given, return -1.
++/// Else if there is a child process but it is still running, return -2.
++pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
++    let process = current_process();
++    // find a child process
++
++    let mut inner = process.inner_exclusive_access();
++    if !inner
++        .children
++        .iter()
++        .any(|p| pid == -1 || pid as usize == p.getpid())
++    {
++        return -1;
++        // ---- release current PCB
++    }
++    let pair = inner.children.iter().enumerate().find(|(_, p)| {
++        // ++++ temporarily access child PCB exclusively
++        p.inner_exclusive_access().is_zombie && (pid == -1 || pid as usize == p.getpid())
++        // ++++ release child PCB
++    });
++    if let Some((idx, _)) = pair {
++        let child = inner.children.remove(idx);
++        // confirm that child will be deallocated after being removed from children list
++        assert_eq!(Arc::strong_count(&child), 1);
++        let found_pid = child.getpid();
++        // ++++ temporarily access child PCB exclusively
++        let exit_code = child.inner_exclusive_access().exit_code;
++        // ++++ release child PCB
++        *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;
++        found_pid as isize
++    } else {
++        -2
++    }
++    // ---- release current PCB automatically
++}
++
++pub fn sys_kill(pid: usize, signal: u32) -> isize {
++    if let Some(process) = pid2process(pid) {
++        if let Some(flag) = SignalFlags::from_bits(signal) {
++            process.inner_exclusive_access().signals |= flag;
++            0
++        } else {
++            -1
++        }
++    } else {
++        -1
++    }
++}
+diff --git a/syscall/src/sync.rs b/syscall/src/sync.rs
+new file mode 100644
+index 0000000..6e98fc7
+--- /dev/null
++++ b/syscall/src/sync.rs
+@@ -0,0 +1,135 @@
++// TODO sync task timer
++use sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
++use task::{block_current_and_run_next, current_process, current_task};
++use timer::{add_timer, get_time_ms};
++use alloc::sync::Arc;
++
++pub fn sys_sleep(ms: usize) -> isize {
++    let expire_ms = get_time_ms() + ms;
++    let task = current_task().unwrap();
++    add_timer(expire_ms, task);
++    block_current_and_run_next();
++    0
++}
++
++pub fn sys_mutex_create(blocking: bool) -> isize {
++    let process = current_process();
++    let mutex: Option<Arc<dyn Mutex>> = if !blocking {
++        Some(Arc::new(MutexSpin::new()))
++    } else {
++        Some(Arc::new(MutexBlocking::new()))
++    };
++    let mut process_inner = process.inner_exclusive_access();
++    if let Some(id) = process_inner
++        .mutex_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.mutex_list[id] = mutex;
++        id as isize
++    } else {
++        process_inner.mutex_list.push(mutex);
++        process_inner.mutex_list.len() as isize - 1
++    }
++}
++
++pub fn sys_mutex_lock(mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    drop(process);
++    mutex.lock();
++    0
++}
++
++pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    drop(process);
++    mutex.unlock();
++    0
++}
++
++pub fn sys_semaphore_create(res_count: usize) -> isize {
++    let process = current_process();
++    let mut process_inner = process.inner_exclusive_access();
++    let id = if let Some(id) = process_inner
++        .semaphore_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));
++        id
++    } else {
++        process_inner
++            .semaphore_list
++            .push(Some(Arc::new(Semaphore::new(res_count))));
++        process_inner.semaphore_list.len() - 1
++    };
++    id as isize
++}
++
++pub fn sys_semaphore_up(sem_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
++    drop(process_inner);
++    sem.up();
++    0
++}
++
++pub fn sys_semaphore_down(sem_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
++    drop(process_inner);
++    sem.down();
++    0
++}
++
++pub fn sys_condvar_create() -> isize {
++    let process = current_process();
++    let mut process_inner = process.inner_exclusive_access();
++    let id = if let Some(id) = process_inner
++        .condvar_list
++        .iter()
++        .enumerate()
++        .find(|(_, item)| item.is_none())
++        .map(|(id, _)| id)
++    {
++        process_inner.condvar_list[id] = Some(Arc::new(Condvar::new()));
++        id
++    } else {
++        process_inner
++            .condvar_list
++            .push(Some(Arc::new(Condvar::new())));
++        process_inner.condvar_list.len() - 1
++    };
++    id as isize
++}
++
++pub fn sys_condvar_signal(condvar_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
++    drop(process_inner);
++    condvar.signal();
++    0
++}
++
++pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
++    let process = current_process();
++    let process_inner = process.inner_exclusive_access();
++    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
++    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
++    drop(process_inner);
++    condvar.wait_with_mutex(mutex);
++    0
++}
+diff --git a/syscall/src/thread.rs b/syscall/src/thread.rs
+new file mode 100644
+index 0000000..caec93f
+--- /dev/null
++++ b/syscall/src/thread.rs
+@@ -0,0 +1,83 @@
++use mm::kernel_token;
++use task::{add_task, current_task, TaskControlBlock};
++use trap::{trap_handler, TrapContext};
++use alloc::sync::Arc;
++
++pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
++    let task = current_task().unwrap();
++    let process = task.process.upgrade().unwrap();
++    // create a new thread
++    let new_task = Arc::new(TaskControlBlock::new(
++        Arc::clone(&process),
++        task.inner_exclusive_access()
++            .res
++            .as_ref()
++            .unwrap()
++            .ustack_base,
++        true,
++    ));
++    // add new task to scheduler
++    add_task(Arc::clone(&new_task));
++    let new_task_inner = new_task.inner_exclusive_access();
++    let new_task_res = new_task_inner.res.as_ref().unwrap();
++    let new_task_tid = new_task_res.tid;
++    let mut process_inner = process.inner_exclusive_access();
++    // add new thread to current process
++    let tasks = &mut process_inner.tasks;
++    while tasks.len() < new_task_tid + 1 {
++        tasks.push(None);
++    }
++    tasks[new_task_tid] = Some(Arc::clone(&new_task));
++    let new_task_trap_cx = new_task_inner.get_trap_cx();
++    *new_task_trap_cx = TrapContext::app_init_context(
++        entry,
++        new_task_res.ustack_top(),
++        kernel_token(),
++        new_task.kstack.get_top(),
++        trap_handler as usize,
++    );
++    (*new_task_trap_cx).x[10] = arg;
++    new_task_tid as isize
++}
++
++pub fn sys_gettid() -> isize {
++    current_task()
++        .unwrap()
++        .inner_exclusive_access()
++        .res
++        .as_ref()
++        .unwrap()
++        .tid as isize
++}
++
++/// thread does not exist, return -1
++/// thread has not exited yet, return -2
++/// otherwise, return thread's exit code
++pub fn sys_waittid(tid: usize) -> i32 {
++    let task = current_task().unwrap();
++    let process = task.process.upgrade().unwrap();
++    let task_inner = task.inner_exclusive_access();
++    let mut process_inner = process.inner_exclusive_access();
++    // a thread cannot wait for itself
++    if task_inner.res.as_ref().unwrap().tid == tid {
++        return -1;
++    }
++    let mut exit_code: Option<i32> = None;
++    let waited_task = process_inner.tasks[tid].as_ref();
++    if let Some(waited_task) = waited_task {
++        if let Some(waited_exit_code) = waited_task.inner_exclusive_access().exit_code {
++            exit_code = Some(waited_exit_code);
++        }
++    } else {
++        // waited thread does not exist
++        return -1;
++    }
++    if let Some(exit_code) = exit_code {
++        // dealloc the exited thread
++        process_inner.tasks[tid] = None;
++        exit_code
++    } else {
++        // waited thread has not exited
++        -2
++    }
++}
+diff --git a/task_1/Cargo.toml b/task_1/Cargo.toml
+new file mode 100644
+index 0000000..ff9fc6f
+--- /dev/null
++++ b/task_1/Cargo.toml
+@@ -0,0 +1,13 @@
++[package]
++name = "task_1"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++bitflags = "1.2.1"
++config = { path = "../tconfig", package = "tconfig" }
++mm = { path = "../memory", package = "memory" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
+\ No newline at end of file
+diff --git a/task_1/src/context.rs b/task_1/src/context.rs
+new file mode 100644
+index 0000000..01fe537
+--- /dev/null
++++ b/task_1/src/context.rs
+@@ -0,0 +1,26 @@
++// TODO trap
++use trap::trap_return;
++
++#[repr(C)]
++pub struct TaskContext {
++    ra: usize,
++    sp: usize,
++    s: [usize; 12],
++}
++
++impl TaskContext {
++    pub fn zero_init() -> Self {
++        Self {
++            ra: 0,
++            sp: 0,
++            s: [0; 12],
++        }
++    }
++    pub fn goto_trap_return(kstack_ptr: usize) -> Self {
++        Self {
++            ra: trap_return as usize,
++            sp: kstack_ptr,
++            s: [0; 12],
++        }
++    }
++}
+diff --git a/task_1/src/id.rs b/task_1/src/id.rs
+new file mode 100644
+index 0000000..a646b19
+--- /dev/null
++++ b/task_1/src/id.rs
+@@ -0,0 +1,226 @@
++// TODO config mm safe_cell lazy_static
++use crate::ProcessControlBlock;
++use config::{KERNEL_STACK_SIZE, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT_BASE, USER_STACK_SIZE};
++use mm::{MapPermission, PhysPageNum, VirtAddr, KERNEL_SPACE};
++use safe_cell::UPIntrFreeCell;
++use alloc::{
++    sync::{Arc, Weak},
++    vec::Vec,
++};
++use lazy_static::*;
++
++pub struct RecycleAllocator {
++    current: usize,
++    recycled: Vec<usize>,
++}
++
++impl RecycleAllocator {
++    pub fn new() -> Self {
++        RecycleAllocator {
++            current: 0,
++            recycled: Vec::new(),
++        }
++    }
++    pub fn alloc(&mut self) -> usize {
++        if let Some(id) = self.recycled.pop() {
++            id
++        } else {
++            self.current += 1;
++            self.current - 1
++        }
++    }
++    pub fn dealloc(&mut self, id: usize) {
++        assert!(id < self.current);
++        assert!(
++            !self.recycled.iter().any(|i| *i == id),
++            "id {} has been deallocated!",
++            id
++        );
++        self.recycled.push(id);
++    }
++}
++
++lazy_static! {
++    static ref PID_ALLOCATOR: UPIntrFreeCell<RecycleAllocator> =
++        unsafe { UPIntrFreeCell::new(RecycleAllocator::new()) };
++    static ref KSTACK_ALLOCATOR: UPIntrFreeCell<RecycleAllocator> =
++        unsafe { UPIntrFreeCell::new(RecycleAllocator::new()) };
++}
++
++pub const IDLE_PID: usize = 0;
++
++pub struct PidHandle(pub usize);
++
++pub fn pid_alloc() -> PidHandle {
++    PidHandle(PID_ALLOCATOR.exclusive_access().alloc())
++}
++
++impl Drop for PidHandle {
++    fn drop(&mut self) {
++        PID_ALLOCATOR.exclusive_access().dealloc(self.0);
++    }
++}
++
++/// Return (bottom, top) of a kernel stack in kernel space.
++pub fn kernel_stack_position(kstack_id: usize) -> (usize, usize) {
++    let top = TRAMPOLINE - kstack_id * (KERNEL_STACK_SIZE + PAGE_SIZE);
++    let bottom = top - KERNEL_STACK_SIZE;
++    (bottom, top)
++}
++
++pub struct KernelStack(pub usize);
++
++pub fn kstack_alloc() -> KernelStack {
++    let kstack_id = KSTACK_ALLOCATOR.exclusive_access().alloc();
++    let (kstack_bottom, kstack_top) = kernel_stack_position(kstack_id);
++    KERNEL_SPACE.exclusive_access().insert_framed_area(
++        kstack_bottom.into(),
++        kstack_top.into(),
++        MapPermission::R | MapPermission::W,
++    );
++    KernelStack(kstack_id)
++}
++
++impl Drop for KernelStack {
++    fn drop(&mut self) {
++        let (kernel_stack_bottom, _) = kernel_stack_position(self.0);
++        let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
++        KERNEL_SPACE
++            .exclusive_access()
++            .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
++    }
++}
++
++impl KernelStack {
++    #[allow(unused)]
++    pub fn push_on_top<T>(&self, value: T) -> *mut T
++    where
++        T: Sized,
++    {
++        let kernel_stack_top = self.get_top();
++        let ptr_mut = (kernel_stack_top - core::mem::size_of::<T>()) as *mut T;
++        unsafe {
++            *ptr_mut = value;
++        }
++        ptr_mut
++    }
++    pub fn get_top(&self) -> usize {
++        let (_, kernel_stack_top) = kernel_stack_position(self.0);
++        kernel_stack_top
++    }
++}
++
++pub struct TaskUserRes {
++    pub tid: usize,
++    pub ustack_base: usize,
++    pub process: Weak<ProcessControlBlock>,
++}
++
++fn trap_cx_bottom_from_tid(tid: usize) -> usize {
++    TRAP_CONTEXT_BASE - tid * PAGE_SIZE
++}
++
++fn ustack_bottom_from_tid(ustack_base: usize, tid: usize) -> usize {
++    ustack_base + tid * (PAGE_SIZE + USER_STACK_SIZE)
++}
++
++impl TaskUserRes {
++    pub fn new(
++        process: Arc<ProcessControlBlock>,
++        ustack_base: usize,
++        alloc_user_res: bool,
++    ) -> Self {
++        let tid = process.inner_exclusive_access().alloc_tid();
++        let task_user_res = Self {
++            tid,
++            ustack_base,
++            process: Arc::downgrade(&process),
++        };
++        if alloc_user_res {
++            task_user_res.alloc_user_res();
++        }
++        task_user_res
++    }
++
++    pub fn alloc_user_res(&self) {
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        // alloc user stack
++        let ustack_bottom = ustack_bottom_from_tid(self.ustack_base, self.tid);
++        let ustack_top = ustack_bottom + USER_STACK_SIZE;
++        process_inner.memory_set.insert_framed_area(
++            ustack_bottom.into(),
++            ustack_top.into(),
++            MapPermission::R | MapPermission::W | MapPermission::U,
++        );
++        // alloc trap_cx
++        let trap_cx_bottom = trap_cx_bottom_from_tid(self.tid);
++        let trap_cx_top = trap_cx_bottom + PAGE_SIZE;
++        process_inner.memory_set.insert_framed_area(
++            trap_cx_bottom.into(),
++            trap_cx_top.into(),
++            MapPermission::R | MapPermission::W,
++        );
++    }
++
++    fn dealloc_user_res(&self) {
++        // dealloc tid
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        // dealloc ustack manually
++        let ustack_bottom_va: VirtAddr = ustack_bottom_from_tid(self.ustack_base, self.tid).into();
++        process_inner
++            .memory_set
++            .remove_area_with_start_vpn(ustack_bottom_va.into());
++        // dealloc trap_cx manually
++        let trap_cx_bottom_va: VirtAddr = trap_cx_bottom_from_tid(self.tid).into();
++        process_inner
++            .memory_set
++            .remove_area_with_start_vpn(trap_cx_bottom_va.into());
++    }
++
++    #[allow(unused)]
++    pub fn alloc_tid(&mut self) {
++        self.tid = self
++            .process
++            .upgrade()
++            .unwrap()
++            .inner_exclusive_access()
++            .alloc_tid();
++    }
++
++    pub fn dealloc_tid(&self) {
++        let process = self.process.upgrade().unwrap();
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.dealloc_tid(self.tid);
++    }
++
++    pub fn trap_cx_user_va(&self) -> usize {
++        trap_cx_bottom_from_tid(self.tid)
++    }
++
++    pub fn trap_cx_ppn(&self) -> PhysPageNum {
++        let process = self.process.upgrade().unwrap();
++        let process_inner = process.inner_exclusive_access();
++        let trap_cx_bottom_va: VirtAddr = trap_cx_bottom_from_tid(self.tid).into();
++        process_inner
++            .memory_set
++            .translate(trap_cx_bottom_va.into())
++            .unwrap()
++            .ppn()
++    }
++
++    pub fn ustack_base(&self) -> usize {
++        self.ustack_base
++    }
++    pub fn ustack_top(&self) -> usize {
++        ustack_bottom_from_tid(self.ustack_base, self.tid) + USER_STACK_SIZE
++    }
++}
++
++impl Drop for TaskUserRes {
++    fn drop(&mut self) {
++        self.dealloc_tid();
++        self.dealloc_user_res();
++    }
++}
+diff --git a/task_1/src/lib.rs b/task_1/src/lib.rs
+new file mode 100644
+index 0000000..20e622f
+--- /dev/null
++++ b/task_1/src/lib.rs
+@@ -0,0 +1,143 @@
++// TODO fs lazy_static 
++#![no_std]
++
++
++extern crate alloc;
++
++mod context;
++mod id;
++mod manager;
++mod process;
++#[allow(clippy::module_inception)]
++mod task;
++
++use self::id::TaskUserRes;
++use fs::{open_file, OpenFlags};
++use alloc::{sync::Arc, vec::Vec};
++use lazy_static::*;
++use manager::fetch_task;
++use process::ProcessControlBlock;
++use switch::__switch;
++
++pub use context::TaskContext;
++pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle, IDLE_PID};
++pub use manager::{add_task, pid2process, remove_from_pid2process, wakeup_task};
++
++pub fn suspend_current_and_run_next() {
++    // There must be an application running.
++    let task = take_current_task().unwrap();
++
++    // ---- access current TCB exclusively
++    let mut task_inner = task.inner_exclusive_access();
++    let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
++    // Change status to Ready
++    task_inner.task_status = TaskStatus::Ready;
++    drop(task_inner);
++    // ---- release current TCB
++
++    // push back to ready queue.
++    add_task(task);
++    // jump to scheduling cycle
++    schedule(task_cx_ptr);
++}
++
++/// This function must be followed by a schedule
++pub fn block_current_task() -> *mut TaskContext {
++    let task = take_current_task().unwrap();
++    let mut task_inner = task.inner_exclusive_access();
++    task_inner.task_status = TaskStatus::Blocked;
++    &mut task_inner.task_cx as *mut TaskContext
++}
++
++pub fn block_current_and_run_next() {
++    let task_cx_ptr = block_current_task();
++    schedule(task_cx_ptr);
++}
++use crate::board::QEMUExit;
++
++pub fn exit_current_and_run_next(exit_code: i32) {
++    let task = take_current_task().unwrap();
++    let mut task_inner = task.inner_exclusive_access();
++    let process = task.process.upgrade().unwrap();
++    let tid = task_inner.res.as_ref().unwrap().tid;
++    // record exit code
++    task_inner.exit_code = Some(exit_code);
++    task_inner.res = None;
++    // here we do not remove the thread since we are still using the kstack
++    // it will be deallocated when sys_waittid is called
++    drop(task_inner);
++    drop(task);
++    // however, if this is the main thread of current process
++    // the process should terminate at once
++    if tid == 0 {
++        let pid = process.getpid();
++        if pid == IDLE_PID {
++            println!(
++                "[kernel] Idle process exit with exit_code {} ...",
++                exit_code
++            );
++            if exit_code != 0 {
++                //crate::sbi::shutdown(255); //255 == -1 for err hint
++                crate::board::QEMU_EXIT_HANDLE.exit_failure();
++            } else {
++                //crate::sbi::shutdown(0); //0 for success hint
++                crate::board::QEMU_EXIT_HANDLE.exit_success();
++            }
++        }
++        remove_from_pid2process(pid);
++        let mut process_inner = process.inner_exclusive_access();
++        // mark this process as a zombie process
++        process_inner.is_zombie = true;
++        // record exit code of main process
++        process_inner.exit_code = exit_code;
++
++        {
++            // move all child processes under init process
++            let mut initproc_inner = INITPROC.inner_exclusive_access();
++            for child in process_inner.children.iter() {
++                child.inner_exclusive_access().parent = Some(Arc::downgrade(&INITPROC));
++                initproc_inner.children.push(child.clone());
++            }
++        }
++
++        // deallocate user res (including tid/trap_cx/ustack) of all threads
++        // it has to be done before we dealloc the whole memory_set
++        // otherwise they will be deallocated twice
++        let mut recycle_res = Vec::<TaskUserRes>::new();
++        for task in process_inner.tasks.iter().filter(|t| t.is_some()) {
++            let task = task.as_ref().unwrap();
++            let mut task_inner = task.inner_exclusive_access();
++            if let Some(res) = task_inner.res.take() {
++                recycle_res.push(res);
++            }
++        }
++        // dealloc_tid and dealloc_user_res require access to PCB inner, so we
++        // need to collect those user res first, then release process_inner
++        // for now to avoid deadlock/double borrow problem.
++        drop(process_inner);
++        recycle_res.clear();
++
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.children.clear();
++        // deallocate other data in user space i.e. program code/data section
++        process_inner.memory_set.recycle_data_pages();
++        // drop file descriptors
++        process_inner.fd_table.clear();
++    }
++    drop(process);
++    // we do not have to save task context
++    let mut _unused = TaskContext::zero_init();
++    schedule(&mut _unused as *mut _);
++}
++
++lazy_static! {
++    pub static ref INITPROC: Arc<ProcessControlBlock> = {
++        let inode = open_file("initproc", OpenFlags::RDONLY).unwrap();
++        let v = inode.read_all();
++        ProcessControlBlock::new(v.as_slice())
++    };
++}
++
++pub fn add_initproc() {
++    let _initproc = INITPROC.clone();
++}
+diff --git a/task_1/src/manager.rs b/task_1/src/manager.rs
+new file mode 100644
+index 0000000..b13f8b0
+--- /dev/null
++++ b/task_1/src/manager.rs
+@@ -0,0 +1,63 @@
++// TODO safe_cell lazy_static
++use crate::{ProcessControlBlock, TaskControlBlock, TaskStatus};
++use safe_cell::UPIntrFreeCell;
++use alloc::collections::{BTreeMap, VecDeque};
++use alloc::sync::Arc;
++use lazy_static::*;
++
++pub struct TaskManager {
++    ready_queue: VecDeque<Arc<TaskControlBlock>>,
++}
++
++/// A simple FIFO scheduler.
++impl TaskManager {
++    pub fn new() -> Self {
++        Self {
++            ready_queue: VecDeque::new(),
++        }
++    }
++    pub fn add(&mut self, task: Arc<TaskControlBlock>) {
++        self.ready_queue.push_back(task);
++    }
++    pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
++        self.ready_queue.pop_front()
++    }
++}
++
++lazy_static! {
++    pub static ref TASK_MANAGER: UPIntrFreeCell<TaskManager> =
++        unsafe { UPIntrFreeCell::new(TaskManager::new()) };
++    pub static ref PID2PCB: UPIntrFreeCell<BTreeMap<usize, Arc<ProcessControlBlock>>> =
++        unsafe { UPIntrFreeCell::new(BTreeMap::new()) };
++}
++
++pub fn add_task(task: Arc<TaskControlBlock>) {
++    TASK_MANAGER.exclusive_access().add(task);
++}
++
++pub fn wakeup_task(task: Arc<TaskControlBlock>) {
++    let mut task_inner = task.inner_exclusive_access();
++    task_inner.task_status = TaskStatus::Ready;
++    drop(task_inner);
++    add_task(task);
++}
++
++pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
++    TASK_MANAGER.exclusive_access().fetch()
++}
++
++pub fn pid2process(pid: usize) -> Option<Arc<ProcessControlBlock>> {
++    let map = PID2PCB.exclusive_access();
++    map.get(&pid).map(Arc::clone)
++}
++
++pub fn insert_into_pid2process(pid: usize, process: Arc<ProcessControlBlock>) {
++    PID2PCB.exclusive_access().insert(pid, process);
++}
++
++pub fn remove_from_pid2process(pid: usize) {
++    let mut map = PID2PCB.exclusive_access();
++    if map.remove(&pid).is_none() {
++        panic!("cannot find pid {} in pid2task!", pid);
++    }
++}
+diff --git a/task_1/src/process.rs b/task_1/src/process.rs
+new file mode 100644
+index 0000000..81e4f5b
+--- /dev/null
++++ b/task_1/src/process.rs
+@@ -0,0 +1,260 @@
++// TODO fs mm trap safe_cell sync
++use crate::id::RecycleAllocator;
++use crate::manager::insert_into_pid2process;
++use crate::TaskControlBlock;
++use crate::{add_task, SignalFlags};
++use crate::{pid_alloc, PidHandle};
++use fs::{File, Stdin, Stdout};
++use mm::{translated_refmut, MemorySet, KERNEL_SPACE};
++use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
++use sync::{Condvar, Mutex, Semaphore};
++use trap::{trap_handler, TrapContext};
++use alloc::string::String;
++use alloc::sync::{Arc, Weak};
++use alloc::vec;
++use alloc::vec::Vec;
++
++pub struct ProcessControlBlock {
++    // immutable
++    pub pid: PidHandle,
++    // mutable
++    inner: UPIntrFreeCell<ProcessControlBlockInner>,
++}
++
++pub struct ProcessControlBlockInner {
++    pub is_zombie: bool,
++    pub memory_set: MemorySet,
++    pub parent: Option<Weak<ProcessControlBlock>>,
++    pub children: Vec<Arc<ProcessControlBlock>>,
++    pub exit_code: i32,
++    pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
++    pub signals: SignalFlags,
++    pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
++    pub task_res_allocator: RecycleAllocator,
++    pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
++    pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
++    pub condvar_list: Vec<Option<Arc<Condvar>>>,
++}
++
++impl ProcessControlBlockInner {
++    #[allow(unused)]
++    pub fn get_user_token(&self) -> usize {
++        self.memory_set.token()
++    }
++
++    pub fn alloc_fd(&mut self) -> usize {
++        if let Some(fd) = (0..self.fd_table.len()).find(|fd| self.fd_table[*fd].is_none()) {
++            fd
++        } else {
++            self.fd_table.push(None);
++            self.fd_table.len() - 1
++        }
++    }
++
++    pub fn alloc_tid(&mut self) -> usize {
++        self.task_res_allocator.alloc()
++    }
++
++    pub fn dealloc_tid(&mut self, tid: usize) {
++        self.task_res_allocator.dealloc(tid)
++    }
++
++    pub fn thread_count(&self) -> usize {
++        self.tasks.len()
++    }
++
++    pub fn get_task(&self, tid: usize) -> Arc<TaskControlBlock> {
++        self.tasks[tid].as_ref().unwrap().clone()
++    }
++}
++
++impl ProcessControlBlock {
++    pub fn inner_exclusive_access(&self) -> UPIntrRefMut<'_, ProcessControlBlockInner> {
++        self.inner.exclusive_access()
++    }
++
++    pub fn new(elf_data: &[u8]) -> Arc<Self> {
++        // memory_set with elf program headers/trampoline/trap context/user stack
++        let (memory_set, ustack_base, entry_point) = MemorySet::from_elf(elf_data);
++        // allocate a pid
++        let pid_handle = pid_alloc();
++        let process = Arc::new(Self {
++            pid: pid_handle,
++            inner: unsafe {
++                UPIntrFreeCell::new(ProcessControlBlockInner {
++                    is_zombie: false,
++                    memory_set,
++                    parent: None,
++                    children: Vec::new(),
++                    exit_code: 0,
++                    fd_table: vec![
++                        // 0 -> stdin
++                        Some(Arc::new(Stdin)),
++                        // 1 -> stdout
++                        Some(Arc::new(Stdout)),
++                        // 2 -> stderr
++                        Some(Arc::new(Stdout)),
++                    ],
++                    signals: SignalFlags::empty(),
++                    tasks: Vec::new(),
++                    task_res_allocator: RecycleAllocator::new(),
++                    mutex_list: Vec::new(),
++                    semaphore_list: Vec::new(),
++                    condvar_list: Vec::new(),
++                })
++            },
++        });
++        // create a main thread, we should allocate ustack and trap_cx here
++        let task = Arc::new(TaskControlBlock::new(
++            Arc::clone(&process),
++            ustack_base,
++            true,
++        ));
++        // prepare trap_cx of main thread
++        let task_inner = task.inner_exclusive_access();
++        let trap_cx = task_inner.get_trap_cx();
++        let ustack_top = task_inner.res.as_ref().unwrap().ustack_top();
++        let kstack_top = task.kstack.get_top();
++        drop(task_inner);
++        *trap_cx = TrapContext::app_init_context(
++            entry_point,
++            ustack_top,
++            KERNEL_SPACE.exclusive_access().token(),
++            kstack_top,
++            trap_handler as usize,
++        );
++        // add main thread to the process
++        let mut process_inner = process.inner_exclusive_access();
++        process_inner.tasks.push(Some(Arc::clone(&task)));
++        drop(process_inner);
++        insert_into_pid2process(process.getpid(), Arc::clone(&process));
++        // add main thread to scheduler
++        add_task(task);
++        process
++    }
++
++    /// Only support processes with a single thread.
++    pub fn exec(self: &Arc<Self>, elf_data: &[u8], args: Vec<String>) {
++        assert_eq!(self.inner_exclusive_access().thread_count(), 1);
++        // memory_set with elf program headers/trampoline/trap context/user stack
++        let (memory_set, ustack_base, entry_point) = MemorySet::from_elf(elf_data);
++        let new_token = memory_set.token();
++        // substitute memory_set
++        self.inner_exclusive_access().memory_set = memory_set;
++        // then we alloc user resource for main thread again
++        // since memory_set has been changed
++        let task = self.inner_exclusive_access().get_task(0);
++        let mut task_inner = task.inner_exclusive_access();
++        task_inner.res.as_mut().unwrap().ustack_base = ustack_base;
++        task_inner.res.as_mut().unwrap().alloc_user_res();
++        task_inner.trap_cx_ppn = task_inner.res.as_mut().unwrap().trap_cx_ppn();
++        // push arguments on user stack
++        let mut user_sp = task_inner.res.as_mut().unwrap().ustack_top();
++        user_sp -= (args.len() + 1) * core::mem::size_of::<usize>();
++        let argv_base = user_sp;
++        let mut argv: Vec<_> = (0..=args.len())
++            .map(|arg| {
++                translated_refmut(
++                    new_token,
++                    (argv_base + arg * core::mem::size_of::<usize>()) as *mut usize,
++                )
++            })
++            .collect();
++        *argv[args.len()] = 0;
++        for i in 0..args.len() {
++            user_sp -= args[i].len() + 1;
++            *argv[i] = user_sp;
++            let mut p = user_sp;
++            for c in args[i].as_bytes() {
++                *translated_refmut(new_token, p as *mut u8) = *c;
++                p += 1;
++            }
++            *translated_refmut(new_token, p as *mut u8) = 0;
++        }
++        // make the user_sp aligned to 8B for k210 platform
++        user_sp -= user_sp % core::mem::size_of::<usize>();
++        // initialize trap_cx
++        let mut trap_cx = TrapContext::app_init_context(
++            entry_point,
++            user_sp,
++            KERNEL_SPACE.exclusive_access().token(),
++            task.kstack.get_top(),
++            trap_handler as usize,
++        );
++        trap_cx.x[10] = args.len();
++        trap_cx.x[11] = argv_base;
++        *task_inner.get_trap_cx() = trap_cx;
++    }
++
++    /// Only support processes with a single thread.
++    pub fn fork(self: &Arc<Self>) -> Arc<Self> {
++        let mut parent = self.inner_exclusive_access();
++        assert_eq!(parent.thread_count(), 1);
++        // clone parent's memory_set completely including trampoline/ustacks/trap_cxs
++        let memory_set = MemorySet::from_existed_user(&parent.memory_set);
++        // alloc a pid
++        let pid = pid_alloc();
++        // copy fd table
++        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
++        for fd in parent.fd_table.iter() {
++            if let Some(file) = fd {
++                new_fd_table.push(Some(file.clone()));
++            } else {
++                new_fd_table.push(None);
++            }
++        }
++        // create child process pcb
++        let child = Arc::new(Self {
++            pid,
++            inner: unsafe {
++                UPIntrFreeCell::new(ProcessControlBlockInner {
++                    is_zombie: false,
++                    memory_set,
++                    parent: Some(Arc::downgrade(self)),
++                    children: Vec::new(),
++                    exit_code: 0,
++                    fd_table: new_fd_table,
++                    signals: SignalFlags::empty(),
++                    tasks: Vec::new(),
++                    task_res_allocator: RecycleAllocator::new(),
++                    mutex_list: Vec::new(),
++                    semaphore_list: Vec::new(),
++                    condvar_list: Vec::new(),
++                })
++            },
++        });
++        // add child
++        parent.children.push(Arc::clone(&child));
++        // create main thread of child process
++        let task = Arc::new(TaskControlBlock::new(
++            Arc::clone(&child),
++            parent
++                .get_task(0)
++                .inner_exclusive_access()
++                .res
++                .as_ref()
++                .unwrap()
++                .ustack_base(),
++            // here we do not allocate trap_cx or ustack again
++            // but mention that we allocate a new kstack here
++            false,
++        ));
++        // attach task to child process
++        let mut child_inner = child.inner_exclusive_access();
++        child_inner.tasks.push(Some(Arc::clone(&task)));
++        drop(child_inner);
++        // modify kstack_top in trap_cx of this thread
++        let task_inner = task.inner_exclusive_access();
++        let trap_cx = task_inner.get_trap_cx();
++        trap_cx.kernel_sp = task.kstack.get_top();
++        drop(task_inner);
++        insert_into_pid2process(child.getpid(), Arc::clone(&child));
++        // add this thread to scheduler
++        add_task(task);
++        child
++    }
++
++    pub fn getpid(&self) -> usize {
++        self.pid.0
++    }
++}
+diff --git a/task_1/src/task.rs b/task_1/src/task.rs
+new file mode 100644
+index 0000000..4bc3fc3
+--- /dev/null
++++ b/task_1/src/task.rs
+@@ -0,0 +1,80 @@
++// TODO trap mm safe_cell
++use crate::id::TaskUserRes;
++use crate::{kstack_alloc, KernelStack, ProcessControlBlock, TaskContext};
++use trap::TrapContext;
++use mm::PhysPageNum;
++use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
++
++use alloc::sync::{Arc, Weak};
++
++pub struct TaskControlBlock {
++    // immutable
++    pub process: Weak<ProcessControlBlock>,
++    pub kstack: KernelStack,
++    // mutable
++    pub inner: UPIntrFreeCell<TaskControlBlockInner>,
++}
++
++impl TaskControlBlock {
++    pub fn inner_exclusive_access(&self) -> UPIntrRefMut<'_, TaskControlBlockInner> {
++        self.inner.exclusive_access()
++    }
++
++    pub fn get_user_token(&self) -> usize {
++        let process = self.process.upgrade().unwrap();
++        let inner = process.inner_exclusive_access();
++        inner.memory_set.token()
++    }
++}
++
++pub struct TaskControlBlockInner {
++    pub res: Option<TaskUserRes>,
++    pub trap_cx_ppn: PhysPageNum,
++    pub task_cx: TaskContext,
++    pub task_status: TaskStatus,
++    pub exit_code: Option<i32>,
++}
++
++impl TaskControlBlockInner {
++    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
++        self.trap_cx_ppn.get_mut()
++    }
++
++    #[allow(unused)]
++    fn get_status(&self) -> TaskStatus {
++        self.task_status
++    }
++}
++
++impl TaskControlBlock {
++    pub fn new(
++        process: Arc<ProcessControlBlock>,
++        ustack_base: usize,
++        alloc_user_res: bool,
++    ) -> Self {
++        let res = TaskUserRes::new(Arc::clone(&process), ustack_base, alloc_user_res);
++        let trap_cx_ppn = res.trap_cx_ppn();
++        let kstack = kstack_alloc();
++        let kstack_top = kstack.get_top();
++        Self {
++            process: Arc::downgrade(&process),
++            kstack,
++            inner: unsafe {
++                UPIntrFreeCell::new(TaskControlBlockInner {
++                    res: Some(res),
++                    trap_cx_ppn,
++                    task_cx: TaskContext::goto_trap_return(kstack_top),
++                    task_status: TaskStatus::Ready,
++                    exit_code: None,
++                })
++            },
++        }
++    }
++}
++
++#[derive(Copy, Clone, PartialEq)]
++pub enum TaskStatus {
++    Ready,
++    Running,
++    Blocked,
++}
+diff --git a/timer/Cargo.toml b/timer/Cargo.toml
+new file mode 100644
+index 0000000..091703c
+--- /dev/null
++++ b/timer/Cargo.toml
+@@ -0,0 +1,12 @@
++[package]
++name = "timer"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++config = { path = "../tconfig", package = "tconfig" }
++sbi = {path = "../sbi", package = "sbi" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
++task = { path = "../task", package = "task" }
+\ No newline at end of file
+diff --git a/timer/src/lib.rs b/timer/src/lib.rs
+new file mode 100644
+index 0000000..d477bb6
+--- /dev/null
++++ b/timer/src/lib.rs
+@@ -0,0 +1,75 @@
++#![no_std]
++use core::cmp::Ordering;
++
++use config::CLOCK_FREQ;
++use sbi::set_timer;
++use safe_cell::UPIntrFreeCell;
++use task::{wakeup_task, TaskControlBlock};
++use alloc::collections::BinaryHeap;
++use alloc::sync::Arc;
++use lazy_static::*;
++use riscv::register::time;
++
++const TICKS_PER_SEC: usize = 100;
++const MSEC_PER_SEC: usize = 1000;
++
++pub fn get_time() -> usize {
++    time::read()
++}
++
++pub fn get_time_ms() -> usize {
++    time::read() / (CLOCK_FREQ / MSEC_PER_SEC)
++}
++
++pub fn set_next_trigger() {
++    set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
++}
++
++pub struct TimerCondVar {
++    pub expire_ms: usize,
++    pub task: Arc<TaskControlBlock>,
++}
++
++impl PartialEq for TimerCondVar {
++    fn eq(&self, other: &Self) -> bool {
++        self.expire_ms == other.expire_ms
++    }
++}
++impl Eq for TimerCondVar {}
++impl PartialOrd for TimerCondVar {
++    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
++        let a = -(self.expire_ms as isize);
++        let b = -(other.expire_ms as isize);
++        Some(a.cmp(&b))
++    }
++}
++
++impl Ord for TimerCondVar {
++    fn cmp(&self, other: &Self) -> Ordering {
++        self.partial_cmp(other).unwrap()
++    }
++}
++
++lazy_static! {
++    static ref TIMERS: UPIntrFreeCell<BinaryHeap<TimerCondVar>> =
++        unsafe { UPIntrFreeCell::new(BinaryHeap::<TimerCondVar>::new()) };
++}
++
++pub fn add_timer(expire_ms: usize, task: Arc<TaskControlBlock>) {
++    let mut timers = TIMERS.exclusive_access();
++    timers.push(TimerCondVar { expire_ms, task });
++}
++
++pub fn check_timer() {
++    let current_ms = get_time_ms();
++    TIMERS.exclusive_session(|timers| {
++        while let Some(timer) = timers.peek() {
++            if timer.expire_ms <= current_ms {
++                wakeup_task(Arc::clone(&timer.task));
++                timers.pop();
++            } else {
++                break;
++            }
++        }
++    });
++}
+diff --git a/trap/Cargo.toml b/trap/Cargo.toml
+new file mode 100644
+index 0000000..8558ee6
+--- /dev/null
++++ b/trap/Cargo.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "trap"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++config  = { path = "../tconfig", package = "tconfig" }
++task  = { path = "../task_1", package = "task_1" }
++timer  = { path = "../timer", package = "timer" }
++syscall  = { path = "../syscall", package = "syscall" }
++
++[dependencies.riscv]
++git = "https://github.com/Andre-HJR/riscv.git"
++rev = "031d548a"
+\ No newline at end of file
+diff --git a/trap/src/lib.rs b/trap/src/lib.rs
+new file mode 100644
+index 0000000..393540d
+--- /dev/null
++++ b/trap/src/lib.rs
+@@ -0,0 +1,171 @@
++#![no_std]
++// TODO config syscall task timer
++mod trap_context;
++
++use config::TRAMPOLINE;
++use syscall::syscall;
++use task::{
++    check_signals_of_current, current_add_signal, current_trap_cx, current_trap_cx_user_va,
++    current_user_token, exit_current_and_run_next, suspend_current_and_run_next, SignalFlags,
++};
++use timer::{check_timer, set_next_trigger};
++use core::arch::{asm, global_asm};
++use riscv::register::{
++    mtvec::TrapMode,
++    scause::{self, Exception, Interrupt, Trap},
++    sie, sscratch, sstatus, stval, stvec,
++};
++
++global_asm!(include_str!("trap.S"));
++
++pub fn init() {
++    set_kernel_trap_entry();
++}
++
++fn set_kernel_trap_entry() {
++    extern "C" {
++        fn __alltraps();
++        fn __alltraps_k();
++    }
++    let __alltraps_k_va = __alltraps_k as usize - __alltraps as usize + TRAMPOLINE;
++    unsafe {
++        stvec::write(__alltraps_k_va, TrapMode::Direct);
++        sscratch::write(trap_from_kernel as usize);
++    }
++}
++
++fn set_user_trap_entry() {
++    unsafe {
++        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
++    }
++}
++
++pub fn enable_timer_interrupt() {
++    unsafe {
++        sie::set_stimer();
++    }
++}
++
++fn enable_supervisor_interrupt() {
++    unsafe {
++        sstatus::set_sie();
++    }
++}
++
++fn disable_supervisor_interrupt() {
++    unsafe {
++        sstatus::clear_sie();
++    }
++}
++
++#[no_mangle]
++pub fn trap_handler() -> ! {
++    set_kernel_trap_entry();
++    let scause = scause::read();
++    let stval = stval::read();
++    // println!("into {:?}", scause.cause());
++    match scause.cause() {
++        Trap::Exception(Exception::UserEnvCall) => {
++            // jump to next instruction anyway
++            let mut cx = current_trap_cx();
++            cx.sepc += 4;
++
++            enable_supervisor_interrupt();
++
++            // get system call return value
++            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
++            // cx is changed during sys_exec, so we have to call it again
++            cx = current_trap_cx();
++            cx.x[10] = result as usize;
++        }
++        Trap::Exception(Exception::StoreFault)
++        | Trap::Exception(Exception::StorePageFault)
++        | Trap::Exception(Exception::InstructionFault)
++        | Trap::Exception(Exception::InstructionPageFault)
++        | Trap::Exception(Exception::LoadFault)
++        | Trap::Exception(Exception::LoadPageFault) => {
++            /*
++            println!(
++                "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
++                scause.cause(),
++                stval,
++                current_trap_cx().sepc,
++            );
++            */
++            current_add_signal(SignalFlags::SIGSEGV);
++        }
++        Trap::Exception(Exception::IllegalInstruction) => {
++            current_add_signal(SignalFlags::SIGILL);
++        }
++        Trap::Interrupt(Interrupt::SupervisorTimer) => {
++            set_next_trigger();
++            check_timer();
++            suspend_current_and_run_next();
++        }
++        Trap::Interrupt(Interrupt::SupervisorExternal) => {
++            crate::board::irq_handler();
++        }
++        _ => {
++            panic!(
++                "Unsupported trap {:?}, stval = {:#x}!",
++                scause.cause(),
++                stval
++            );
++        }
++    }
++    // check signals
++    if let Some((errno, msg)) = check_signals_of_current() {
++        println!("[kernel] {}", msg);
++        exit_current_and_run_next(errno);
++    }
++    trap_return();
++}
++
++#[no_mangle]
++pub fn trap_return() -> ! {
++    disable_supervisor_interrupt();
++    set_user_trap_entry();
++    let trap_cx_user_va = current_trap_cx_user_va();
++    let user_satp = current_user_token();
++    extern "C" {
++        fn __alltraps();
++        fn __restore();
++    }
++    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
++    //println!("before return");
++    unsafe {
++        asm!(
++            "fence.i",
++            "jr {restore_va}",
++            restore_va = in(reg) restore_va,
++            in("a0") trap_cx_user_va,
++            in("a1") user_satp,
++            options(noreturn)
++        );
++    }
++}
++
++#[no_mangle]
++pub fn trap_from_kernel(_trap_cx: &TrapContext) {
++    let scause = scause::read();
++    let stval = stval::read();
++    match scause.cause() {
++        Trap::Interrupt(Interrupt::SupervisorExternal) => {
++            crate::board::irq_handler();
++        }
++        Trap::Interrupt(Interrupt::SupervisorTimer) => {
++            set_next_trigger();
++            check_timer();
++            // do not schedule now
++        }
++        _ => {
++            panic!(
++                "Unsupported trap from kernel: {:?}, stval = {:#x}!",
++                scause.cause(),
++                stval
++            );
++        }
++    }
++}
++
++pub use trap_context::TrapContext;
+\ No newline at end of file
+diff --git a/trap/src/trap.S b/trap/src/trap.S
+new file mode 100644
+index 0000000..940cd89
+--- /dev/null
++++ b/trap/src/trap.S
+@@ -0,0 +1,104 @@
++.altmacro
++.macro SAVE_GP n
++    sd x\n, \n*8(sp)
++.endm
++.macro LOAD_GP n
++    ld x\n, \n*8(sp)
++.endm
++    .section .text.trampoline
++    .globl __alltraps
++    .globl __restore
++    .globl __alltraps_k
++    .globl __restore_k
++    .align 2
++__alltraps:
++    csrrw sp, sscratch, sp
++    # now sp->*TrapContext in user space, sscratch->user stack
++    # save other general purpose registers
++    sd x1, 1*8(sp)
++    # skip sp(x2), we will save it later
++    sd x3, 3*8(sp)
++    # skip tp(x4), application does not use it
++    # save x5~x31
++    .set n, 5
++    .rept 27
++        SAVE_GP %n
++        .set n, n+1
++    .endr
++    # we can use t0/t1/t2 freely, because they have been saved in TrapContext
++    csrr t0, sstatus
++    csrr t1, sepc
++    sd t0, 32*8(sp)
++    sd t1, 33*8(sp)
++    # read user stack from sscratch and save it in TrapContext
++    csrr t2, sscratch
++    sd t2, 2*8(sp)
++    # load kernel_satp into t0
++    ld t0, 34*8(sp)
++    # load trap_handler into t1
++    ld t1, 36*8(sp)
++    # move to kernel_sp
++    ld sp, 35*8(sp)
++    # switch to kernel space
++    csrw satp, t0
++    sfence.vma
++    # jump to trap_handler
++    jr t1
++
++__restore:
++    # a0: *TrapContext in user space(Constant); a1: user space token
++    # switch to user space
++    csrw satp, a1
++    sfence.vma
++    csrw sscratch, a0
++    mv sp, a0
++    # now sp points to TrapContext in user space, start restoring based on it
++    # restore sstatus/sepc
++    ld t0, 32*8(sp)
++    ld t1, 33*8(sp)
++    csrw sstatus, t0
++    csrw sepc, t1
++    # restore general purpose registers except x0/sp/tp
++    ld x1, 1*8(sp)
++    ld x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        LOAD_GP %n
++        .set n, n+1
++    .endr
++    # back to user stack
++    ld sp, 2*8(sp)
++    sret
++
++    .align 2
++__alltraps_k:
++    addi sp, sp, -34*8 
++    sd x1, 1*8(sp)
++    sd x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        SAVE_GP %n
++        .set n, n+1
++    .endr
++    csrr t0, sstatus
++    csrr t1, sepc
++    sd t0, 32*8(sp)
++    sd t1, 33*8(sp)
++    mv a0, sp
++    csrr t2, sscratch
++    jalr t2
++
++__restore_k:
++    ld t0, 32*8(sp)
++    ld t1, 33*8(sp)
++    csrw sstatus, t0
++    csrw sepc, t1
++    ld x1, 1*8(sp)
++    ld x3, 3*8(sp)
++    .set n, 5
++    .rept 27
++        LOAD_GP %n
++        .set n, n+1
++    .endr
++    addi sp, sp, 34*8
++    sret
+diff --git a/trap/src/trap_context.rs b/trap/src/trap_context.rs
+new file mode 100644
+index 0000000..c4823e2
+--- /dev/null
++++ b/trap/src/trap_context.rs
+@@ -0,0 +1,42 @@
++use riscv::register::sstatus::{self, Sstatus, SPP};
++
++#[repr(C)]
++#[derive(Debug)]
++pub struct TrapContext {
++    pub x: [usize; 32],
++    pub sstatus: Sstatus,
++    pub sepc: usize,
++    pub kernel_satp: usize,
++    pub kernel_sp: usize,
++    pub trap_handler: usize,
++}
++
++impl TrapContext {
++    pub fn set_sp(&mut self, sp: usize) {
++        self.x[2] = sp;
++    }
++    pub fn app_init_context(
++        entry: usize,
++        sp: usize,
++        kernel_satp: usize,
++        kernel_sp: usize,
++        trap_handler: usize,
++    ) -> Self {
++        let mut sstatus = sstatus::read();
++        // set CPU privilege to User after trapping back
++        sstatus.set_spp(SPP::User);
++        // unsafe {
++        //     riscv::register::sstatus::set_spp(SPP::User);
++        // }
++        let mut cx = Self {
++            x: [0; 32],
++            sstatus,
++            sepc: entry,
++            kernel_satp,
++            kernel_sp,
++            trap_handler,
++        };
++        cx.set_sp(sp);
++        cx
++    }
++}
+-- 
+2.34.1
+

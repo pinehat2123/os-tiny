@@ -1,0 +1,36 @@
+From e2f8fd27d6dd2735264894064eb7b822f958def5 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 08:38:17 -0500
+Subject: [PATCH 41/80] clean kernel
+
+---
+ kernel/src/boot.rs | 2 +-
+ kernel/src/lib.rs  | 1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/src/boot.rs b/kernel/src/boot.rs
+index d9b6069..05e21fc 100644
+--- a/kernel/src/boot.rs
++++ b/kernel/src/boot.rs
+@@ -19,4 +19,4 @@ macro_rules! boot0 {
+     };
+ }
+ 
+-boot0!(rcore_main; stack = 16 * 4096);
+\ No newline at end of file
++boot0!(rcore_main; stack = 16 * 4096);
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 6f8438e..82c033f 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -59,7 +59,6 @@ fn clear_bss() {
+ 
+ use config::DEV_NON_BLOCKING_ACCESS;
+ 
+-
+ // 内核的入口
+ #[no_mangle]
+ extern "C" fn rcore_main() -> ! {
+-- 
+2.34.1
+

@@ -1,0 +1,44 @@
+From 9805b3212fb81637537fd7c5266e6c3eb5f22e32 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sun, 12 Feb 2023 13:38:16 -0500
+Subject: [PATCH 23/80] ref fix
+
+---
+ sync/src/condvar.rs   | 2 +-
+ sync/src/mutex.rs     | 2 +-
+ sync/src/semaphore.rs | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sync/src/condvar.rs b/sync/src/condvar.rs
+index 610fa54..41390c5 100644
+--- a/sync/src/condvar.rs
++++ b/sync/src/condvar.rs
+@@ -1,4 +1,4 @@
+-use crate::{Mutex, UPIntrFreeCell};
++use safe_cell::{Mutex, UPIntrFreeCell};
+ use task::{
+     block_current_and_run_next, block_current_task, current_task, wakeup_task, TaskContext,
+     TaskControlBlock,
+diff --git a/sync/src/mutex.rs b/sync/src/mutex.rs
+index ba9f1ad..cd3e212 100644
+--- a/sync/src/mutex.rs
++++ b/sync/src/mutex.rs
+@@ -1,4 +1,4 @@
+-use crate::UPIntrFreeCell;
++use safe_cell::UPIntrFreeCell;
+ use task::TaskControlBlock;
+ use task::{block_current_and_run_next, suspend_current_and_run_next};
+ use task::{current_task, wakeup_task};
+diff --git a/sync/src/semaphore.rs b/sync/src/semaphore.rs
+index 655028a..d3f9562 100644
+--- a/sync/src/semaphore.rs
++++ b/sync/src/semaphore.rs
+@@ -1,4 +1,4 @@
+-use crate::UPIntrFreeCell;
++use safe_cell::UPIntrFreeCell;
+ use task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock};
+ use alloc::{collections::VecDeque, sync::Arc};
+ 
+-- 
+2.34.1
+

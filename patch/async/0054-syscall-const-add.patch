@@ -1,0 +1,62 @@
+From 310f2204c2e0f4aa4ae11105e7baa3e9631b9b2a Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 01:40:23 -0500
+Subject: [PATCH 54/80] syscall const add
+
+---
+ kernel/Cargo.toml         |  1 +
+ kernel/src/syscall/mod.rs | 29 +----------------------------
+ 2 files changed, 2 insertions(+), 28 deletions(-)
+
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 373efaa..0de6b80 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -18,6 +18,7 @@ tinybmp = "0.3.1"
+ config = { path = "../tconfig", package = "tconfig" }
+ mm = { path = "../memory", package = "memory" }
+ safe_cell = { path = "../safe_cell", package = "safe_cell" }
++syscall_macro = { path = "../syscall", package = "syscall" }
+ 
+ [dependencies.riscv]
+ git = "https://github.com/Andre-HJR/riscv.git"
+diff --git a/kernel/src/syscall/mod.rs b/kernel/src/syscall/mod.rs
+index 7d66131..4e1b22e 100644
+--- a/kernel/src/syscall/mod.rs
++++ b/kernel/src/syscall/mod.rs
+@@ -1,31 +1,4 @@
+-const SYSCALL_DUP: usize = 24;
+-const SYSCALL_OPEN: usize = 56;
+-const SYSCALL_CLOSE: usize = 57;
+-const SYSCALL_PIPE: usize = 59;
+-const SYSCALL_READ: usize = 63;
+-const SYSCALL_WRITE: usize = 64;
+-const SYSCALL_EXIT: usize = 93;
+-const SYSCALL_SLEEP: usize = 101;
+-const SYSCALL_YIELD: usize = 124;
+-const SYSCALL_KILL: usize = 129;
+-const SYSCALL_GET_TIME: usize = 169;
+-const SYSCALL_GETPID: usize = 172;
+-const SYSCALL_FORK: usize = 220;
+-const SYSCALL_EXEC: usize = 221;
+-const SYSCALL_WAITPID: usize = 260;
+-const SYSCALL_THREAD_CREATE: usize = 1000;
+-const SYSCALL_GETTID: usize = 1001;
+-const SYSCALL_WAITTID: usize = 1002;
+-const SYSCALL_MUTEX_CREATE: usize = 1010;
+-const SYSCALL_MUTEX_LOCK: usize = 1011;
+-const SYSCALL_MUTEX_UNLOCK: usize = 1012;
+-const SYSCALL_SEMAPHORE_CREATE: usize = 1020;
+-const SYSCALL_SEMAPHORE_UP: usize = 1021;
+-const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
+-const SYSCALL_CONDVAR_CREATE: usize = 1030;
+-const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
+-const SYSCALL_CONDVAR_WAIT: usize = 1032;
+-const SYSCALL_CREATE_DESKTOP: usize = 2000;
++use syscall_macro::syscall_number::kernel::*;
+ mod fs;
+ mod process;
+ mod sync;
+-- 
+2.34.1
+

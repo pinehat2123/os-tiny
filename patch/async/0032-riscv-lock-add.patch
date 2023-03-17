@@ -1,0 +1,89 @@
+From 11ee05e4d1a8522112d3155a67752ac4651926e6 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 03:43:30 -0500
+Subject: [PATCH 32/80] riscv lock add
+
+---
+ safe_cell/Cargo.toml |  1 +
+ safe_cell/src/lib.rs | 53 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 54 insertions(+)
+
+diff --git a/safe_cell/Cargo.toml b/safe_cell/Cargo.toml
+index aa72b39..ee9be69 100644
+--- a/safe_cell/Cargo.toml
++++ b/safe_cell/Cargo.toml
+@@ -6,5 +6,6 @@ edition = "2021"
+ # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+ 
+ [dependencies]
++spin = "0.7.0"
+ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+ riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a"}
+\ No newline at end of file
+diff --git a/safe_cell/src/lib.rs b/safe_cell/src/lib.rs
+index 0f2c97d..9f7d78b 100644
+--- a/safe_cell/src/lib.rs
++++ b/safe_cell/src/lib.rs
+@@ -4,6 +4,59 @@ use core::ops::{Deref, DerefMut};
+ use lazy_static::*;
+ use riscv::register::sstatus;
+ 
++pub use rv_lock::{Lock, LockGuard};
++pub mod rv_lock {
++    use core::{
++        arch::asm,
++        ops::{Deref, DerefMut},
++    };
++    use spin::{Mutex, MutexGuard};
++
++    #[derive(Default)]
++    pub struct Lock<T>(pub(self) Mutex<T>);
++
++    pub struct LockGuard<'a, T> {
++        guard: Option<MutexGuard<'a, T>>,
++        sstatus: usize,
++    }
++
++    impl<T> Lock<T> {
++        pub const fn new(obj: T) -> Self {
++            Self(Mutex::new(obj))
++        }
++
++        pub fn lock(&self) -> LockGuard<'_, T> {
++            let sstatus: usize = 0usize;
++            unsafe {
++                asm!("csrrci {0}, sstatus, 1 << 1", in(reg) (sstatus));
++            }
++            LockGuard {
++                guard: Some(self.0.lock()),
++                sstatus,
++            }
++        }
++    }
++
++    impl<'a, T> Drop for LockGuard<'a, T> {
++        fn drop(&mut self) {
++            self.guard.take();
++            unsafe { asm!("csrs sstatus, {0}", lateout(reg) self.sstatus) };
++        }
++    }
++
++    impl<'a, T> Deref for LockGuard<'a, T> {
++        type Target = T;
++        fn deref(&self) -> &Self::Target {
++            self.guard.as_ref().unwrap().deref()
++        }
++    }
++
++    impl<'a, T> DerefMut for LockGuard<'a, T> {
++        fn deref_mut(&mut self) -> &mut Self::Target {
++            self.guard.as_mut().unwrap().deref_mut()
++        }
++    }
++}
+ /*
+ /// Wrap a static data structure inside it so that we are
+ /// able to access it without any `unsafe`.
+-- 
+2.34.1
+

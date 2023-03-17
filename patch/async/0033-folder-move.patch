@@ -1,0 +1,65 @@
+From 87014651f1b9b9b41ee772886395eb154533880b Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 03:44:32 -0500
+Subject: [PATCH 33/80] folder move!
+
+---
+ {application/ring_scheduler => ring_scheduler}/Cargo.toml         | 0
+ .../ring_scheduler => ring_scheduler}/src/algorithm/mod.rs        | 0
+ .../ring_scheduler => ring_scheduler}/src/algorithm/ring_fifo.rs  | 0
+ {application/ring_scheduler => ring_scheduler}/src/console.rs     | 0
+ {application/ring_scheduler => ring_scheduler}/src/lib.rs         | 0
+ {application/ring_scheduler => ring_scheduler}/src/linker.ld      | 0
+ {application/ring_scheduler => ring_scheduler}/src/mm.rs          | 0
+ {application/ring_scheduler => ring_scheduler}/src/syscall.rs     | 0
+ {application/ring_scheduler => ring_scheduler}/src/task.rs        | 0
+ 9 files changed, 0 insertions(+), 0 deletions(-)
+ rename {application/ring_scheduler => ring_scheduler}/Cargo.toml (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/algorithm/mod.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/algorithm/ring_fifo.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/console.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/lib.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/linker.ld (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/mm.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/syscall.rs (100%)
+ rename {application/ring_scheduler => ring_scheduler}/src/task.rs (100%)
+
+diff --git a/application/ring_scheduler/Cargo.toml b/ring_scheduler/Cargo.toml
+similarity index 100%
+rename from application/ring_scheduler/Cargo.toml
+rename to ring_scheduler/Cargo.toml
+diff --git a/application/ring_scheduler/src/algorithm/mod.rs b/ring_scheduler/src/algorithm/mod.rs
+similarity index 100%
+rename from application/ring_scheduler/src/algorithm/mod.rs
+rename to ring_scheduler/src/algorithm/mod.rs
+diff --git a/application/ring_scheduler/src/algorithm/ring_fifo.rs b/ring_scheduler/src/algorithm/ring_fifo.rs
+similarity index 100%
+rename from application/ring_scheduler/src/algorithm/ring_fifo.rs
+rename to ring_scheduler/src/algorithm/ring_fifo.rs
+diff --git a/application/ring_scheduler/src/console.rs b/ring_scheduler/src/console.rs
+similarity index 100%
+rename from application/ring_scheduler/src/console.rs
+rename to ring_scheduler/src/console.rs
+diff --git a/application/ring_scheduler/src/lib.rs b/ring_scheduler/src/lib.rs
+similarity index 100%
+rename from application/ring_scheduler/src/lib.rs
+rename to ring_scheduler/src/lib.rs
+diff --git a/application/ring_scheduler/src/linker.ld b/ring_scheduler/src/linker.ld
+similarity index 100%
+rename from application/ring_scheduler/src/linker.ld
+rename to ring_scheduler/src/linker.ld
+diff --git a/application/ring_scheduler/src/mm.rs b/ring_scheduler/src/mm.rs
+similarity index 100%
+rename from application/ring_scheduler/src/mm.rs
+rename to ring_scheduler/src/mm.rs
+diff --git a/application/ring_scheduler/src/syscall.rs b/ring_scheduler/src/syscall.rs
+similarity index 100%
+rename from application/ring_scheduler/src/syscall.rs
+rename to ring_scheduler/src/syscall.rs
+diff --git a/application/ring_scheduler/src/task.rs b/ring_scheduler/src/task.rs
+similarity index 100%
+rename from application/ring_scheduler/src/task.rs
+rename to ring_scheduler/src/task.rs
+-- 
+2.34.1
+

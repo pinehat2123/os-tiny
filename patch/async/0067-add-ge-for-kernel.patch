@@ -1,0 +1,24 @@
+From b741866fac1066cbc866ec8f9aec9d4fef0be817 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 00:38:10 -0500
+Subject: [PATCH 67/80] add `ge` for `kernel`
+
+---
+ kernel/Cargo.toml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 0de6b80..57ccfde 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -19,6 +19,7 @@ config = { path = "../tconfig", package = "tconfig" }
+ mm = { path = "../memory", package = "memory" }
+ safe_cell = { path = "../safe_cell", package = "safe_cell" }
+ syscall_macro = { path = "../syscall", package = "syscall" }
++ge = { path = "../utils/ge", package = "ge" }
+ 
+ [dependencies.riscv]
+ git = "https://github.com/Andre-HJR/riscv.git"
+-- 
+2.34.1
+

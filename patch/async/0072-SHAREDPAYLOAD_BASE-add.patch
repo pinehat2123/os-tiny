@@ -1,0 +1,25 @@
+From 3360482d78bb23a174a38494302a462c654c49d6 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 03:21:19 -0500
+Subject: [PATCH 72/80] SHAREDPAYLOAD_BASE add
+
+---
+ tconfig/src/lib.rs | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tconfig/src/lib.rs b/tconfig/src/lib.rs
+index 29f645e..226072c 100644
+--- a/tconfig/src/lib.rs
++++ b/tconfig/src/lib.rs
+@@ -18,6 +18,8 @@ pub const BLOCK_SIZE: usize = 512;
+ 
+ pub const CLOCK_FREQ: usize = 12500000;
+ 
++pub const SHAREDPAYLOAD_BASE: usize = 0x8600_0000;
++
+ pub const MMIO: &[(usize, usize)] = &[
+     (0x0010_0000, 0x00_2000), // VIRT_TEST/RTC  in virt machine
+     (0x2000000, 0x10000),
+-- 
+2.34.1
+

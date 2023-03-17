@@ -1,0 +1,42 @@
+From 813a82c4d94966a5ac586c8c3e39009837eee56b Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 17 Feb 2023 11:13:03 -0500
+Subject: [PATCH 26/80] try use DEV_NON_BLOCKING_ACCESS from tconfig. It's
+ work!
+
+---
+ kernel/src/lib.rs | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 058489a..3dda040 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -59,10 +59,12 @@ fn clear_bss() {
+     }
+ }
+ 
+-lazy_static! {
+-    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+-        unsafe { UPIntrFreeCell::new(false) };
+-}
++// lazy_static! {
++//     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
++//         unsafe { UPIntrFreeCell::new(false) };
++// }
++
++use config::DEV_NON_BLOCKING_ACCESS;
+ /// 非常简单的 Supervisor 裸机程序。
+ ///
+ /// 打印 `Hello, World!`，然后关机。
+@@ -81,7 +83,6 @@ extern "C" fn rcore_main() -> ! {
+     trap::init();
+     trap::enable_timer_interrupt();
+     timer::set_next_trigger();
+-    info!("KERN: init device");
+     board::device_init();
+     fs::list_apps();
+     task::add_initproc();
+-- 
+2.34.1
+

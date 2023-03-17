@@ -1,0 +1,144 @@
+From f84c855b3d11f7ea776120dc6b8fe65e8798e933 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 11:46:16 -0500
+Subject: [PATCH 05/80] differentiate mk and kernel config
+
+---
+ mkConfig/config.mk            | 16 +++++++++++
+ mkConfig/lib_kernel_config.mk | 10 +++++++
+ mkConfig/mkEnv.mk             | 19 ++++++++++++
+ mkConfig/run.mk               | 54 +++++++++++++++++++++++++++++++++++
+ 4 files changed, 99 insertions(+)
+ create mode 100644 mkConfig/config.mk
+ create mode 100644 mkConfig/lib_kernel_config.mk
+ create mode 100644 mkConfig/mkEnv.mk
+ create mode 100644 mkConfig/run.mk
+
+diff --git a/mkConfig/config.mk b/mkConfig/config.mk
+new file mode 100644
+index 0000000..3c203c5
+--- /dev/null
++++ b/mkConfig/config.mk
+@@ -0,0 +1,16 @@
++# Basic directory/firl path definitions used throughout the Makefiel
++
++OS_ARCH                   ?= riscv64gc
++TARGET                    ?= $(OS_ARCH)-unknown-none-elf
++BUILD_MODE                ?= release
++
++ROOT_DIR                  := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
++
++BOOTLOADER                := rustsbi-qemu.bin
++
++BUILD_DIR                 :=  $(ROOT_DIR)/target
++KERNEL_BUILD_DIR          :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
++
++BUILD_TARGET              := $(ROOT_DIR)/build
++
++include mkConfig/lib_kernel_config.mk
+\ No newline at end of file
+diff --git a/mkConfig/lib_kernel_config.mk b/mkConfig/lib_kernel_config.mk
+new file mode 100644
+index 0000000..34c8879
+--- /dev/null
++++ b/mkConfig/lib_kernel_config.mk
+@@ -0,0 +1,10 @@
++BUILD_TARGET_KERNEL       := $(BUILD_TARGET)/kernel
++kernel_static_lib         := $(BUILD_TARGET_KERNEL)/libkernel.a
++kernel_binary             := $(BUILD_TARGET_KERNEL)/kernel.bin
++
++BUILD_TARGET_ASM          := $(BUILD_TARGET)/asm
++# kernel_asm                := kernel/src/plantform/arch/riscv64gc/asm/entry.S
++# compiled_kernel_asm       := $(BUILD_TARGET_ASM)/entry.o
++
++linker_script             := kernel/src/plantform/arch/riscv64gc/link/linker.ld
++BUILD_TARGET_ABI          := riscv64gc-unknown-none-elf
+\ No newline at end of file
+diff --git a/mkConfig/mkEnv.mk b/mkConfig/mkEnv.mk
+new file mode 100644
+index 0000000..c173193
+--- /dev/null
++++ b/mkConfig/mkEnv.mk
+@@ -0,0 +1,19 @@
++TOOLS_DIR     := ./tools
++RISCV_DIR     := ${TOOLS_DIR}/riscv
++RISCV_BIN_DIR := ${RISCV_DIR}/bin
++
++AUTHOR := [my]
++
++MAKE        ?= make
++MKDIR       ?= mkdir
++CP          ?= cp
++CARGO       ?= cargo 
++BASH        ?= /bin/bash
++PERL        ?= perl
++CROSS       ?=  riscv64-unknown-linux-gnu-
++CROSS_AS    ?= ${RISCV_BIN_DIR}/${CROSS}as
++CROSS_LD    ?= ${RISCV_BIN_DIR}/${CROSS}ld
++CROSS_GDB   ?= ${RISCV_BIN_DIR}/${CROSS}gdb
++PRINT       ?= /bin/echo -e "\e[37m\e[4mPRINT\e[0m "
++INFO        ?= /bin/echo -e "\e[34mNOTE\e[0m "
++NEWLINE     ?= /bin/echo -e "\n"
+diff --git a/mkConfig/run.mk b/mkConfig/run.mk
+new file mode 100644
+index 0000000..a132298
+--- /dev/null
++++ b/mkConfig/run.mk
+@@ -0,0 +1,54 @@
++include mkConfig/config.mk
++.PHONY: kernel run run-inner $(kernel_binary)
++kernel: 
++	@${INFO} "DEAL WITH Kernel"
++	@${INFO} "Build/Kernel"
++	@${MKDIR} -p build/kernel
++	@${CARGO} build -p kernel --${BUILD_MODE} --target  $(BUILD_TARGET_ABI)
++	@${INFO} "move to Build/Kernel and \e[35mKernel Static Lib OK\e[0m"
++	@${CP} ${KERNEL_BUILD_DIR}/libkernel.a ${BUILD_TARGET_KERNEL}/
++# @rust-objcopy --binary-architecture=riscv64 ${KERNEL_BUILD_DIR}/libkernel.a --strip-all -O binary ${BUILD_TARGET_KERNEL}/libkernel.a
++# @${INFO} "Build/Asm"
++# @${MKDIR} -p build/asm
++# ${CROSS_AS} -c $(kernel_asm) -o $(compiled_kernel_asm)
++# @${INFO} "move to Build/Asm and \e[35mKernel ASM OK\e[0m"
++	@${INFO} "Kernel build finish."
++
++
++	
++## This builds the kernel binary itself, which is the fully-linked code that first runs right after the bootloader
++$(kernel_binary): $(kernel_static_lib) $(linker_script)
++	$(CROSS_LD) -n --static -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
++
++
++run:
++	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} fs-img
++	@${MAKE} run-inner --no-print-directory
++	@${NEWLINE}
++	@${INFO} "Kernel Run finish."
++	@${MAKE} clean
++
++FS_IMG                    := target/$(TARGET)/$(MODE)fs.img
++APPS                      := application/user/src/bin/*
++
++fs-img: $(APPS)
++	@mkdir -p build/apps
++	@cd application/user && make build TEST=$(TEST)
++	@rm -f $(FS_IMG)
++	@cd application/easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../../target/riscv64gc-unknown-none-elf/release/
++	@mv target/riscv64gc-unknown-none-elf/release/fs.img build/apps
++
++run-inner:
++	qemu-system-riscv64 \
++		-machine virt \
++		-display none\
++		-nographic \
++		-bios $(BOOTLOADER) \
++		-device loader,file=$(kernel_binary),addr=80200000\
++		-drive file=build/apps/fs.img,if=none,format=raw,id=x0 \
++        -device virtio-blk-device,drive=x0 \
++		-device virtio-gpu-device  \
++		-device virtio-keyboard-device  \
++		-device virtio-mouse-device
++
++# -drive file=$(FS_IMG),if=none,format=raw,id=x0
+-- 
+2.34.1
+

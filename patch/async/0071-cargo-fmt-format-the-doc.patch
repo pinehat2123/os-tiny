@@ -1,0 +1,95 @@
+From 3564b26ee4fc589d0c4aae9f2549fec46eeb79ca Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 02:23:02 -0500
+Subject: [PATCH 71/80] cargo fmt, format the doc.
+
+---
+ application/user/src/async_lib/mod.rs  | 7 +++----
+ application/user/src/bin/async_test.rs | 2 +-
+ application/user/src/syscall.rs        | 1 -
+ syscall/src/lib.rs                     | 4 +++-
+ utils/ge/src/lib.rs                    | 5 +++--
+ 5 files changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/application/user/src/async_lib/mod.rs b/application/user/src/async_lib/mod.rs
+index 9324970..217d94f 100644
+--- a/application/user/src/async_lib/mod.rs
++++ b/application/user/src/async_lib/mod.rs
+@@ -1,9 +1,9 @@
+ #[allow(dead_code)]
++mod io;
++#[allow(dead_code)]
+ mod syscall;
+ #[allow(dead_code)]
+ mod task;
+-#[allow(dead_code)]
+-mod io;
+ 
+ static mut SHARED_PAYLOAD_BASE: usize = 0;
+ static mut ADDRESS_SPACE_ID: usize = 0;
+@@ -56,8 +56,7 @@ pub fn execute_async() {
+     );
+ }
+ 
+-use syscall::{sys_exit, sys_yield, sys_test_rest_timer, sys_read_timer};
+-
++use syscall::{sys_exit, sys_read_timer, sys_test_rest_timer, sys_yield};
+ 
+ pub fn exit(exit_code: i32) -> isize {
+     sys_exit(exit_code)
+diff --git a/application/user/src/bin/async_test.rs b/application/user/src/bin/async_test.rs
+index f262bbd..ccc1371 100644
+--- a/application/user/src/bin/async_test.rs
++++ b/application/user/src/bin/async_test.rs
+@@ -19,4 +19,4 @@ fn main() -> i32 {
+     println!("[async test] coroutines timer: {}", read_timer());
+     do_yield(2);
+     0
+-}
+\ No newline at end of file
++}
+diff --git a/application/user/src/syscall.rs b/application/user/src/syscall.rs
+index 386cc73..ad01246 100644
+--- a/application/user/src/syscall.rs
++++ b/application/user/src/syscall.rs
+@@ -28,7 +28,6 @@ use syscall_macro::syscall_number::kernel::*;
+ // const SYSCALL_CONDVAR_WAIT: usize = 1032;
+ use syscall_macro::syscall;
+ 
+-
+ pub fn sys_dup(fd: usize) -> isize {
+     syscall(SYSCALL_DUP, [fd, 0, 0])
+ }
+diff --git a/syscall/src/lib.rs b/syscall/src/lib.rs
+index 6251d20..2e42ff9 100644
+--- a/syscall/src/lib.rs
++++ b/syscall/src/lib.rs
+@@ -109,4 +109,6 @@ fn syscall_3_helper(id: usize, args: [usize; 3]) -> isize {
+     unsafe { syscall2(id, args[0], args[1], args[2]) }
+ }
+ 
+-pub fn syscall(id: usize, args:[usize; 3]) -> isize { syscall_3_helper(id, args) }
+\ No newline at end of file
++pub fn syscall(id: usize, args: [usize; 3]) -> isize {
++    syscall_3_helper(id, args)
++}
+diff --git a/utils/ge/src/lib.rs b/utils/ge/src/lib.rs
+index d91d83e..a0456d3 100644
+--- a/utils/ge/src/lib.rs
++++ b/utils/ge/src/lib.rs
+@@ -2,8 +2,9 @@ extern crate proc_macro;
+ 
+ use proc_macro::TokenStream;
+ 
+-#[proc_macro_attribute] pub fn move_function(attr: TokenStream, item: TokenStream) -> TokenStream {
++#[proc_macro_attribute]
++pub fn move_function(attr: TokenStream, item: TokenStream) -> TokenStream {
+     let _metadata = attr;
+     let _ast = item;
+     "// function item was moved".parse().unwrap()
+-}
+\ No newline at end of file
++}
+-- 
+2.34.1
+

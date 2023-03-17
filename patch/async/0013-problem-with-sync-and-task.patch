@@ -1,0 +1,86 @@
+From c17063c57e0c06dfcaba87eea9b8d69318a36601 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:25:42 -0500
+Subject: [PATCH 13/80] problem with sync and task
+
+---
+ drivers/Cargo.toml              | 6 +++++-
+ drivers/src/bus/virtio.rs       | 4 ++--
+ drivers/src/chardev/ns16550a.rs | 3 ++-
+ drivers/src/gpu/mod.rs          | 2 +-
+ drivers/src/input/mod.rs        | 3 ++-
+ 5 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/Cargo.toml b/drivers/Cargo.toml
+index 32aa137..2e29067 100644
+--- a/drivers/Cargo.toml
++++ b/drivers/Cargo.toml
+@@ -15,4 +15,8 @@ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4e
+ easy-fs = { path = "../application/easy-fs" }
+ embedded-graphics = "0.7.1"
+ tinybmp = "0.3.1"
+-config = { path = "../tconfig", package = "tconfig" }
+\ No newline at end of file
++config = { path = "../tconfig", package = "tconfig" }
++mm = { path = "../memory", package = "memory" }
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
++# sync = { path = "../sync", package = "sync" }
++# task = { path = "../task", package = "task" }
+diff --git a/drivers/src/bus/virtio.rs b/drivers/src/bus/virtio.rs
+index 413b508..e259e3b 100644
+--- a/drivers/src/bus/virtio.rs
++++ b/drivers/src/bus/virtio.rs
+@@ -1,9 +1,9 @@
+-// TODO mm sync lazy_static virtio_drivers
++// TODO mm safe_cell lazy_static virtio_drivers
+ use mm::{
+     frame_alloc, frame_dealloc, kernel_token, FrameTracker, PageTable, PhysAddr, PhysPageNum,
+     StepByOne, VirtAddr,
+ };
+-use sync::UPIntrFreeCell;
++use safe_cell::UPIntrFreeCell;
+ use alloc::vec::Vec;
+ use lazy_static::*;
+ use virtio_drivers::Hal;
+diff --git a/drivers/src/chardev/ns16550a.rs b/drivers/src/chardev/ns16550a.rs
+index 2c623e0..7029a5d 100644
+--- a/drivers/src/chardev/ns16550a.rs
++++ b/drivers/src/chardev/ns16550a.rs
+@@ -3,7 +3,8 @@
+ ///! Ref: ns16450 datasheet: https://datasheetspdf.com/pdf-file/1311818/NationalSemiconductor/NS16450/1
+ use crate::chardev::CharDevice;
+ // TODO sync task bitflags volatile
+-use sync::{Condvar, UPIntrFreeCell};
++use sync::Condvar;
++use safe_cell::UPIntrFreeCell;
+ use task::schedule;
+ use alloc::collections::VecDeque;
+ use bitflags::*;
+diff --git a/drivers/src/gpu/mod.rs b/drivers/src/gpu/mod.rs
+index d26ebfa..f6840bc 100644
+--- a/drivers/src/gpu/mod.rs
++++ b/drivers/src/gpu/mod.rs
+@@ -1,6 +1,6 @@
+ use crate::bus::virtio::VirtioHal;
+ // TODO sync embedded_graphics tinybmp virtio_drivers
+-use sync::UPIntrFreeCell;
++use safe_cell::UPIntrFreeCell;
+ use alloc::{sync::Arc, vec::Vec};
+ use core::any::Any;
+ use embedded_graphics::pixelcolor::Rgb888;
+diff --git a/drivers/src/input/mod.rs b/drivers/src/input/mod.rs
+index 020639d..8d78681 100644
+--- a/drivers/src/input/mod.rs
++++ b/drivers/src/input/mod.rs
+@@ -1,6 +1,7 @@
+ use crate::bus::virtio::VirtioHal;
+ // TODO sync task virtio_drivers
+-use sync::{Condvar, UPIntrFreeCell};
++use sync::Condvar; 
++use safe_cell::UPIntrFreeCell;
+ use task::schedule;
+ use alloc::collections::VecDeque;
+ use alloc::sync::Arc;
+-- 
+2.34.1
+

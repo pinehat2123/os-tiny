@@ -1,0 +1,83 @@
+From 7f21e17c8f6f4ec20b90011f18600f300cb9de72 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 03:47:23 -0500
+Subject: [PATCH 64/80] asyn_lib, async_test add!
+
+---
+ application/user/src/async_lib/mod.rs  | 11 ++++++++++-
+ application/user/src/bin/async_test.rs | 22 ++++++++++++++++++++++
+ application/user/src/lib.rs            |  2 +-
+ 3 files changed, 33 insertions(+), 2 deletions(-)
+ create mode 100644 application/user/src/bin/async_test.rs
+
+diff --git a/application/user/src/async_lib/mod.rs b/application/user/src/async_lib/mod.rs
+index 6b94cc9..9324970 100644
+--- a/application/user/src/async_lib/mod.rs
++++ b/application/user/src/async_lib/mod.rs
+@@ -56,7 +56,8 @@ pub fn execute_async() {
+     );
+ }
+ 
+-use syscall::{sys_exit, sys_yield};
++use syscall::{sys_exit, sys_yield, sys_test_rest_timer, sys_read_timer};
++
+ 
+ pub fn exit(exit_code: i32) -> isize {
+     sys_exit(exit_code)
+@@ -65,3 +66,11 @@ pub fn exit(exit_code: i32) -> isize {
+ pub fn do_yield(next_asid: usize) -> isize {
+     sys_yield(next_asid)
+ }
++
++pub fn reset_timer() -> isize {
++    sys_test_rest_timer()
++}
++
++pub fn read_timer() -> isize {
++    sys_read_timer()
++}
+diff --git a/application/user/src/bin/async_test.rs b/application/user/src/bin/async_test.rs
+new file mode 100644
+index 0000000..f262bbd
+--- /dev/null
++++ b/application/user/src/bin/async_test.rs
+@@ -0,0 +1,22 @@
++#![no_std]
++#![no_main]
++
++extern crate alloc;
++#[macro_use]
++extern crate user_lib;
++
++use user_lib::async_lib::{do_yield, execute_async, read_timer, reset_timer, spawn};
++
++async fn a(_x: usize) {}
++
++#[no_mangle]
++fn main() -> i32 {
++    for i in 0..200 {
++        spawn(a(i))
++    }
++    reset_timer();
++    execute_async();
++    println!("[async test] coroutines timer: {}", read_timer());
++    do_yield(2);
++    0
++}
+\ No newline at end of file
+diff --git a/application/user/src/lib.rs b/application/user/src/lib.rs
+index 70ae8ab..8de0e52 100644
+--- a/application/user/src/lib.rs
++++ b/application/user/src/lib.rs
+@@ -11,7 +11,7 @@
+ #[macro_use]
+ pub mod console;
+ #[allow(dead_code)]
+-mod async_lib;
++pub mod async_lib;
+ mod lang_items;
+ mod syscall;
+ 
+-- 
+2.34.1
+

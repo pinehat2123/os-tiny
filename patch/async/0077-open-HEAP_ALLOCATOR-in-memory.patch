@@ -1,0 +1,24 @@
+From 97d6082b857948c73b1ed78b765dc96420aca1f4 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 22:14:46 -0500
+Subject: [PATCH 77/80] open `HEAP_ALLOCATOR` in memory.
+
+---
+ memory/src/lib.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/memory/src/lib.rs b/memory/src/lib.rs
+index 888d8ab..03bb2da 100644
+--- a/memory/src/lib.rs
++++ b/memory/src/lib.rs
+@@ -22,6 +22,7 @@ pub use page_table::{
+     translated_byte_buffer, translated_ref, translated_refmut, translated_str, PageTable,
+     PageTableEntry, UserBuffer, UserBufferIterator,
+ };
++pub use heap_allocator::HEAP_ALLOCATOR;
+ 
+ pub fn init() {
+     heap_allocator::init_heap();
+-- 
+2.34.1
+

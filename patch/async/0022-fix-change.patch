@@ -1,0 +1,63 @@
+From e6ebbc2280d46fc7c08648f460ea51add69672ad Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sun, 12 Feb 2023 13:36:32 -0500
+Subject: [PATCH 22/80] fix change
+
+---
+ Cargo.toml        | 1 -
+ fs/Cargo.toml     | 2 +-
+ kernel/src/lib.rs | 2 --
+ trap/Cargo.toml   | 2 +-
+ 4 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 3e970d6..06eab03 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -14,7 +14,6 @@ members = [
+     "sync",
+     "syscall",
+     "task",
+-    "task_1",
+     "tconfig",
+     "timer",
+     "tlib",
+diff --git a/fs/Cargo.toml b/fs/Cargo.toml
+index 6bd4c17..fdaac0b 100644
+--- a/fs/Cargo.toml
++++ b/fs/Cargo.toml
+@@ -12,4 +12,4 @@ mm = { path = "../memory", package = "memory" }
+ drivers = { path = "../drivers", package = "drivers" }
+ safe_cell = { path = "../safe_cell", package = "safe_cell" }
+ easy-fs = { path = "../easy-fs", package = "easy-fs" }
+-task = { path = "../task_1", package = "task_1" }
++task = { path = "../task", package = "task" }
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index dba17fa..058489a 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -8,8 +8,6 @@
+ use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
+ extern crate alloc;
+ 
+-#[cfg(target_arch = "riscv64")]
+-use log::info;
+ 
+ 
+ #[cfg(test)]
+diff --git a/trap/Cargo.toml b/trap/Cargo.toml
+index 8558ee6..52b767c 100644
+--- a/trap/Cargo.toml
++++ b/trap/Cargo.toml
+@@ -7,7 +7,7 @@ edition = "2021"
+ 
+ [dependencies]
+ config  = { path = "../tconfig", package = "tconfig" }
+-task  = { path = "../task_1", package = "task_1" }
++task  = { path = "../task", package = "task" }
+ timer  = { path = "../timer", package = "timer" }
+ syscall  = { path = "../syscall", package = "syscall" }
+ 
+-- 
+2.34.1
+

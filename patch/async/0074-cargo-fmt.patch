@@ -1,0 +1,207 @@
+From b57cb8f37c19322717e57206c7e96ba988fe1112 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 04:14:26 -0500
+Subject: [PATCH 74/80] cargo fmt
+
+---
+ kernel/src/async_rt/mod.rs              | 57 ++++++++++++-------------
+ kernel/src/lib.rs                       |  8 ++--
+ kernel/src/memory/frame/tracker.rs      |  2 +-
+ kernel/src/memory/mapping/mapping.rs    |  8 ++--
+ kernel/src/memory/mapping/memory_set.rs |  5 ++-
+ kernel/src/memory/mapping/satp.rs       |  2 +-
+ kernel/src/memory/mod.rs                |  4 +-
+ kernel/src/task/mod.rs                  |  4 +-
+ 8 files changed, 46 insertions(+), 44 deletions(-)
+
+diff --git a/kernel/src/async_rt/mod.rs b/kernel/src/async_rt/mod.rs
+index 1c0a06b..98e340e 100644
+--- a/kernel/src/async_rt/mod.rs
++++ b/kernel/src/async_rt/mod.rs
+@@ -1,29 +1,28 @@
+-//! 内核异步运行时实现
+-//!
+-//! 目前包含共享调度器实例化和内核执行器两个模块。
+-//!
+-//! Rust异步运行时是不包含在标准库里面的，交给社区贡献者实现，通常包含以下几个方面：
+-//!
+-//! * Future: 标准库提供`Future` trait，封装一个`poll`方法
+-//! * executor: `Future`的具体运行者
+-//! * reactor: `Future`的唤醒者
+-//!
+-//! 目前飓风内核里面的异步运行时主要是内核执行器，其配合共享调度器进行执行任务的工作。
+-//!
+-//! 在中断处理函数或者系统调用处理函数里面存在任务唤醒机制。
+-#[cfg(feature = "async_tiny")]
+-mod executor;
+-#[cfg(feature = "async_tiny")]
+-mod shared;
+-
+-#[cfg(feature = "async_tiny")]
+-pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
+-#[cfg(feature = "async_tiny")]
+-pub use shared::{kernel_should_switch, SharedPayload, TaskState};
+-
+-
+-use crate::console;
+-
+-pub fn init() {
+-    println!("async_rt INIT");
+-}
++//! 内核异步运行时实现
++//!
++//! 目前包含共享调度器实例化和内核执行器两个模块。
++//!
++//! Rust异步运行时是不包含在标准库里面的，交给社区贡献者实现，通常包含以下几个方面：
++//!
++//! * Future: 标准库提供`Future` trait，封装一个`poll`方法
++//! * executor: `Future`的具体运行者
++//! * reactor: `Future`的唤醒者
++//!
++//! 目前飓风内核里面的异步运行时主要是内核执行器，其配合共享调度器进行执行任务的工作。
++//!
++//! 在中断处理函数或者系统调用处理函数里面存在任务唤醒机制。
++#[cfg(feature = "async_tiny")]
++mod executor;
++#[cfg(feature = "async_tiny")]
++mod shared;
++
++#[cfg(feature = "async_tiny")]
++pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
++#[cfg(feature = "async_tiny")]
++pub use shared::{kernel_should_switch, SharedPayload, TaskState};
++
++use crate::console;
++
++pub fn init() {
++    println!("async_rt INIT");
++}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index ab2e60e..c784e26 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -30,17 +30,17 @@ mod console;
+ mod async_rt;
+ mod drivers;
+ mod fs;
++#[cfg(feature = "async_tiny")]
++mod hart;
+ mod lang_items;
++#[cfg(feature = "async_tiny")]
++mod memory;
+ mod sbi;
+ mod sync;
+ mod syscall;
+ mod task;
+ mod timer;
+ mod trap;
+-#[cfg(feature = "async_tiny")]
+-mod memory;
+-#[cfg(feature = "async_tiny")]
+-mod hart;
+ 
+ use crate::drivers::chardev::CharDevice;
+ use crate::drivers::chardev::UART;
+diff --git a/kernel/src/memory/frame/tracker.rs b/kernel/src/memory/frame/tracker.rs
+index 65d6460..74e80fe 100644
+--- a/kernel/src/memory/frame/tracker.rs
++++ b/kernel/src/memory/frame/tracker.rs
+@@ -1,5 +1,5 @@
+-use super::allocator::FRAME_ALLOCATOR;
+ use super::super::{config::PAGE_SIZE, PhysicalAddress, PhysicalPageNumber};
++use super::allocator::FRAME_ALLOCATOR;
+ 
+ /// 这个结构体就像一个Handle，Drop之后会释放PPN表示的物理帧
+ #[derive(Debug)]
+diff --git a/kernel/src/memory/mapping/mapping.rs b/kernel/src/memory/mapping/mapping.rs
+index 72e9909..8cb0f8d 100644
+--- a/kernel/src/memory/mapping/mapping.rs
++++ b/kernel/src/memory/mapping/mapping.rs
+@@ -1,13 +1,13 @@
+ //! 内存映射具体实现
++use super::super::{
++    config::PAGE_SIZE, frame::FrameTracker, frame_alloc, AddressSpaceId, PhysicalAddress,
++    PhysicalPageNumber, VirtualAddress, VirtualPageNumber,
++};
+ use super::{
+     page_table::{PageTable, PageTableTracker},
+     page_table_entry::PageTableEntry,
+     Flags, MapType, Segment,
+ };
+-use super::super::{
+-    config::PAGE_SIZE, frame::FrameTracker, frame_alloc, AddressSpaceId, PhysicalAddress,
+-    PhysicalPageNumber, VirtualAddress, VirtualPageNumber,
+-};
+ use alloc::{collections::VecDeque, vec::Vec};
+ use bit_field::BitField;
+ use core::{ops::Range, ptr::slice_from_raw_parts_mut};
+diff --git a/kernel/src/memory/mapping/memory_set.rs b/kernel/src/memory/mapping/memory_set.rs
+index eaf3a6f..aee97a5 100644
+--- a/kernel/src/memory/mapping/memory_set.rs
++++ b/kernel/src/memory/mapping/memory_set.rs
+@@ -260,7 +260,10 @@ impl MemorySet {
+     ///
+     /// 如果当前页表就是自身，则不会替换，但仍然会刷新 TLB。
+     pub fn activate(&self) {
+-        println!("[kernel] activating memory set in asid {:?}", self.address_space_id);
++        println!(
++            "[kernel] activating memory set in asid {:?}",
++            self.address_space_id
++        );
+         self.mapping.activate_on(self.address_space_id);
+     }
+     /// 获得当前映射的 [`Satp`]
+diff --git a/kernel/src/memory/mapping/satp.rs b/kernel/src/memory/mapping/satp.rs
+index 4586770..f73f1f6 100644
+--- a/kernel/src/memory/mapping/satp.rs
++++ b/kernel/src/memory/mapping/satp.rs
+@@ -1,6 +1,6 @@
+ //! satp寄存器抽象，可用于地址转换
+-use super::{page_table::PageTable, page_table_entry::PageTableEntry};
+ use super::super::{PhysicalPageNumber, VirtualPageNumber};
++use super::{page_table::PageTable, page_table_entry::PageTableEntry};
+ use bit_field::BitField;
+ use riscv::register::satp::Mode;
+ 
+diff --git a/kernel/src/memory/mod.rs b/kernel/src/memory/mod.rs
+index d88e075..79b85e2 100644
+--- a/kernel/src/memory/mod.rs
++++ b/kernel/src/memory/mod.rs
+@@ -1,13 +1,13 @@
+ //! 内存管理模块
+ mod address;
++mod algorithm;
+ mod config;
+ mod frame;
+ mod heap;
+ mod mapping;
+-mod algorithm;
+ 
+-pub use address::{PhysicalAddress, PhysicalPageNumber, VirtualAddress, VirtualPageNumber};
+ pub use self::config::*;
++pub use address::{PhysicalAddress, PhysicalPageNumber, VirtualAddress, VirtualPageNumber};
+ pub use frame::{frame_alloc, FrameTracker};
+ pub use mapping::{Flags, MapType, Mapping, MemorySet, Satp, Segment};
+ 
+diff --git a/kernel/src/task/mod.rs b/kernel/src/task/mod.rs
+index 1110ea3..4dd29af 100644
+--- a/kernel/src/task/mod.rs
++++ b/kernel/src/task/mod.rs
+@@ -1,3 +1,5 @@
++#[cfg(feature = "async_tiny")]
++pub mod async_task;
+ mod context;
+ mod id;
+ mod manager;
+@@ -7,8 +9,6 @@ mod signal;
+ mod switch;
+ #[allow(clippy::module_inception)]
+ mod task;
+-#[cfg(feature = "async_tiny")]
+-pub mod async_task;
+ 
+ use self::id::TaskUserRes;
+ use crate::fs::{open_file, OpenFlags};
+-- 
+2.34.1
+

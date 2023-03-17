@@ -1,0 +1,126 @@
+From 40a1090d66d793316b3525753d89a990f43bbf13 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 17 Mar 2023 09:37:13 -0400
+Subject: [PATCH 80/80] link the ring scheduler to kernel space
+
+---
+ ring_scheduler/Cargo.toml            |  8 +++++++-
+ script/makefile/config.mk            |  1 +
+ script/makefile/lib_kernel_config.mk | 19 ++++++++++---------
+ script/makefile/run.mk               | 20 +++++++++++++-------
+ 4 files changed, 31 insertions(+), 17 deletions(-)
+
+diff --git a/ring_scheduler/Cargo.toml b/ring_scheduler/Cargo.toml
+index f922a91..81a88e1 100644
+--- a/ring_scheduler/Cargo.toml
++++ b/ring_scheduler/Cargo.toml
+@@ -11,4 +11,10 @@ riscv = "0.10.1"
+ lazy_static = { version = "1", features = ["spin_no_std"] }
+ r0 = "1.0"
+ buddy_system_allocator = "0.6"
+-syscall = { path = "../syscall", package = "syscall"}
+\ No newline at end of file
++syscall = { path = "../syscall", package = "syscall"}
++
++[lib]
++bench = false
++# staticlib is required to build a self-contained, fully-linked .a file
++# that we can jump to from the bootloader
++crate-type = ["staticlib"]
+\ No newline at end of file
+diff --git a/script/makefile/config.mk b/script/makefile/config.mk
+index c74a336..31ad531 100644
+--- a/script/makefile/config.mk
++++ b/script/makefile/config.mk
+@@ -10,6 +10,7 @@ BOOTLOADER                := rustsbi-qemu.bin
+ 
+ BUILD_DIR                 :=  $(ROOT_DIR)/target
+ KERNEL_BUILD_DIR          :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
++RING_SCHEDULER_BUILD_DIR  :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
+ 
+ BUILD_TARGET              := $(ROOT_DIR)/build
+ 
+diff --git a/script/makefile/lib_kernel_config.mk b/script/makefile/lib_kernel_config.mk
+index 262d28c..9fd7971 100644
+--- a/script/makefile/lib_kernel_config.mk
++++ b/script/makefile/lib_kernel_config.mk
+@@ -1,11 +1,12 @@
+-BUILD_TARGET_KERNEL       := $(BUILD_TARGET)/kernel
+-kernel_static_lib         := $(BUILD_TARGET_KERNEL)/libkernel.a
+-kernel_binary             := $(BUILD_TARGET_KERNEL)/kernel.bin
++BUILD_TARGET_KERNEL               := $(BUILD_TARGET)/kernel
++kernel_static_lib                 := $(BUILD_TARGET_KERNEL)/libkernel.a
++kernel_binary                     := $(BUILD_TARGET_KERNEL)/kernel.bin
++BUILD_TARGET_RING_SCHEDULER       := $(BUILD_TARGET)/ring_scheduler
++ring_scheduler_static_lib         := $(BUILD_TARGET_RING_SCHEDULER)/libring_scheduler.a
++ring_scheduler_binary             := $(BUILD_TARGET_RING_SCHEDULER)/ring_scheduler.bin
+ 
+-BUILD_TARGET_ASM          := $(BUILD_TARGET)/asm
+-# kernel_asm                := kernel/src/plantform/arch/riscv64gc/asm/entry.S
+-# compiled_kernel_asm       := $(BUILD_TARGET_ASM)/entry.o
++BUILD_TARGET_ASM                  := $(BUILD_TARGET)/asm
+ 
+-# linker_script             := kernel/src/plantform/arch/riscv64gc/link/linker.ld
+-linker_script             := kernel/src/linker.ld
+-BUILD_TARGET_ABI          := riscv64gc-unknown-none-elf
+\ No newline at end of file
++linker_script                     := kernel/src/linker.ld
++linker_script_ring_scheduler      := ring_scheduler/src/linker.ld
++BUILD_TARGET_ABI                  := riscv64gc-unknown-none-elf
+\ No newline at end of file
+diff --git a/script/makefile/run.mk b/script/makefile/run.mk
+index 1de6f98..cd54577 100644
+--- a/script/makefile/run.mk
++++ b/script/makefile/run.mk
+@@ -1,5 +1,5 @@
+ include script/makefile/config.mk
+-.PHONY: kernel run run-inner $(kernel_binary)
++.PHONY: kernel run run-inner ring_scheduler $(kernel_binary) $(ring_scheduler_binary)
+ kernel: 
+ 	@${INFO} "DEAL WITH Kernel"
+ 	@${INFO} "Build/Kernel"
+@@ -7,22 +7,27 @@ kernel:
+ 	@${CARGO} build -p kernel --${BUILD_MODE} --target  $(BUILD_TARGET_ABI)
+ 	@${INFO} "move to Build/Kernel and \e[35mKernel Static Lib OK\e[0m"
+ 	@${CP} ${KERNEL_BUILD_DIR}/libkernel.a ${BUILD_TARGET_KERNEL}/
+-# @rust-objcopy --binary-architecture=riscv64 ${KERNEL_BUILD_DIR}/libkernel.a --strip-all -O binary ${BUILD_TARGET_KERNEL}/libkernel.a
+-# @${INFO} "Build/Asm"
+-# @${MKDIR} -p build/asm
+-# ${CROSS_AS} -c $(kernel_asm) -o $(compiled_kernel_asm)
+-# @${INFO} "move to Build/Asm and \e[35mKernel ASM OK\e[0m"
+ 	@${INFO} "Kernel build finish."
+ 
++ring_scheduler: 
++	@${INFO} "DEAL WITH Ring Scheduler"
++	@${INFO} "Build/Ring_Scheduler"
++	@${MKDIR} -p build/ring_scheduler
++	@${CARGO} build -p ring_scheduler --${BUILD_MODE} --target  $(BUILD_TARGET_ABI)
++	@${INFO} "move to Build/ring_scheduler and \e[35mring_scheduler Static Lib OK\e[0m"
++	@${CP} ${RING_SCHEDULER_BUILD_DIR}/libring_scheduler.a ${BUILD_TARGET_RING_SCHEDULER}/
++	@${INFO} "Ring Scheduler build finish."
+ 
+ 	
+ ## This builds the kernel binary itself, which is the fully-linked code that first runs right after the bootloader
+ $(kernel_binary): $(kernel_static_lib) $(linker_script)
+ 	$(CROSS_LD) -n --static -T $(linker_script) -o $(kernel_binary) $(compiled_kernel_asm) $(kernel_static_lib)
+ 
++$(ring_scheduler_binary): $(ring_scheduer_static_lib) $(linker_script_ring_scheduler)
++	$(CROSS_LD) -n --static -T $(linker_script_ring_scheduler) -o $(ring_scheduler_binary) $(ring_scheduler_static_lib)
+ 
+ run:
+-	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} fs-img
++	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} ring_scheduler && ${MAKE} ${ring_scheduler_binary} && ${MAKE} fs-img
+ 	@${MAKE} run-inner --no-print-directory
+ 	@${NEWLINE}
+ 	@${INFO} "Kernel Run finish."
+@@ -45,6 +50,7 @@ run-inner:
+ 		-nographic \
+ 		-bios $(BOOTLOADER) \
+ 		-device loader,file=$(kernel_binary),addr=80200000\
++		-device loader,file=$(ring_scheduler_binary),addr=86000000\
+ 		-drive file=build/apps/fs.img,if=none,format=raw,id=x0 \
+         -device virtio-blk-device,drive=x0 \
+ 		-device virtio-gpu-device  \
+-- 
+2.34.1
+

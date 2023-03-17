@@ -1,0 +1,268 @@
+From 844f85d415d57116a291d22189f7eed99ddf41b9 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:24:55 -0500
+Subject: [PATCH 11/80] quadrature sync to sync and safe_cell
+
+---
+ sync/Cargo.toml       | 12 ++++++
+ sync/src/condvar.rs   | 58 ++++++++++++++++++++++++++++
+ sync/src/lib.rs       | 14 +++++++
+ sync/src/mutex.rs     | 88 +++++++++++++++++++++++++++++++++++++++++++
+ sync/src/semaphore.rs | 45 ++++++++++++++++++++++
+ 5 files changed, 217 insertions(+)
+ create mode 100644 sync/Cargo.toml
+ create mode 100644 sync/src/condvar.rs
+ create mode 100644 sync/src/lib.rs
+ create mode 100644 sync/src/mutex.rs
+ create mode 100644 sync/src/semaphore.rs
+
+diff --git a/sync/Cargo.toml b/sync/Cargo.toml
+new file mode 100644
+index 0000000..7489d36
+--- /dev/null
++++ b/sync/Cargo.toml
+@@ -0,0 +1,12 @@
++[package]
++name = "sync"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++
++[dependencies]
++lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
++riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a"}
++safe_cell = { path = "../safe_cell", package = "safe_cell" }
++task = { path = "../task", package = "task" }
+diff --git a/sync/src/condvar.rs b/sync/src/condvar.rs
+new file mode 100644
+index 0000000..610fa54
+--- /dev/null
++++ b/sync/src/condvar.rs
+@@ -0,0 +1,58 @@
++use crate::{Mutex, UPIntrFreeCell};
++use task::{
++    block_current_and_run_next, block_current_task, current_task, wakeup_task, TaskContext,
++    TaskControlBlock,
++};
++use alloc::{collections::VecDeque, sync::Arc};
++
++pub struct Condvar {
++    pub inner: UPIntrFreeCell<CondvarInner>,
++}
++
++pub struct CondvarInner {
++    pub wait_queue: VecDeque<Arc<TaskControlBlock>>,
++}
++
++impl Condvar {
++    pub fn new() -> Self {
++        Self {
++            inner: unsafe {
++                UPIntrFreeCell::new(CondvarInner {
++                    wait_queue: VecDeque::new(),
++                })
++            },
++        }
++    }
++
++    pub fn signal(&self) {
++        let mut inner = self.inner.exclusive_access();
++        if let Some(task) = inner.wait_queue.pop_front() {
++            wakeup_task(task);
++        }
++    }
++
++    /*
++    pub fn wait(&self) {
++        let mut inner = self.inner.exclusive_access();
++        inner.wait_queue.push_back(current_task().unwrap());
++        drop(inner);
++        block_current_and_run_next();
++    }
++    */
++
++    pub fn wait_no_sched(&self) -> *mut TaskContext {
++        self.inner.exclusive_session(|inner| {
++            inner.wait_queue.push_back(current_task().unwrap());
++        });
++        block_current_task()
++    }
++
++    pub fn wait_with_mutex(&self, mutex: Arc<dyn Mutex>) {
++        mutex.unlock();
++        self.inner.exclusive_session(|inner| {
++            inner.wait_queue.push_back(current_task().unwrap());
++        });
++        block_current_and_run_next();
++        mutex.lock();
++    }
++}
+diff --git a/sync/src/lib.rs b/sync/src/lib.rs
+new file mode 100644
+index 0000000..b66b14f
+--- /dev/null
++++ b/sync/src/lib.rs
+@@ -0,0 +1,14 @@
++#![no_std]
++#![deny(warnings, missing_docs)]
++#![allow(missing_docs)]
++
++mod condvar;
++mod mutex;
++mod semaphore;
++
++extern crate alloc;
++
++// pub use condvar::Condvar;
++// pub use mutex::{Mutex, MutexBlocking};
++// pub use semaphore::Semaphore;
++pub use safe_cell::{UPIntrFreeCell, UPIntrRefMut};
+diff --git a/sync/src/mutex.rs b/sync/src/mutex.rs
+new file mode 100644
+index 0000000..ba9f1ad
+--- /dev/null
++++ b/sync/src/mutex.rs
+@@ -0,0 +1,88 @@
++use crate::UPIntrFreeCell;
++use task::TaskControlBlock;
++use task::{block_current_and_run_next, suspend_current_and_run_next};
++use task::{current_task, wakeup_task};
++use alloc::{collections::VecDeque, sync::Arc};
++
++pub trait Mutex: Sync + Send {
++    fn lock(&self);
++    fn unlock(&self);
++}
++
++pub struct MutexSpin {
++    locked: UPIntrFreeCell<bool>,
++}
++
++impl MutexSpin {
++    pub fn new() -> Self {
++        Self {
++            locked: unsafe { UPIntrFreeCell::new(false) },
++        }
++    }
++}
++
++impl Mutex for MutexSpin {
++    fn lock(&self) {
++        loop {
++            let mut locked = self.locked.exclusive_access();
++            if *locked {
++                drop(locked);
++                suspend_current_and_run_next();
++                continue;
++            } else {
++                *locked = true;
++                return;
++            }
++        }
++    }
++
++    fn unlock(&self) {
++        let mut locked = self.locked.exclusive_access();
++        *locked = false;
++    }
++}
++
++pub struct MutexBlocking {
++    inner: UPIntrFreeCell<MutexBlockingInner>,
++}
++
++pub struct MutexBlockingInner {
++    locked: bool,
++    wait_queue: VecDeque<Arc<TaskControlBlock>>,
++}
++
++impl MutexBlocking {
++    pub fn new() -> Self {
++        Self {
++            inner: unsafe {
++                UPIntrFreeCell::new(MutexBlockingInner {
++                    locked: false,
++                    wait_queue: VecDeque::new(),
++                })
++            },
++        }
++    }
++}
++
++impl Mutex for MutexBlocking {
++    fn lock(&self) {
++        let mut mutex_inner = self.inner.exclusive_access();
++        if mutex_inner.locked {
++            mutex_inner.wait_queue.push_back(current_task().unwrap());
++            drop(mutex_inner);
++            block_current_and_run_next();
++        } else {
++            mutex_inner.locked = true;
++        }
++    }
++
++    fn unlock(&self) {
++        let mut mutex_inner = self.inner.exclusive_access();
++        assert!(mutex_inner.locked);
++        if let Some(waking_task) = mutex_inner.wait_queue.pop_front() {
++            wakeup_task(waking_task);
++        } else {
++            mutex_inner.locked = false;
++        }
++    }
++}
+diff --git a/sync/src/semaphore.rs b/sync/src/semaphore.rs
+new file mode 100644
+index 0000000..655028a
+--- /dev/null
++++ b/sync/src/semaphore.rs
+@@ -0,0 +1,45 @@
++use crate::UPIntrFreeCell;
++use task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock};
++use alloc::{collections::VecDeque, sync::Arc};
++
++pub struct Semaphore {
++    pub inner: UPIntrFreeCell<SemaphoreInner>,
++}
++
++pub struct SemaphoreInner {
++    pub count: isize,
++    pub wait_queue: VecDeque<Arc<TaskControlBlock>>,
++}
++
++impl Semaphore {
++    pub fn new(res_count: usize) -> Self {
++        Self {
++            inner: unsafe {
++                UPIntrFreeCell::new(SemaphoreInner {
++                    count: res_count as isize,
++                    wait_queue: VecDeque::new(),
++                })
++            },
++        }
++    }
++
++    pub fn up(&self) {
++        let mut inner = self.inner.exclusive_access();
++        inner.count += 1;
++        if inner.count <= 0 {
++            if let Some(task) = inner.wait_queue.pop_front() {
++                wakeup_task(task);
++            }
++        }
++    }
++
++    pub fn down(&self) {
++        let mut inner = self.inner.exclusive_access();
++        inner.count -= 1;
++        if inner.count < 0 {
++            inner.wait_queue.push_back(current_task().unwrap());
++            drop(inner);
++            block_current_and_run_next();
++        }
++    }
++}
+-- 
+2.34.1
+

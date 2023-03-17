@@ -1,0 +1,45 @@
+From c69f27d0924fe44a2731738c9cbfb13b24f208b6 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 02:09:04 -0500
+Subject: [PATCH 57/80] syscall_number add.
+
+---
+ ring_scheduler/src/syscall.rs | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/ring_scheduler/src/syscall.rs b/ring_scheduler/src/syscall.rs
+index fd9e7b7..25dc726 100644
+--- a/ring_scheduler/src/syscall.rs
++++ b/ring_scheduler/src/syscall.rs
+@@ -1,9 +1,9 @@
+ //! 系统调用，用于调试
+ // const MODULE_TEST_INTERFACE: usize = 0x233666;
+ // const MODULE_PROCESS: usize = 0x114514;
+-// 
++//
+ // const FUNC_PROCESS_PANIC: usize = 0x11451419;
+-// 
++//
+ // const FUNC_TEST_WRITE: usize = 0x666233;
+ 
+ // syscall macro
+@@ -57,11 +57,12 @@
+ //     syscall6(a, b, c, d, e, f, g, z, );
+ // }
+ 
+-use syscall::{syscall3, syscall6,
++use syscall::{
++    syscall3, syscall6,
+     syscall_number::{
+-        test::{MODULE_TEST_INTERFACE, FUNC_TEST_WRITE},
+-        user::{MODULE_PROCESS, FUNC_PROCESS_PANIC}
+-    }
++        test::{FUNC_TEST_WRITE, MODULE_TEST_INTERFACE},
++        user::{FUNC_PROCESS_PANIC, MODULE_PROCESS},
++    },
+ };
+ 
+ pub fn sys_panic(file_name: Option<&str>, line: u32, col: u32, msg: Option<&str>) -> usize {
+-- 
+2.34.1
+

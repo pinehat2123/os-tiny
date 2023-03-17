@@ -1,0 +1,24 @@
+From 563e89e0321cb5f1e5de95794f9b61f22f221301 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 01:15:48 -0500
+Subject: [PATCH 51/80] use syscall crate add macro
+
+---
+ application/user/Cargo.toml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/application/user/Cargo.toml b/application/user/Cargo.toml
+index 24a29d3..8607948 100644
+--- a/application/user/Cargo.toml
++++ b/application/user/Cargo.toml
+@@ -17,6 +17,7 @@ virtio-input-decoder = "0.1.4"
+ woke = "0.0.2"
+ spin = "0.5.2"
+ r0 = "1"
++syscall_macro = { path = "../../syscall", package = "syscall" }
+ event = { path = "../../event", package = "event" }
+ async-mutex = { path = "../../async_tiny/async_mutex", package = "async_mutex"}
+ 
+-- 
+2.34.1
+

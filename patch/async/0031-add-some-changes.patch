@@ -1,0 +1,1600 @@
+From 9fc1a55d81c0de0a4c4387388c8dc3168b3b3d73 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 25 Feb 2023 04:11:52 -0500
+Subject: [PATCH 31/80] add some changes
+
+---
+ application/ring_scheduler/src/lib.rs |   1 -
+ kernel/src/async_rt/executor.rs       |   7 -
+ kernel/src/async_rt/mod.rs            |   9 +-
+ kernel/src/lib.rs                     |   5 +-
+ kernel/src/trap/mod.rs                | 344 ++++++------
+ memory/src/frame_allocator.rs         | 254 ++++-----
+ memory/src/heap_allocator.rs          |  90 +--
+ memory/src/memory_set.rs              | 760 +++++++++++++-------------
+ safe_cell/src/lib.rs                  |   2 +-
+ tconfig/src/lib.rs                    |   4 +-
+ 10 files changed, 730 insertions(+), 746 deletions(-)
+
+diff --git a/application/ring_scheduler/src/lib.rs b/application/ring_scheduler/src/lib.rs
+index 3dbf33a..897ea5f 100644
+--- a/application/ring_scheduler/src/lib.rs
++++ b/application/ring_scheduler/src/lib.rs
+@@ -126,4 +126,3 @@ pub struct PageList {
+     data: [&'static u8; 2],   // 数据段
+     text: [&'static u8; 2],   // 代码段
+ }
+-
+diff --git a/kernel/src/async_rt/executor.rs b/kernel/src/async_rt/executor.rs
+index 88411f5..654f995 100644
+--- a/kernel/src/async_rt/executor.rs
++++ b/kernel/src/async_rt/executor.rs
+@@ -42,13 +42,6 @@ type SharedPayloadRaw = (
+ 
+ impl SharedPayload {
+     /// 根据基地址加载共享调度器
+-    ///
+-    /// # Example:
+-    ///
+-    /// ```
+-    /// # const BASE: usize = 0x8600_000;
+-    /// let shared_load = unsafe { SharedPayload::load(BASE); }
+-    /// ```
+     pub unsafe fn load(base: usize) -> Self {
+         let mut payload_usize = *(base as *const SharedPayloadAsUsize);
+         // println!(
+diff --git a/kernel/src/async_rt/mod.rs b/kernel/src/async_rt/mod.rs
+index 75275dc..b9e5d4c 100644
+--- a/kernel/src/async_rt/mod.rs
++++ b/kernel/src/async_rt/mod.rs
+@@ -1,11 +1,8 @@
+ // mod executor;
+-// 
++//
+ // mod shared;
+-// 
++//
+ // pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
+ // pub use shared::{kernel_should_switch, SharedPayload, TaskState};
+ 
+-
+-pub fn init() {
+-    
+-}
+\ No newline at end of file
++pub fn init() {}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 75d9540..7afe384 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -8,8 +8,6 @@
+ use crate::drivers::{GPU_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
+ extern crate alloc;
+ 
+-
+-
+ #[cfg(test)]
+ mod test {}
+ 
+@@ -29,6 +27,7 @@ mod board;
+ 
+ #[macro_use]
+ mod console;
++mod async_rt;
+ mod drivers;
+ mod fs;
+ mod lang_items;
+@@ -38,8 +37,6 @@ mod syscall;
+ mod task;
+ mod timer;
+ mod trap;
+-mod async_rt;
+-
+ 
+ use crate::drivers::chardev::CharDevice;
+ use crate::drivers::chardev::UART;
+diff --git a/kernel/src/trap/mod.rs b/kernel/src/trap/mod.rs
+index b69d6ea..efa203e 100644
+--- a/kernel/src/trap/mod.rs
++++ b/kernel/src/trap/mod.rs
+@@ -1,172 +1,172 @@
+-mod context;
+-// #[deprecated] mod switch;
+-
+-use crate::config::TRAMPOLINE;
+-use crate::syscall::syscall;
+-use crate::task::{
+-    check_signals_of_current, current_add_signal, current_trap_cx, current_trap_cx_user_va,
+-    current_user_token, exit_current_and_run_next, suspend_current_and_run_next, SignalFlags,
+-};
+-use crate::timer::{check_timer, set_next_trigger};
+-use core::arch::{asm, global_asm};
+-use riscv::register::{
+-    mtvec::TrapMode,
+-    scause::{self, Exception, Interrupt, Trap},
+-    sie, sscratch, sstatus, stval, stvec,
+-};
+-
+-global_asm!(include_str!("trap.S"));
+-
+-pub fn init() {
+-    set_kernel_trap_entry();
+-}
+-
+-fn set_kernel_trap_entry() {
+-    extern "C" {
+-        fn __alltraps();
+-        fn __alltraps_k();
+-    }
+-    let __alltraps_k_va = __alltraps_k as usize - __alltraps as usize + TRAMPOLINE;
+-    unsafe {
+-        stvec::write(__alltraps_k_va, TrapMode::Direct);
+-        sscratch::write(trap_from_kernel as usize);
+-    }
+-}
+-
+-fn set_user_trap_entry() {
+-    unsafe {
+-        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
+-    }
+-}
+-
+-pub fn enable_timer_interrupt() {
+-    unsafe {
+-        sie::set_stimer();
+-    }
+-}
+-
+-fn enable_supervisor_interrupt() {
+-    unsafe {
+-        sstatus::set_sie();
+-    }
+-}
+-
+-fn disable_supervisor_interrupt() {
+-    unsafe {
+-        sstatus::clear_sie();
+-    }
+-}
+-
+-#[no_mangle]
+-pub fn trap_handler() -> ! {
+-    set_kernel_trap_entry();
+-    let scause = scause::read();
+-    let stval = stval::read();
+-    // println!("into {:?}", scause.cause());
+-    match scause.cause() {
+-        Trap::Exception(Exception::UserEnvCall) => {
+-            // jump to next instruction anyway
+-            let mut cx = current_trap_cx();
+-            cx.sepc += 4;
+-
+-            enable_supervisor_interrupt();
+-
+-            // get system call return value
+-            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
+-            // cx is changed during sys_exec, so we have to call it again
+-            cx = current_trap_cx();
+-            cx.x[10] = result as usize;
+-        }
+-        Trap::Exception(Exception::StoreFault)
+-        | Trap::Exception(Exception::StorePageFault)
+-        | Trap::Exception(Exception::InstructionFault)
+-        | Trap::Exception(Exception::InstructionPageFault)
+-        | Trap::Exception(Exception::LoadFault)
+-        | Trap::Exception(Exception::LoadPageFault) => {
+-            /*
+-            println!(
+-                "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
+-                scause.cause(),
+-                stval,
+-                current_trap_cx().sepc,
+-            );
+-            */
+-            current_add_signal(SignalFlags::SIGSEGV);
+-        }
+-        Trap::Exception(Exception::IllegalInstruction) => {
+-            current_add_signal(SignalFlags::SIGILL);
+-        }
+-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+-            set_next_trigger();
+-            check_timer();
+-            suspend_current_and_run_next();
+-        }
+-        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+-            crate::board::irq_handler();
+-        }
+-        _ => {
+-            panic!(
+-                "Unsupported trap {:?}, stval = {:#x}!",
+-                scause.cause(),
+-                stval
+-            );
+-        }
+-    }
+-    // check signals
+-    if let Some((errno, msg)) = check_signals_of_current() {
+-        println!("[kernel] {}", msg);
+-        exit_current_and_run_next(errno);
+-    }
+-    trap_return();
+-}
+-
+-#[no_mangle]
+-pub fn trap_return() -> ! {
+-    disable_supervisor_interrupt();
+-    set_user_trap_entry();
+-    let trap_cx_user_va = current_trap_cx_user_va();
+-    let user_satp = current_user_token();
+-    extern "C" {
+-        fn __alltraps();
+-        fn __restore();
+-    }
+-    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
+-    //println!("before return");
+-    unsafe {
+-        asm!(
+-            "fence.i",
+-            "jr {restore_va}",
+-            restore_va = in(reg) restore_va,
+-            in("a0") trap_cx_user_va,
+-            in("a1") user_satp,
+-            options(noreturn)
+-        );
+-    }
+-}
+-
+-#[no_mangle]
+-pub fn trap_from_kernel(_trap_cx: &TrapContext) {
+-    let scause = scause::read();
+-    let stval = stval::read();
+-    match scause.cause() {
+-        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+-            crate::board::irq_handler();
+-        }
+-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+-            set_next_trigger();
+-            check_timer();
+-            // do not schedule now
+-        }
+-        _ => {
+-            panic!(
+-                "Unsupported trap from kernel: {:?}, stval = {:#x}!",
+-                scause.cause(),
+-                stval
+-            );
+-        }
+-    }
+-}
+-
+-pub use context::TrapContext;
+-
+-// pub use switch::*;
+\ No newline at end of file
++mod context;
++// #[deprecated] mod switch;
++
++use crate::config::TRAMPOLINE;
++use crate::syscall::syscall;
++use crate::task::{
++    check_signals_of_current, current_add_signal, current_trap_cx, current_trap_cx_user_va,
++    current_user_token, exit_current_and_run_next, suspend_current_and_run_next, SignalFlags,
++};
++use crate::timer::{check_timer, set_next_trigger};
++use core::arch::{asm, global_asm};
++use riscv::register::{
++    mtvec::TrapMode,
++    scause::{self, Exception, Interrupt, Trap},
++    sie, sscratch, sstatus, stval, stvec,
++};
++
++global_asm!(include_str!("trap.S"));
++
++pub fn init() {
++    set_kernel_trap_entry();
++}
++
++fn set_kernel_trap_entry() {
++    extern "C" {
++        fn __alltraps();
++        fn __alltraps_k();
++    }
++    let __alltraps_k_va = __alltraps_k as usize - __alltraps as usize + TRAMPOLINE;
++    unsafe {
++        stvec::write(__alltraps_k_va, TrapMode::Direct);
++        sscratch::write(trap_from_kernel as usize);
++    }
++}
++
++fn set_user_trap_entry() {
++    unsafe {
++        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
++    }
++}
++
++pub fn enable_timer_interrupt() {
++    unsafe {
++        sie::set_stimer();
++    }
++}
++
++fn enable_supervisor_interrupt() {
++    unsafe {
++        sstatus::set_sie();
++    }
++}
++
++fn disable_supervisor_interrupt() {
++    unsafe {
++        sstatus::clear_sie();
++    }
++}
++
++#[no_mangle]
++pub fn trap_handler() -> ! {
++    set_kernel_trap_entry();
++    let scause = scause::read();
++    let stval = stval::read();
++    // println!("into {:?}", scause.cause());
++    match scause.cause() {
++        Trap::Exception(Exception::UserEnvCall) => {
++            // jump to next instruction anyway
++            let mut cx = current_trap_cx();
++            cx.sepc += 4;
++
++            enable_supervisor_interrupt();
++
++            // get system call return value
++            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
++            // cx is changed during sys_exec, so we have to call it again
++            cx = current_trap_cx();
++            cx.x[10] = result as usize;
++        }
++        Trap::Exception(Exception::StoreFault)
++        | Trap::Exception(Exception::StorePageFault)
++        | Trap::Exception(Exception::InstructionFault)
++        | Trap::Exception(Exception::InstructionPageFault)
++        | Trap::Exception(Exception::LoadFault)
++        | Trap::Exception(Exception::LoadPageFault) => {
++            /*
++            println!(
++                "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
++                scause.cause(),
++                stval,
++                current_trap_cx().sepc,
++            );
++            */
++            current_add_signal(SignalFlags::SIGSEGV);
++        }
++        Trap::Exception(Exception::IllegalInstruction) => {
++            current_add_signal(SignalFlags::SIGILL);
++        }
++        Trap::Interrupt(Interrupt::SupervisorTimer) => {
++            set_next_trigger();
++            check_timer();
++            suspend_current_and_run_next();
++        }
++        Trap::Interrupt(Interrupt::SupervisorExternal) => {
++            crate::board::irq_handler();
++        }
++        _ => {
++            panic!(
++                "Unsupported trap {:?}, stval = {:#x}!",
++                scause.cause(),
++                stval
++            );
++        }
++    }
++    // check signals
++    if let Some((errno, msg)) = check_signals_of_current() {
++        println!("[kernel] {}", msg);
++        exit_current_and_run_next(errno);
++    }
++    trap_return();
++}
++
++#[no_mangle]
++pub fn trap_return() -> ! {
++    disable_supervisor_interrupt();
++    set_user_trap_entry();
++    let trap_cx_user_va = current_trap_cx_user_va();
++    let user_satp = current_user_token();
++    extern "C" {
++        fn __alltraps();
++        fn __restore();
++    }
++    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
++    //println!("before return");
++    unsafe {
++        asm!(
++            "fence.i",
++            "jr {restore_va}",
++            restore_va = in(reg) restore_va,
++            in("a0") trap_cx_user_va,
++            in("a1") user_satp,
++            options(noreturn)
++        );
++    }
++}
++
++#[no_mangle]
++pub fn trap_from_kernel(_trap_cx: &TrapContext) {
++    let scause = scause::read();
++    let stval = stval::read();
++    match scause.cause() {
++        Trap::Interrupt(Interrupt::SupervisorExternal) => {
++            crate::board::irq_handler();
++        }
++        Trap::Interrupt(Interrupt::SupervisorTimer) => {
++            set_next_trigger();
++            check_timer();
++            // do not schedule now
++        }
++        _ => {
++            panic!(
++                "Unsupported trap from kernel: {:?}, stval = {:#x}!",
++                scause.cause(),
++                stval
++            );
++        }
++    }
++}
++
++pub use context::TrapContext;
++
++// pub use switch::*;
+diff --git a/memory/src/frame_allocator.rs b/memory/src/frame_allocator.rs
+index 5c027e2..55f078c 100644
+--- a/memory/src/frame_allocator.rs
++++ b/memory/src/frame_allocator.rs
+@@ -1,127 +1,127 @@
+-use crate::{PhysAddr, PhysPageNum};
+-use config::MEMORY_END;
+-use safe_cell::UPIntrFreeCell;
+-use alloc::vec::Vec;
+-use core::fmt::{self, Debug, Formatter};
+-use lazy_static::*;
+-
+-pub struct FrameTracker {
+-    pub ppn: PhysPageNum,
+-}
+-
+-impl FrameTracker {
+-    pub fn new(ppn: PhysPageNum) -> Self {
+-        // page cleaning
+-        let bytes_array = ppn.get_bytes_array();
+-        for i in bytes_array {
+-            *i = 0;
+-        }
+-        Self { ppn }
+-    }
+-}
+-
+-impl Debug for FrameTracker {
+-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+-        f.write_fmt(format_args!("FrameTracker:PPN={:#x}", self.ppn.0))
+-    }
+-}
+-
+-impl Drop for FrameTracker {
+-    fn drop(&mut self) {
+-        frame_dealloc(self.ppn);
+-    }
+-}
+-
+-trait FrameAllocator {
+-    fn new() -> Self;
+-    fn alloc(&mut self) -> Option<PhysPageNum>;
+-    fn dealloc(&mut self, ppn: PhysPageNum);
+-}
+-
+-pub struct StackFrameAllocator {
+-    current: usize,
+-    end: usize,
+-    recycled: Vec<usize>,
+-}
+-
+-impl StackFrameAllocator {
+-    pub fn init(&mut self, l: PhysPageNum, r: PhysPageNum) {
+-        self.current = l.0;
+-        self.end = r.0;
+-        // println!("last {} Physical Frames.", self.end - self.current);
+-    }
+-}
+-impl FrameAllocator for StackFrameAllocator {
+-    fn new() -> Self {
+-        Self {
+-            current: 0,
+-            end: 0,
+-            recycled: Vec::new(),
+-        }
+-    }
+-    fn alloc(&mut self) -> Option<PhysPageNum> {
+-        if let Some(ppn) = self.recycled.pop() {
+-            Some(ppn.into())
+-        } else if self.current == self.end {
+-            None
+-        } else {
+-            self.current += 1;
+-            Some((self.current - 1).into())
+-        }
+-    }
+-    fn dealloc(&mut self, ppn: PhysPageNum) {
+-        let ppn = ppn.0;
+-        // validity check
+-        if ppn >= self.current || self.recycled.iter().any(|&v| v == ppn) {
+-            panic!("Frame ppn={:#x} has not been allocated!", ppn);
+-        }
+-        // recycle
+-        self.recycled.push(ppn);
+-    }
+-}
+-
+-type FrameAllocatorImpl = StackFrameAllocator;
+-
+-lazy_static! {
+-    pub static ref FRAME_ALLOCATOR: UPIntrFreeCell<FrameAllocatorImpl> =
+-        unsafe { UPIntrFreeCell::new(FrameAllocatorImpl::new()) };
+-}
+-
+-pub fn init_frame_allocator() {
+-    extern "C" {
+-        fn ekernel();
+-    }
+-    FRAME_ALLOCATOR.exclusive_access().init(
+-        PhysAddr::from(ekernel as usize).ceil(),
+-        PhysAddr::from(MEMORY_END).floor(),
+-    );
+-}
+-
+-pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
+-}
+-
+-pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
+-}
+-
+-#[allow(unused)]
+-pub fn frame_allocator_test() {
+-    let mut v: Vec<FrameTracker> = Vec::new();
+-    for i in 0..5 {
+-        let frame = frame_alloc().unwrap();
+-        // println!("{:?}", frame);
+-        v.push(frame);
+-    }
+-    v.clear();
+-    for i in 0..5 {
+-        let frame = frame_alloc().unwrap();
+-        // println!("{:?}", frame);
+-        v.push(frame);
+-    }
+-    drop(v);
+-    // println!("frame_allocator_test passed!");
+-}
++use crate::{PhysAddr, PhysPageNum};
++use alloc::vec::Vec;
++use config::MEMORY_END;
++use core::fmt::{self, Debug, Formatter};
++use lazy_static::*;
++use safe_cell::UPIntrFreeCell;
++
++pub struct FrameTracker {
++    pub ppn: PhysPageNum,
++}
++
++impl FrameTracker {
++    pub fn new(ppn: PhysPageNum) -> Self {
++        // page cleaning
++        let bytes_array = ppn.get_bytes_array();
++        for i in bytes_array {
++            *i = 0;
++        }
++        Self { ppn }
++    }
++}
++
++impl Debug for FrameTracker {
++    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
++        f.write_fmt(format_args!("FrameTracker:PPN={:#x}", self.ppn.0))
++    }
++}
++
++impl Drop for FrameTracker {
++    fn drop(&mut self) {
++        frame_dealloc(self.ppn);
++    }
++}
++
++trait FrameAllocator {
++    fn new() -> Self;
++    fn alloc(&mut self) -> Option<PhysPageNum>;
++    fn dealloc(&mut self, ppn: PhysPageNum);
++}
++
++pub struct StackFrameAllocator {
++    current: usize,
++    end: usize,
++    recycled: Vec<usize>,
++}
++
++impl StackFrameAllocator {
++    pub fn init(&mut self, l: PhysPageNum, r: PhysPageNum) {
++        self.current = l.0;
++        self.end = r.0;
++        // println!("last {} Physical Frames.", self.end - self.current);
++    }
++}
++impl FrameAllocator for StackFrameAllocator {
++    fn new() -> Self {
++        Self {
++            current: 0,
++            end: 0,
++            recycled: Vec::new(),
++        }
++    }
++    fn alloc(&mut self) -> Option<PhysPageNum> {
++        if let Some(ppn) = self.recycled.pop() {
++            Some(ppn.into())
++        } else if self.current == self.end {
++            None
++        } else {
++            self.current += 1;
++            Some((self.current - 1).into())
++        }
++    }
++    fn dealloc(&mut self, ppn: PhysPageNum) {
++        let ppn = ppn.0;
++        // validity check
++        if ppn >= self.current || self.recycled.iter().any(|&v| v == ppn) {
++            panic!("Frame ppn={:#x} has not been allocated!", ppn);
++        }
++        // recycle
++        self.recycled.push(ppn);
++    }
++}
++
++type FrameAllocatorImpl = StackFrameAllocator;
++
++lazy_static! {
++    pub static ref FRAME_ALLOCATOR: UPIntrFreeCell<FrameAllocatorImpl> =
++        unsafe { UPIntrFreeCell::new(FrameAllocatorImpl::new()) };
++}
++
++pub fn init_frame_allocator() {
++    extern "C" {
++        fn ekernel();
++    }
++    FRAME_ALLOCATOR.exclusive_access().init(
++        PhysAddr::from(ekernel as usize).ceil(),
++        PhysAddr::from(MEMORY_END).floor(),
++    );
++}
++
++pub fn frame_alloc() -> Option<FrameTracker> {
++    FRAME_ALLOCATOR
++        .exclusive_access()
++        .alloc()
++        .map(FrameTracker::new)
++}
++
++pub fn frame_dealloc(ppn: PhysPageNum) {
++    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++}
++
++#[allow(unused)]
++pub fn frame_allocator_test() {
++    let mut v: Vec<FrameTracker> = Vec::new();
++    for i in 0..5 {
++        let frame = frame_alloc().unwrap();
++        // println!("{:?}", frame);
++        v.push(frame);
++    }
++    v.clear();
++    for i in 0..5 {
++        let frame = frame_alloc().unwrap();
++        // println!("{:?}", frame);
++        v.push(frame);
++    }
++    drop(v);
++    // println!("frame_allocator_test passed!");
++}
+diff --git a/memory/src/heap_allocator.rs b/memory/src/heap_allocator.rs
+index 4dd8456..43767c5 100644
+--- a/memory/src/heap_allocator.rs
++++ b/memory/src/heap_allocator.rs
+@@ -1,45 +1,45 @@
+-use config::KERNEL_HEAP_SIZE;
+-use buddy_system_allocator::LockedHeap;
+-
+-#[global_allocator]
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+-
+-#[alloc_error_handler]
+-pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+-    panic!("Heap allocation error, layout = {:?}", layout);
+-}
+-
+-static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
+-
+-pub fn init_heap() {
+-    unsafe {
+-        HEAP_ALLOCATOR
+-            .lock()
+-            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+-    }
+-}
+-
+-#[allow(unused)]
+-pub fn heap_test() {
+-    use alloc::boxed::Box;
+-    use alloc::vec::Vec;
+-    extern "C" {
+-        fn sbss();
+-        fn ebss();
+-    }
+-    let bss_range = sbss as usize..ebss as usize;
+-    let a = Box::new(5);
+-    assert_eq!(*a, 5);
+-    assert!(bss_range.contains(&(a.as_ref() as *const _ as usize)));
+-    drop(a);
+-    let mut v: Vec<usize> = Vec::new();
+-    for i in 0..500 {
+-        v.push(i);
+-    }
+-    for (i, val) in v.iter().take(500).enumerate() {
+-        assert_eq!(*val, i);
+-    }
+-    assert!(bss_range.contains(&(v.as_ptr() as usize)));
+-    drop(v);
+-    // println!("heap_test passed!");
+-}
++use buddy_system_allocator::LockedHeap;
++use config::KERNEL_HEAP_SIZE;
++
++#[global_allocator]
++static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++
++#[alloc_error_handler]
++pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
++    panic!("Heap allocation error, layout = {:?}", layout);
++}
++
++static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
++
++pub fn init_heap() {
++    unsafe {
++        HEAP_ALLOCATOR
++            .lock()
++            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
++    }
++}
++
++#[allow(unused)]
++pub fn heap_test() {
++    use alloc::boxed::Box;
++    use alloc::vec::Vec;
++    extern "C" {
++        fn sbss();
++        fn ebss();
++    }
++    let bss_range = sbss as usize..ebss as usize;
++    let a = Box::new(5);
++    assert_eq!(*a, 5);
++    assert!(bss_range.contains(&(a.as_ref() as *const _ as usize)));
++    drop(a);
++    let mut v: Vec<usize> = Vec::new();
++    for i in 0..500 {
++        v.push(i);
++    }
++    for (i, val) in v.iter().take(500).enumerate() {
++        assert_eq!(*val, i);
++    }
++    assert!(bss_range.contains(&(v.as_ptr() as usize)));
++    drop(v);
++    // println!("heap_test passed!");
++}
+diff --git a/memory/src/memory_set.rs b/memory/src/memory_set.rs
+index 03c6c88..92cee53 100644
+--- a/memory/src/memory_set.rs
++++ b/memory/src/memory_set.rs
+@@ -1,380 +1,380 @@
+-use crate::{frame_alloc, FrameTracker};
+-use crate::{PTEFlags, PageTable, PageTableEntry};
+-use crate::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
+-use crate::{StepByOne, VPNRange};
+-use config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE};
+-use safe_cell::UPIntrFreeCell;
+-use alloc::collections::BTreeMap;
+-use alloc::sync::Arc;
+-use alloc::vec::Vec;
+-use core::arch::asm;
+-use lazy_static::*;
+-use riscv::register::satp;
+-
+-extern "C" {
+-    fn stext();
+-    fn etext();
+-    fn srodata();
+-    fn erodata();
+-    fn sdata();
+-    fn edata();
+-    fn sbss_with_stack();
+-    fn ebss();
+-    fn ekernel();
+-    fn strampoline();
+-}
+-
+-lazy_static! {
+-    pub static ref KERNEL_SPACE: Arc<UPIntrFreeCell<MemorySet>> =
+-        Arc::new(unsafe { UPIntrFreeCell::new(MemorySet::new_kernel()) });
+-}
+-
+-pub fn kernel_token() -> usize {
+-    KERNEL_SPACE.exclusive_access().token()
+-}
+-
+-pub struct MemorySet {
+-    page_table: PageTable,
+-    areas: Vec<MapArea>,
+-}
+-
+-impl MemorySet {
+-    pub fn new_bare() -> Self {
+-        Self {
+-            page_table: PageTable::new(),
+-            areas: Vec::new(),
+-        }
+-    }
+-    pub fn token(&self) -> usize {
+-        self.page_table.token()
+-    }
+-    /// Assume that no conflicts.
+-    pub fn insert_framed_area(
+-        &mut self,
+-        start_va: VirtAddr,
+-        end_va: VirtAddr,
+-        permission: MapPermission,
+-    ) {
+-        self.push(
+-            MapArea::new(start_va, end_va, MapType::Framed, permission),
+-            None,
+-        );
+-    }
+-    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+-        if let Some((idx, area)) = self
+-            .areas
+-            .iter_mut()
+-            .enumerate()
+-            .find(|(_, area)| area.vpn_range.get_start() == start_vpn)
+-        {
+-            area.unmap(&mut self.page_table);
+-            self.areas.remove(idx);
+-        }
+-    }
+-    /// Add a new MapArea into this MemorySet.
+-    /// Assuming that there are no conflicts in the virtual address
+-    /// space.
+-    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
+-        map_area.map(&mut self.page_table);
+-        if let Some(data) = data {
+-            map_area.copy_data(&mut self.page_table, data);
+-        }
+-        self.areas.push(map_area);
+-    }
+-    /// Mention that trampoline is not collected by areas.
+-    fn map_trampoline(&mut self) {
+-        self.page_table.map(
+-            VirtAddr::from(TRAMPOLINE).into(),
+-            PhysAddr::from(strampoline as usize).into(),
+-            PTEFlags::R | PTEFlags::X,
+-        );
+-    }
+-    /// Without kernel stacks.
+-    pub fn new_kernel() -> Self {
+-        let mut memory_set = Self::new_bare();
+-        // map trampoline
+-        memory_set.map_trampoline();
+-        // map kernel sections
+-        // println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
+-        // println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
+-        // println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
+-        // println!(
+-        //     ".bss [{:#x}, {:#x})",
+-        //     sbss_with_stack as usize, ebss as usize
+-        // );
+-        // println!("mapping .text section");
+-        memory_set.push(
+-            MapArea::new(
+-                (stext as usize).into(),
+-                (etext as usize).into(),
+-                MapType::Identical,
+-                MapPermission::R | MapPermission::X,
+-            ),
+-            None,
+-        );
+-        // println!("mapping .rodata section");
+-        memory_set.push(
+-            MapArea::new(
+-                (srodata as usize).into(),
+-                (erodata as usize).into(),
+-                MapType::Identical,
+-                MapPermission::R,
+-            ),
+-            None,
+-        );
+-        // println!("mapping .data section");
+-        memory_set.push(
+-            MapArea::new(
+-                (sdata as usize).into(),
+-                (edata as usize).into(),
+-                MapType::Identical,
+-                MapPermission::R | MapPermission::W,
+-            ),
+-            None,
+-        );
+-        // println!("mapping .bss section");
+-        memory_set.push(
+-            MapArea::new(
+-                (sbss_with_stack as usize).into(),
+-                (ebss as usize).into(),
+-                MapType::Identical,
+-                MapPermission::R | MapPermission::W,
+-            ),
+-            None,
+-        );
+-        // println!("mapping physical memory");
+-        memory_set.push(
+-            MapArea::new(
+-                (ekernel as usize).into(),
+-                MEMORY_END.into(),
+-                MapType::Identical,
+-                MapPermission::R | MapPermission::W,
+-            ),
+-            None,
+-        );
+-        //println!("mapping memory-mapped registers");
+-        for pair in MMIO {
+-            memory_set.push(
+-                MapArea::new(
+-                    (*pair).0.into(),
+-                    ((*pair).0 + (*pair).1).into(),
+-                    MapType::Identical,
+-                    MapPermission::R | MapPermission::W,
+-                ),
+-                None,
+-            );
+-        }
+-        memory_set
+-    }
+-    /// Include sections in elf and trampoline,
+-    /// also returns user_sp_base and entry point.
+-    pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
+-        let mut memory_set = Self::new_bare();
+-        // map trampoline
+-        memory_set.map_trampoline();
+-        // map program headers of elf, with U flag
+-        let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
+-        let elf_header = elf.header;
+-        let magic = elf_header.pt1.magic;
+-        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+-        let ph_count = elf_header.pt2.ph_count();
+-        let mut max_end_vpn = VirtPageNum(0);
+-        for i in 0..ph_count {
+-            let ph = elf.program_header(i).unwrap();
+-            if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
+-                let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
+-                let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
+-                let mut map_perm = MapPermission::U;
+-                let ph_flags = ph.flags();
+-                if ph_flags.is_read() {
+-                    map_perm |= MapPermission::R;
+-                }
+-                if ph_flags.is_write() {
+-                    map_perm |= MapPermission::W;
+-                }
+-                if ph_flags.is_execute() {
+-                    map_perm |= MapPermission::X;
+-                }
+-                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
+-                max_end_vpn = map_area.vpn_range.get_end();
+-                memory_set.push(
+-                    map_area,
+-                    Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize]),
+-                );
+-            }
+-        }
+-        let max_end_va: VirtAddr = max_end_vpn.into();
+-        let mut user_stack_base: usize = max_end_va.into();
+-        user_stack_base += PAGE_SIZE;
+-        (
+-            memory_set,
+-            user_stack_base,
+-            elf.header.pt2.entry_point() as usize,
+-        )
+-    }
+-    pub fn from_existed_user(user_space: &MemorySet) -> MemorySet {
+-        let mut memory_set = Self::new_bare();
+-        // map trampoline
+-        memory_set.map_trampoline();
+-        // copy data sections/trap_context/user_stack
+-        for area in user_space.areas.iter() {
+-            let new_area = MapArea::from_another(area);
+-            memory_set.push(new_area, None);
+-            // copy data from another space
+-            for vpn in area.vpn_range {
+-                let src_ppn = user_space.translate(vpn).unwrap().ppn();
+-                let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
+-                dst_ppn
+-                    .get_bytes_array()
+-                    .copy_from_slice(src_ppn.get_bytes_array());
+-            }
+-        }
+-        memory_set
+-    }
+-    pub fn activate(&self) {
+-        let satp = self.page_table.token();
+-        unsafe {
+-            satp::write(satp);
+-            asm!("sfence.vma");
+-        }
+-    }
+-    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+-        self.page_table.translate(vpn)
+-    }
+-    pub fn recycle_data_pages(&mut self) {
+-        //*self = Self::new_bare();
+-        self.areas.clear();
+-    }
+-}
+-
+-pub struct MapArea {
+-    vpn_range: VPNRange,
+-    data_frames: BTreeMap<VirtPageNum, FrameTracker>,
+-    map_type: MapType,
+-    map_perm: MapPermission,
+-}
+-
+-impl MapArea {
+-    pub fn new(
+-        start_va: VirtAddr,
+-        end_va: VirtAddr,
+-        map_type: MapType,
+-        map_perm: MapPermission,
+-    ) -> Self {
+-        let start_vpn: VirtPageNum = start_va.floor();
+-        let end_vpn: VirtPageNum = end_va.ceil();
+-        Self {
+-            vpn_range: VPNRange::new(start_vpn, end_vpn),
+-            data_frames: BTreeMap::new(),
+-            map_type,
+-            map_perm,
+-        }
+-    }
+-    pub fn from_another(another: &MapArea) -> Self {
+-        Self {
+-            vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
+-            data_frames: BTreeMap::new(),
+-            map_type: another.map_type,
+-            map_perm: another.map_perm,
+-        }
+-    }
+-    pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
+-        let ppn: PhysPageNum;
+-        match self.map_type {
+-            MapType::Identical => {
+-                ppn = PhysPageNum(vpn.0);
+-            }
+-            MapType::Framed => {
+-                let frame = frame_alloc().unwrap();
+-                ppn = frame.ppn;
+-                self.data_frames.insert(vpn, frame);
+-            }
+-            MapType::Linear(pn_offset) => {
+-                // check for sv39
+-                assert!(vpn.0 < (1usize << 27));
+-                ppn = PhysPageNum((vpn.0 as isize + pn_offset) as usize);
+-            }
+-        }
+-        let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
+-        page_table.map(vpn, ppn, pte_flags);
+-    }
+-    pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
+-        if self.map_type == MapType::Framed {
+-            self.data_frames.remove(&vpn);
+-        }
+-        page_table.unmap(vpn);
+-    }
+-    pub fn map(&mut self, page_table: &mut PageTable) {
+-        for vpn in self.vpn_range {
+-            self.map_one(page_table, vpn);
+-        }
+-    }
+-    pub fn unmap(&mut self, page_table: &mut PageTable) {
+-        for vpn in self.vpn_range {
+-            self.unmap_one(page_table, vpn);
+-        }
+-    }
+-    /// data: start-aligned but maybe with shorter length
+-    /// assume that all frames were cleared before
+-    pub fn copy_data(&mut self, page_table: &mut PageTable, data: &[u8]) {
+-        assert_eq!(self.map_type, MapType::Framed);
+-        let mut start: usize = 0;
+-        let mut current_vpn = self.vpn_range.get_start();
+-        let len = data.len();
+-        loop {
+-            let src = &data[start..len.min(start + PAGE_SIZE)];
+-            let dst = &mut page_table
+-                .translate(current_vpn)
+-                .unwrap()
+-                .ppn()
+-                .get_bytes_array()[..src.len()];
+-            dst.copy_from_slice(src);
+-            start += PAGE_SIZE;
+-            if start >= len {
+-                break;
+-            }
+-            current_vpn.step();
+-        }
+-    }
+-}
+-
+-#[derive(Copy, Clone, PartialEq, Debug)]
+-pub enum MapType {
+-    Identical,
+-    Framed,
+-    /// offset of page num
+-    Linear(isize),
+-}
+-
+-bitflags! {
+-    pub struct MapPermission: u8 {
+-        const R = 1 << 1;
+-        const W = 1 << 2;
+-        const X = 1 << 3;
+-        const U = 1 << 4;
+-    }
+-}
+-
+-#[allow(unused)]
+-pub fn remap_test() {
+-    let mut kernel_space = KERNEL_SPACE.exclusive_access();
+-    let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
+-    let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
+-    let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
+-    assert!(!kernel_space
+-        .page_table
+-        .translate(mid_text.floor())
+-        .unwrap()
+-        .writable(),);
+-    assert!(!kernel_space
+-        .page_table
+-        .translate(mid_rodata.floor())
+-        .unwrap()
+-        .writable(),);
+-    assert!(!kernel_space
+-        .page_table
+-        .translate(mid_data.floor())
+-        .unwrap()
+-        .executable(),);
+-    // println!("remap_test passed!");
+-}
++use crate::{frame_alloc, FrameTracker};
++use crate::{PTEFlags, PageTable, PageTableEntry};
++use crate::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
++use crate::{StepByOne, VPNRange};
++use alloc::collections::BTreeMap;
++use alloc::sync::Arc;
++use alloc::vec::Vec;
++use config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE};
++use core::arch::asm;
++use lazy_static::*;
++use riscv::register::satp;
++use safe_cell::UPIntrFreeCell;
++
++extern "C" {
++    fn stext();
++    fn etext();
++    fn srodata();
++    fn erodata();
++    fn sdata();
++    fn edata();
++    fn sbss_with_stack();
++    fn ebss();
++    fn ekernel();
++    fn strampoline();
++}
++
++lazy_static! {
++    pub static ref KERNEL_SPACE: Arc<UPIntrFreeCell<MemorySet>> =
++        Arc::new(unsafe { UPIntrFreeCell::new(MemorySet::new_kernel()) });
++}
++
++pub fn kernel_token() -> usize {
++    KERNEL_SPACE.exclusive_access().token()
++}
++
++pub struct MemorySet {
++    page_table: PageTable,
++    areas: Vec<MapArea>,
++}
++
++impl MemorySet {
++    pub fn new_bare() -> Self {
++        Self {
++            page_table: PageTable::new(),
++            areas: Vec::new(),
++        }
++    }
++    pub fn token(&self) -> usize {
++        self.page_table.token()
++    }
++    /// Assume that no conflicts.
++    pub fn insert_framed_area(
++        &mut self,
++        start_va: VirtAddr,
++        end_va: VirtAddr,
++        permission: MapPermission,
++    ) {
++        self.push(
++            MapArea::new(start_va, end_va, MapType::Framed, permission),
++            None,
++        );
++    }
++    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
++        if let Some((idx, area)) = self
++            .areas
++            .iter_mut()
++            .enumerate()
++            .find(|(_, area)| area.vpn_range.get_start() == start_vpn)
++        {
++            area.unmap(&mut self.page_table);
++            self.areas.remove(idx);
++        }
++    }
++    /// Add a new MapArea into this MemorySet.
++    /// Assuming that there are no conflicts in the virtual address
++    /// space.
++    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
++        map_area.map(&mut self.page_table);
++        if let Some(data) = data {
++            map_area.copy_data(&mut self.page_table, data);
++        }
++        self.areas.push(map_area);
++    }
++    /// Mention that trampoline is not collected by areas.
++    fn map_trampoline(&mut self) {
++        self.page_table.map(
++            VirtAddr::from(TRAMPOLINE).into(),
++            PhysAddr::from(strampoline as usize).into(),
++            PTEFlags::R | PTEFlags::X,
++        );
++    }
++    /// Without kernel stacks.
++    pub fn new_kernel() -> Self {
++        let mut memory_set = Self::new_bare();
++        // map trampoline
++        memory_set.map_trampoline();
++        // map kernel sections
++        // println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
++        // println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
++        // println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
++        // println!(
++        //     ".bss [{:#x}, {:#x})",
++        //     sbss_with_stack as usize, ebss as usize
++        // );
++        // println!("mapping .text section");
++        memory_set.push(
++            MapArea::new(
++                (stext as usize).into(),
++                (etext as usize).into(),
++                MapType::Identical,
++                MapPermission::R | MapPermission::X,
++            ),
++            None,
++        );
++        // println!("mapping .rodata section");
++        memory_set.push(
++            MapArea::new(
++                (srodata as usize).into(),
++                (erodata as usize).into(),
++                MapType::Identical,
++                MapPermission::R,
++            ),
++            None,
++        );
++        // println!("mapping .data section");
++        memory_set.push(
++            MapArea::new(
++                (sdata as usize).into(),
++                (edata as usize).into(),
++                MapType::Identical,
++                MapPermission::R | MapPermission::W,
++            ),
++            None,
++        );
++        // println!("mapping .bss section");
++        memory_set.push(
++            MapArea::new(
++                (sbss_with_stack as usize).into(),
++                (ebss as usize).into(),
++                MapType::Identical,
++                MapPermission::R | MapPermission::W,
++            ),
++            None,
++        );
++        // println!("mapping physical memory");
++        memory_set.push(
++            MapArea::new(
++                (ekernel as usize).into(),
++                MEMORY_END.into(),
++                MapType::Identical,
++                MapPermission::R | MapPermission::W,
++            ),
++            None,
++        );
++        //println!("mapping memory-mapped registers");
++        for pair in MMIO {
++            memory_set.push(
++                MapArea::new(
++                    (*pair).0.into(),
++                    ((*pair).0 + (*pair).1).into(),
++                    MapType::Identical,
++                    MapPermission::R | MapPermission::W,
++                ),
++                None,
++            );
++        }
++        memory_set
++    }
++    /// Include sections in elf and trampoline,
++    /// also returns user_sp_base and entry point.
++    pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
++        let mut memory_set = Self::new_bare();
++        // map trampoline
++        memory_set.map_trampoline();
++        // map program headers of elf, with U flag
++        let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
++        let elf_header = elf.header;
++        let magic = elf_header.pt1.magic;
++        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
++        let ph_count = elf_header.pt2.ph_count();
++        let mut max_end_vpn = VirtPageNum(0);
++        for i in 0..ph_count {
++            let ph = elf.program_header(i).unwrap();
++            if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
++                let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
++                let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
++                let mut map_perm = MapPermission::U;
++                let ph_flags = ph.flags();
++                if ph_flags.is_read() {
++                    map_perm |= MapPermission::R;
++                }
++                if ph_flags.is_write() {
++                    map_perm |= MapPermission::W;
++                }
++                if ph_flags.is_execute() {
++                    map_perm |= MapPermission::X;
++                }
++                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
++                max_end_vpn = map_area.vpn_range.get_end();
++                memory_set.push(
++                    map_area,
++                    Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize]),
++                );
++            }
++        }
++        let max_end_va: VirtAddr = max_end_vpn.into();
++        let mut user_stack_base: usize = max_end_va.into();
++        user_stack_base += PAGE_SIZE;
++        (
++            memory_set,
++            user_stack_base,
++            elf.header.pt2.entry_point() as usize,
++        )
++    }
++    pub fn from_existed_user(user_space: &MemorySet) -> MemorySet {
++        let mut memory_set = Self::new_bare();
++        // map trampoline
++        memory_set.map_trampoline();
++        // copy data sections/trap_context/user_stack
++        for area in user_space.areas.iter() {
++            let new_area = MapArea::from_another(area);
++            memory_set.push(new_area, None);
++            // copy data from another space
++            for vpn in area.vpn_range {
++                let src_ppn = user_space.translate(vpn).unwrap().ppn();
++                let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
++                dst_ppn
++                    .get_bytes_array()
++                    .copy_from_slice(src_ppn.get_bytes_array());
++            }
++        }
++        memory_set
++    }
++    pub fn activate(&self) {
++        let satp = self.page_table.token();
++        unsafe {
++            satp::write(satp);
++            asm!("sfence.vma");
++        }
++    }
++    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
++        self.page_table.translate(vpn)
++    }
++    pub fn recycle_data_pages(&mut self) {
++        //*self = Self::new_bare();
++        self.areas.clear();
++    }
++}
++
++pub struct MapArea {
++    vpn_range: VPNRange,
++    data_frames: BTreeMap<VirtPageNum, FrameTracker>,
++    map_type: MapType,
++    map_perm: MapPermission,
++}
++
++impl MapArea {
++    pub fn new(
++        start_va: VirtAddr,
++        end_va: VirtAddr,
++        map_type: MapType,
++        map_perm: MapPermission,
++    ) -> Self {
++        let start_vpn: VirtPageNum = start_va.floor();
++        let end_vpn: VirtPageNum = end_va.ceil();
++        Self {
++            vpn_range: VPNRange::new(start_vpn, end_vpn),
++            data_frames: BTreeMap::new(),
++            map_type,
++            map_perm,
++        }
++    }
++    pub fn from_another(another: &MapArea) -> Self {
++        Self {
++            vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
++            data_frames: BTreeMap::new(),
++            map_type: another.map_type,
++            map_perm: another.map_perm,
++        }
++    }
++    pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
++        let ppn: PhysPageNum;
++        match self.map_type {
++            MapType::Identical => {
++                ppn = PhysPageNum(vpn.0);
++            }
++            MapType::Framed => {
++                let frame = frame_alloc().unwrap();
++                ppn = frame.ppn;
++                self.data_frames.insert(vpn, frame);
++            }
++            MapType::Linear(pn_offset) => {
++                // check for sv39
++                assert!(vpn.0 < (1usize << 27));
++                ppn = PhysPageNum((vpn.0 as isize + pn_offset) as usize);
++            }
++        }
++        let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
++        page_table.map(vpn, ppn, pte_flags);
++    }
++    pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
++        if self.map_type == MapType::Framed {
++            self.data_frames.remove(&vpn);
++        }
++        page_table.unmap(vpn);
++    }
++    pub fn map(&mut self, page_table: &mut PageTable) {
++        for vpn in self.vpn_range {
++            self.map_one(page_table, vpn);
++        }
++    }
++    pub fn unmap(&mut self, page_table: &mut PageTable) {
++        for vpn in self.vpn_range {
++            self.unmap_one(page_table, vpn);
++        }
++    }
++    /// data: start-aligned but maybe with shorter length
++    /// assume that all frames were cleared before
++    pub fn copy_data(&mut self, page_table: &mut PageTable, data: &[u8]) {
++        assert_eq!(self.map_type, MapType::Framed);
++        let mut start: usize = 0;
++        let mut current_vpn = self.vpn_range.get_start();
++        let len = data.len();
++        loop {
++            let src = &data[start..len.min(start + PAGE_SIZE)];
++            let dst = &mut page_table
++                .translate(current_vpn)
++                .unwrap()
++                .ppn()
++                .get_bytes_array()[..src.len()];
++            dst.copy_from_slice(src);
++            start += PAGE_SIZE;
++            if start >= len {
++                break;
++            }
++            current_vpn.step();
++        }
++    }
++}
++
++#[derive(Copy, Clone, PartialEq, Debug)]
++pub enum MapType {
++    Identical,
++    Framed,
++    /// offset of page num
++    Linear(isize),
++}
++
++bitflags! {
++    pub struct MapPermission: u8 {
++        const R = 1 << 1;
++        const W = 1 << 2;
++        const X = 1 << 3;
++        const U = 1 << 4;
++    }
++}
++
++#[allow(unused)]
++pub fn remap_test() {
++    let mut kernel_space = KERNEL_SPACE.exclusive_access();
++    let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
++    let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
++    let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
++    assert!(!kernel_space
++        .page_table
++        .translate(mid_text.floor())
++        .unwrap()
++        .writable(),);
++    assert!(!kernel_space
++        .page_table
++        .translate(mid_rodata.floor())
++        .unwrap()
++        .writable(),);
++    assert!(!kernel_space
++        .page_table
++        .translate(mid_data.floor())
++        .unwrap()
++        .executable(),);
++    // println!("remap_test passed!");
++}
+diff --git a/safe_cell/src/lib.rs b/safe_cell/src/lib.rs
+index a5d3832..0f2c97d 100644
+--- a/safe_cell/src/lib.rs
++++ b/safe_cell/src/lib.rs
+@@ -138,4 +138,4 @@ impl<'a, T> DerefMut for UPIntrRefMut<'a, T> {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+         self.0.as_mut().unwrap().deref_mut()
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/tconfig/src/lib.rs b/tconfig/src/lib.rs
+index dcd5602..af61ace 100644
+--- a/tconfig/src/lib.rs
++++ b/tconfig/src/lib.rs
+@@ -1,10 +1,8 @@
+ #![no_std]
+ #[allow(unused)]
+-
+ use lazy_static::*;
+ use safe_cell::UPIntrFreeCell;
+ 
+-
+ pub const USER_STACK_SIZE: usize = 4096 * 2;
+ pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
+ pub const KERNEL_HEAP_SIZE: usize = 0x100_0000;
+@@ -29,4 +27,4 @@ pub const MMIO: &[(usize, usize)] = &[
+ lazy_static! {
+     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+         unsafe { UPIntrFreeCell::new(false) };
+-}
+\ No newline at end of file
++}
+-- 
+2.34.1
+

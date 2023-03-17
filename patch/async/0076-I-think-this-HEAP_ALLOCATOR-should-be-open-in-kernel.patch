@@ -1,0 +1,25 @@
+From 4d0674070144adf4cd41fe9f1f2f0fa691735924 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 22:14:00 -0500
+Subject: [PATCH 76/80] I think this `HEAP_ALLOCATOR` should be open in kernel.
+
+---
+ memory/src/heap_allocator.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/memory/src/heap_allocator.rs b/memory/src/heap_allocator.rs
+index 43767c5..9ea12af 100644
+--- a/memory/src/heap_allocator.rs
++++ b/memory/src/heap_allocator.rs
+@@ -2,7 +2,7 @@ use buddy_system_allocator::LockedHeap;
+ use config::KERNEL_HEAP_SIZE;
+ 
+ #[global_allocator]
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++pub static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+ 
+ #[alloc_error_handler]
+ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+-- 
+2.34.1
+

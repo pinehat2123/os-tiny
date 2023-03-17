@@ -1,0 +1,102 @@
+From 6611a501ce7a98313768a4fa1d4059e07935d44e Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 22:16:30 -0500
+Subject: [PATCH 78/80] format the code.
+
+---
+ kernel/src/lib.rs                    | 8 +++++++-
+ kernel/src/memory/heap.rs            | 6 +++---
+ kernel/src/syscall/async_tiny/mod.rs | 6 ++++--
+ memory/src/lib.rs                    | 2 +-
+ 4 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 54eb5e0..a57a4df 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -1,6 +1,12 @@
+ #![no_std]
+ #![no_main]
+-#![feature(naked_functions, asm_const, alloc_error_handler, panic_info_message, linked_list_remove)]
++#![feature(
++    naked_functions,
++    asm_const,
++    alloc_error_handler,
++    panic_info_message,
++    linked_list_remove
++)]
+ #![deny(warnings, unused_imports, dead_code)]
+ #![allow(unused_imports, dead_code)]
+ 
+diff --git a/kernel/src/memory/heap.rs b/kernel/src/memory/heap.rs
+index ba9845f..628d4f2 100644
+--- a/kernel/src/memory/heap.rs
++++ b/kernel/src/memory/heap.rs
+@@ -3,8 +3,8 @@
+ //! 分配一块内存空间用作堆空间使用
+ use super::config::KERNEL_HEAP_SIZE;
+ use alloc::alloc::Layout;
+-use mm::HEAP_ALLOCATOR as HEAP;
+ use buddy_system_allocator::LockedHeap;
++use mm::HEAP_ALLOCATOR as HEAP;
+ 
+ static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
+ 
+@@ -12,13 +12,13 @@ static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
+ // #[global_allocator]
+ // static HEAP: LockedHeap<32> = LockedHeap::empty();
+ // static HEAP: LockedHeap = HEAP_ALLOCATOR;
+-// 
++//
+ // #[cfg_attr(not(test), alloc_error_handler)]
+ // #[allow(unused)]
+ // fn alloc_error_handler(layout: Layout) -> ! {
+ //     panic!("alloc error for layout {:?}", layout)
+ // }
+-// 
++//
+ /// 初始化堆
+ pub fn init() {
+     unsafe {
+diff --git a/kernel/src/syscall/async_tiny/mod.rs b/kernel/src/syscall/async_tiny/mod.rs
+index 026a23b..54f61a3 100644
+--- a/kernel/src/syscall/async_tiny/mod.rs
++++ b/kernel/src/syscall/async_tiny/mod.rs
+@@ -1,10 +1,12 @@
+ use super::super::{
+-    memory::{self, Satp, AddressSpaceId, VirtualAddress, VirtualPageNumber, KERNEL_MAP_OFFSET, SWAP_FRAME_VA, swap_contex_va },
+     hart::KernelHartInfo,
++    memory::{
++        self, swap_contex_va, AddressSpaceId, Satp, VirtualAddress, VirtualPageNumber,
++        KERNEL_MAP_OFFSET, SWAP_FRAME_VA,
++    },
+     trap::async_tiny::{self, SwapContext},
+ };
+ 
+-
+ pub unsafe fn get_swap_cx<'cx>(satp: &'cx Satp, asid: usize) -> &'cx mut SwapContext {
+     let swap_cx_va = VirtualAddress(memory::swap_contex_va(asid));
+     let swap_cx_vpn = VirtualPageNumber::floor(swap_cx_va);
+diff --git a/memory/src/lib.rs b/memory/src/lib.rs
+index 03bb2da..9699928 100644
+--- a/memory/src/lib.rs
++++ b/memory/src/lib.rs
+@@ -15,6 +15,7 @@ mod page_table;
+ pub use address::VPNRange;
+ pub use address::{PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+ pub use frame_allocator::{frame_alloc, frame_dealloc, FrameTracker};
++pub use heap_allocator::HEAP_ALLOCATOR;
+ pub use memory_set::remap_test;
+ pub use memory_set::{kernel_token, MapArea, MapPermission, MapType, MemorySet, KERNEL_SPACE};
+ use page_table::PTEFlags;
+@@ -22,7 +23,6 @@ pub use page_table::{
+     translated_byte_buffer, translated_ref, translated_refmut, translated_str, PageTable,
+     PageTableEntry, UserBuffer, UserBufferIterator,
+ };
+-pub use heap_allocator::HEAP_ALLOCATOR;
+ 
+ pub fn init() {
+     heap_allocator::init_heap();
+-- 
+2.34.1
+

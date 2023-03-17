@@ -1,0 +1,26 @@
+From 96f7464b2f456c919013bb0e27594c1483027746 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 06:11:20 -0500
+Subject: [PATCH 37/80] async utils upload
+
+---
+ Cargo.toml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 7484611..6ae735a 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,6 +2,9 @@
+ members = [
+     "application/easy-fs-fuse",
+     "application/user",
++    "async_tiny/async_mutex",
++    "async_tiny/async_virtio_driver",
++    "async_tiny/async_easy_fs",
+     "ring_scheduler",
+     "easy-fs", 
+     "kernel", 
+-- 
+2.34.1
+

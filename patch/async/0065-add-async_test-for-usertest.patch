@@ -1,0 +1,24 @@
+From 7c60b2a3ddefd601bd3d1dfea2f86fe3b940b6ed Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 00:36:58 -0500
+Subject: [PATCH 65/80] add `async_test` for usertest`
+
+---
+ application/user/src/bin/usertests.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/application/user/src/bin/usertests.rs b/application/user/src/bin/usertests.rs
+index 92cccab..22d80bc 100644
+--- a/application/user/src/bin/usertests.rs
++++ b/application/user/src/bin/usertests.rs
+@@ -51,6 +51,7 @@ static FAIL_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+     // ("priv_csr\0", "\0", "\0", "\0", -4),
+     // ("priv_inst\0", "\0", "\0", "\0", -4),
+     ("store_fault\0", "\0", "\0", "\0", -11),
++    ("async_test\0", "\0", "\0", "\0", -11),
+     // ("until_timeout\0", "\0", "\0", "\0", -6),
+     // ("adder\0", "\0", "\0", "\0", -6),
+     // ("adder_simple_spin\0", "\0", "\0", "\0", -6),
+-- 
+2.34.1
+

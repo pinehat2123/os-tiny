@@ -1,0 +1,63 @@
+From 96448ab6fbb486d79681cc5a138b4e1fde5434d3 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Tue, 7 Mar 2023 11:26:20 -0500
+Subject: [PATCH 47/80] perl: cargo check upload.
+
+---
+ script/simple-cargo | 26 +++++++++++++++++++++++++-
+ 1 file changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/script/simple-cargo b/script/simple-cargo
+index 411d607..6613824 100644
+--- a/script/simple-cargo
++++ b/script/simple-cargo
+@@ -3,6 +3,9 @@
+ 
+ package UtilsCargo;
+ 
++my $_cmd = "cargo";
++my $_target = "--target=\"riscv64gc-unknown-none-elf\"";
++
+ sub cargo_clean {
+ 
+ }
+@@ -11,7 +14,18 @@ sub cargo_new {
+ 
+ }
+ 
++# cargo check in Workspace
+ sub cargo_check {
++    @argList = @_;
++    $_type = "check";
++    $_crate = $argList[0];
++    $_target_require = $argList[1];
++    print (($_target_require eq "true") ? 
++    "\e[31m". $_cmd . " " . $_type . " -p ". $_crate . " ". $_target . "\e[0m\n":
++    "\e[31m". $_cmd . " " . $_type . " -p ". $_crate . "\e[0m\n");
++    system (($_target_require eq "true") ? 
++    $_cmd . " " . $_type . " -p ". $_crate . " ". $_target :
++    $_cmd . " " . $_type . " -p ". $_crate );
+ 
+ }
+ 
+@@ -19,4 +33,14 @@ sub cargo_build {
+ 
+ }
+ 
+-package main;
+\ No newline at end of file
++package main;
++
++@commander = @ARGV;
++
++sub check {
++    my $crate = $ARGV[1] ? $ARGV[1] : "";
++    my $target_require = $ARGV[2] ? $ARGV[2] : true;
++    &UtilsCargo::cargo_check($crate, $target_require);
++}
++
++$commander[0]();
+\ No newline at end of file
+-- 
+2.34.1
+

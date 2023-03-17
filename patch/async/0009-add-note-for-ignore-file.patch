@@ -1,0 +1,25 @@
+From 09c403d405396d89c91903227f34e2931e663440 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 11:50:11 -0500
+Subject: [PATCH 09/80] add note for ignore file
+
+---
+ .gitignore | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/.gitignore b/.gitignore
+index c38b542..631eddb 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,4 +2,5 @@
+ target
+ *.lock
+ tools
+-build
+\ No newline at end of file
++build
++other_libs
+\ No newline at end of file
+-- 
+2.34.1
+

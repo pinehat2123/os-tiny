@@ -1,0 +1,50 @@
+From ade0bce187819ae4eccf4ffc3ff83cc03bb87082 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 00:38:28 -0500
+Subject: [PATCH 68/80] `ge` proc-macro add.
+
+---
+ utils/ge/Cargo.toml | 12 ++++++++++++
+ utils/ge/src/lib.rs |  9 +++++++++
+ 2 files changed, 21 insertions(+)
+ create mode 100644 utils/ge/Cargo.toml
+ create mode 100644 utils/ge/src/lib.rs
+
+diff --git a/utils/ge/Cargo.toml b/utils/ge/Cargo.toml
+new file mode 100644
+index 0000000..d5a46a9
+--- /dev/null
++++ b/utils/ge/Cargo.toml
+@@ -0,0 +1,12 @@
++[package]
++name = "ge"
++version = "0.1.0"
++edition = "2021"
++
++# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
++[lib]
++proc-macro = true
++
++[dependencies]
++syn = "1.0"
++quote = "1.0"
+\ No newline at end of file
+diff --git a/utils/ge/src/lib.rs b/utils/ge/src/lib.rs
+new file mode 100644
+index 0000000..d91d83e
+--- /dev/null
++++ b/utils/ge/src/lib.rs
+@@ -0,0 +1,9 @@
++extern crate proc_macro;
++
++use proc_macro::TokenStream;
++
++#[proc_macro_attribute] pub fn move_function(attr: TokenStream, item: TokenStream) -> TokenStream {
++    let _metadata = attr;
++    let _ast = item;
++    "// function item was moved".parse().unwrap()
++}
+\ No newline at end of file
+-- 
+2.34.1
+

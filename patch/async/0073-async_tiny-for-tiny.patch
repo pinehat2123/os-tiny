@@ -1,0 +1,2621 @@
+From 9a1af03e9f138ca8406e559a98944851938fcfae Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Mar 2023 04:11:58 -0500
+Subject: [PATCH 73/80] async_tiny for tiny
+
+---
+ kernel/Cargo.toml                             |   6 +
+ kernel/src/async_rt/executor.rs               | 259 +++++++-------
+ kernel/src/async_rt/mod.rs                    |  41 ++-
+ kernel/src/async_rt/shared.rs                 | 266 ++++++++-------
+ kernel/src/hart.rs                            | 235 +++++++++++++
+ kernel/src/lib.rs                             |   5 +-
+ kernel/src/memory/address.rs                  | 201 +++++++++++
+ .../algorithm/allocator/stacked_allocator.rs  |  33 ++
+ kernel/src/memory/algorithm/mod.rs            |  14 +
+ kernel/src/memory/config.rs                   |  51 +++
+ kernel/src/memory/frame.rs                    |  11 +
+ kernel/src/memory/frame/allocator.rs          |  53 +++
+ kernel/src/memory/frame/tracker.rs            |  39 +++
+ kernel/src/memory/heap.rs                     |  26 ++
+ kernel/src/memory/mapping.rs                  |  13 +
+ kernel/src/memory/mapping/mapping.rs          | 323 ++++++++++++++++++
+ kernel/src/memory/mapping/memory_set.rs       | 294 ++++++++++++++++
+ kernel/src/memory/mapping/page_table.rs       |  45 +++
+ kernel/src/memory/mapping/page_table_entry.rs |  76 +++++
+ kernel/src/memory/mapping/satp.rs             |  59 ++++
+ kernel/src/memory/mapping/segment.rs          |  30 ++
+ kernel/src/memory/mod.rs                      |  42 +++
+ kernel/src/task/async_task/kernel_task.rs     |  78 +++++
+ kernel/src/task/async_task/mod.rs             |  70 ++++
+ kernel/src/task/async_task/process.rs         |  89 +++++
+ kernel/src/task/mod.rs                        |   2 +
+ 26 files changed, 2089 insertions(+), 272 deletions(-)
+ create mode 100644 kernel/src/hart.rs
+ create mode 100644 kernel/src/memory/address.rs
+ create mode 100644 kernel/src/memory/algorithm/allocator/stacked_allocator.rs
+ create mode 100644 kernel/src/memory/algorithm/mod.rs
+ create mode 100644 kernel/src/memory/config.rs
+ create mode 100644 kernel/src/memory/frame.rs
+ create mode 100644 kernel/src/memory/frame/allocator.rs
+ create mode 100644 kernel/src/memory/frame/tracker.rs
+ create mode 100644 kernel/src/memory/heap.rs
+ create mode 100644 kernel/src/memory/mapping.rs
+ create mode 100644 kernel/src/memory/mapping/mapping.rs
+ create mode 100644 kernel/src/memory/mapping/memory_set.rs
+ create mode 100644 kernel/src/memory/mapping/page_table.rs
+ create mode 100644 kernel/src/memory/mapping/page_table_entry.rs
+ create mode 100644 kernel/src/memory/mapping/satp.rs
+ create mode 100644 kernel/src/memory/mapping/segment.rs
+ create mode 100644 kernel/src/memory/mod.rs
+ create mode 100644 kernel/src/task/async_task/kernel_task.rs
+ create mode 100644 kernel/src/task/async_task/mod.rs
+ create mode 100644 kernel/src/task/async_task/process.rs
+
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 57ccfde..d9fe97c 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -9,6 +9,9 @@ edition = "2021"
+ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+ buddy_system_allocator = "0.6"
+ bitflags = "1.2.1"
++bit_field = "0.10"
++spin = "0.7.0"
++woke = "0.0.2"
+ xmas-elf = "0.7.0"
+ volatile = "0.3"
+ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+@@ -31,6 +34,9 @@ features = []
+ [build-dependencies.linker]
+ path = "../other_libs/linker"
+ 
++[features]
++async_tiny = []
++
+ [lib]
+ bench = false
+ # staticlib is required to build a self-contained, fully-linked .a file
+diff --git a/kernel/src/async_rt/executor.rs b/kernel/src/async_rt/executor.rs
+index 654f995..e134d1f 100644
+--- a/kernel/src/async_rt/executor.rs
++++ b/kernel/src/async_rt/executor.rs
+@@ -1,147 +1,140 @@
+-use crate::{hart::KernelHartInfo, memory::AddressSpaceId, task::TaskResult};
+-use core::{mem, ptr::NonNull};
++//! 内核执行器实现
++use super::shared::TaskState;
++use crate::{
++    hart::KernelHartInfo,
++    syscall::get_swap_cx,
++    task::async_task::{KernelTaskRepr, TaskResult},
++    trap::switch_to_user,
++};
++use alloc::sync::Arc;
++use core::{
++    mem,
++    task::{Context, Poll},
++};
++#[allow(unused)]
++use riscv::register::sie;
++use woke::waker_ref;
+ 
+-/// 任务当前的状态
+-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+-#[repr(u8)]
+-pub enum TaskState {
+-    Ready = 0,
+-    Sleeping = 1,
+-}
+-
+-pub extern "C" fn kernel_should_switch(address_space_id: AddressSpaceId) -> bool {
+-    // 如果当前和下一个任务间地址空间变化了，就说明应当切换上下文
+-    KernelHartInfo::current_address_space_id() != address_space_id
+-}
+-
+-/// 共享调度器
+-#[repr(C)]
+-pub struct SharedPayload {
+-    pub(crate) shared_scheduler: NonNull<()>,
+-    shared_add_task: unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool,
+-    shared_peek_task:
+-        unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult,
+-    shared_delete_task: unsafe extern "C" fn(NonNull<()>, usize) -> bool,
+-    pub(crate) shared_set_task_state: unsafe extern "C" fn(NonNull<()>, usize, TaskState),
+-}
+-
+-unsafe impl Send for SharedPayload {}
+-unsafe impl Sync for SharedPayload {}
+-
+-type SharedPayloadAsUsize = [usize; 7]; // 编译时基地址，初始化函数，共享调度器地址，添加函数，弹出函数
+-type InitFunction = unsafe extern "C" fn() -> PageList;
+-type SharedPayloadRaw = (
+-    usize, // 编译时基地址，转换后类型占位，不使用
+-    usize, // 初始化函数，执行完之后，内核将函数指针置空
+-    NonNull<()>,
+-    unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool, // 添加任务
+-    unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult, // 弹出任务
+-    unsafe extern "C" fn(NonNull<()>, usize) -> bool, // 删除任务
+-    unsafe extern "C" fn(NonNull<()>, usize, TaskState), // 改变任务的状态
+-);
+-
+-impl SharedPayload {
+-    /// 根据基地址加载共享调度器
+-    pub unsafe fn load(base: usize) -> Self {
+-        let mut payload_usize = *(base as *const SharedPayloadAsUsize);
+-        // println!(
+-        //     "[kernel:shared] Raw table base: {:p}",
+-        //     base as *const SharedPayloadAsUsize
+-        // );
+-        // println!("[kernel:shared] Content: {:x?}", payload_usize);
+-        let compiled_offset = payload_usize[0];
+-        for (i, idx) in payload_usize.iter_mut().enumerate() {
+-            if i == 0 {
+-                continue;
++/// 内核执行器实现
++///
++/// 如果是当前上下文，就解释运行，如果不是，就切换上下文。
++///
++/// 切换上下文时，要把上下文保存好，最终还是要回到切换的地方继续运行。
++pub fn run_until_idle(
++    peek_task: impl Fn() -> TaskResult,
++    delete_task: impl Fn(usize) -> bool,
++    set_task_state: impl Fn(usize, TaskState),
++) {
++    loop {
++        // unsafe {
++        //     sstatus::set_sie();
++        // }
++        ext_intr_off();
++        let task = peek_task();
++        ext_intr_on();
++        // println!(">>> kernel executor: next task = {:x?}", task);
++        match task {
++            TaskResult::Task(task_repr) => {
++                // 在相同的（内核）地址空间里面
++                ext_intr_off();
++                set_task_state(task_repr, TaskState::Sleeping);
++                ext_intr_on();
++                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
++                // 注册 waker
++                let waker = waker_ref(&task);
++                let mut context = Context::from_waker(&*waker);
++                let ret = task.task().future.lock().as_mut().poll(&mut context);
++                if let Poll::Pending = ret {
++                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
++                } else {
++                    // 否则，释放task的内存
++                    ext_intr_off();
++                    delete_task(task_repr);
++                    ext_intr_on();
++                } // 隐含一个drop(task)
+             }
+-            *idx = idx.wrapping_sub(compiled_offset).wrapping_add(base);
+-            if *idx == 0 {
+-                panic!("shared scheduler used effective address of zero")
++            TaskResult::ShouldYield(next_asid) => {
++                // 不释放这个任务的内存，执行切换地址空间的系统调用
++                mem::forget(task);
++                let next_satp = KernelHartInfo::user_satp(next_asid).expect("get satp with asid");
++                let swap_cx = unsafe { get_swap_cx(&next_satp, next_asid) };
++                switch_to_user(swap_cx, next_satp.inner(), next_asid)
+             }
++            TaskResult::NoWakeTask => {
++                // 没有醒着的任务，直接跳过
++            }
++            TaskResult::Finished => break,
+         }
+-        // println!("[kernel:shared] After patched: {:x?}", payload_usize);
+-        let payload_init: InitFunction = mem::transmute(payload_usize[1]);
+-        let _page_list = payload_init(); // 初始化载荷，包括零初始化段的清零等等
+-        payload_usize[1] = 0; // 置空初始化函数
+-                              // println!("[kernel:shared] Init, page list: {:x?}", page_list); // 应当在分页系统中使用上，本次比赛设计暂时不深入
+-        let raw_table: SharedPayloadRaw = mem::transmute(payload_usize);
+-        Self {
+-            shared_scheduler: raw_table.2,
+-            shared_add_task: raw_table.3,
+-            shared_peek_task: raw_table.4,
+-            shared_delete_task: raw_table.5,
+-            shared_set_task_state: raw_table.6,
+-        }
+-    }
+-
+-    /// 往共享调度器中添加任务
+-    ///
+-    /// # Example:
+-    ///
+-    /// ```
+-    /// # const BASE: usize = 0x8600_000;
+-    /// unsafe {
+-    ///     let shared_load = SharedPayload::new(BASE);
+-    ///     let asid = AddressSpaceId::from_raw(0);
+-    ///     shared_load.add_task(0, asid, task.task_repr());
+-    /// }
+-    /// ```
+-    pub unsafe fn add_task(
+-        &self,
+-        hart_id: usize,
+-        address_space_id: AddressSpaceId,
+-        task_repr: usize,
+-    ) -> bool {
+-        let f = self.shared_add_task;
+-        // hart_id, address_space_id, task_repr);
+-        f(self.shared_scheduler, hart_id, address_space_id, task_repr)
++        // unsafe {
++        //     sstatus::clear_sie();
++        // }
+     }
++}
+ 
+-    /// 从共享调度器中得到下一个任务
+-    ///
+-    /// # Example:
+-    ///
+-    /// ```
+-    /// todo!()
+-    /// ```
+-    pub unsafe fn peek_task(
+-        &self,
+-        should_yield: extern "C" fn(AddressSpaceId) -> bool,
+-    ) -> TaskResult {
+-        let f = self.shared_peek_task;
+-        f(self.shared_scheduler, should_yield)
++/// 用于内核第一次升到用户态
++///
++/// note: 需要确保共享调度器中只有一个任务
++///
++/// 不一定会用到，但先留着
++#[allow(unused)]
++pub fn run_one(
++    add_task: impl Fn(usize) -> bool,
++    peek_task: impl Fn() -> TaskResult,
++    delete_task: impl Fn(usize) -> bool,
++    set_task_state: impl Fn(usize, TaskState),
++) {
++    loop {
++        ext_intr_off();
++        let task = peek_task();
++        ext_intr_on();
++        println!(">>> run one: next task = {:x?}", task);
++        match task {
++            TaskResult::Task(task_repr) => {
++                ext_intr_off();
++                set_task_state(task_repr, TaskState::Sleeping);
++                ext_intr_on();
++                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
++                // 注册 waker
++                let waker = waker_ref(&task);
++                let mut context = Context::from_waker(&*waker);
++                // poll 操作之前在共享调度器中删除这个任务
++                ext_intr_off();
++                delete_task(task_repr);
++                ext_intr_on();
++                let ret = task.task().future.lock().as_mut().poll(&mut context);
++                if let Poll::Pending = ret {
++                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
++                    ext_intr_off();
++                    add_task(task_repr); // 重新把这个任务放进共享调度器
++                    ext_intr_on();
++                } else {
++                    // 否则，释放task的内存
++                    unreachable!() // 该任务不可能返回 Ready(T)
++                }
++            }
++            TaskResult::NoWakeTask => {}
++            _ => unreachable!(),
++        }
+     }
++}
+ 
+-    /// 从共享调度器中删除任务
+-    ///
+-    /// ```
+-    /// unsafe{
+-    ///     assert!(shared_load.delete_task(task.task_repr()));        
+-    /// }
+-    /// ```
+-    pub unsafe fn delete_task(&self, task_repr: usize) -> bool {
+-        let f = self.shared_delete_task;
+-        f(self.shared_scheduler, task_repr)
++/// 唤醒机制
++impl woke::Woke for KernelTaskRepr {
++    fn wake_by_ref(task: &Arc<Self>) {
++        unsafe { task.do_wake() }
+     }
++}
+ 
+-    /// 设置一个任务的状态
+-    ///
+-    /// # Example:
+-    ///
+-    /// ```
+-    /// todo!()
+-    /// ```
+-    pub unsafe fn set_task_state(&self, task_repr: usize, new_state: TaskState) {
+-        let f = self.shared_set_task_state;
+-        f(self.shared_scheduler, task_repr, new_state)
++/// 打开外部中断
++pub fn ext_intr_on() {
++    unsafe {
++        sie::set_sext();
+     }
+ }
+ 
+-/// 共享载荷各个段的范围，方便内存管理的权限设置
+-#[derive(Debug)]
+-#[repr(C)]
+-struct PageList {
+-    rodata: [usize; 2], // 只读数据段
+-    data: [usize; 2],   // 数据段
+-    text: [usize; 2],   // 代码段
++/// 关闭外部中断
++pub fn ext_intr_off() {
++    unsafe {
++        sie::clear_sext();
++    }
+ }
+diff --git a/kernel/src/async_rt/mod.rs b/kernel/src/async_rt/mod.rs
+index 6ba5046..1c0a06b 100644
+--- a/kernel/src/async_rt/mod.rs
++++ b/kernel/src/async_rt/mod.rs
+@@ -1,12 +1,29 @@
+-// mod executor;
+-//
+-// mod shared;
+-//
+-// pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
+-// pub use shared::{kernel_should_switch, SharedPayload, TaskState};
+-
+-use crate::console;
+-
+-pub fn init() {
+-    println!("async_rt INIT");
+-}
++//! 内核异步运行时实现
++//!
++//! 目前包含共享调度器实例化和内核执行器两个模块。
++//!
++//! Rust异步运行时是不包含在标准库里面的，交给社区贡献者实现，通常包含以下几个方面：
++//!
++//! * Future: 标准库提供`Future` trait，封装一个`poll`方法
++//! * executor: `Future`的具体运行者
++//! * reactor: `Future`的唤醒者
++//!
++//! 目前飓风内核里面的异步运行时主要是内核执行器，其配合共享调度器进行执行任务的工作。
++//!
++//! 在中断处理函数或者系统调用处理函数里面存在任务唤醒机制。
++#[cfg(feature = "async_tiny")]
++mod executor;
++#[cfg(feature = "async_tiny")]
++mod shared;
++
++#[cfg(feature = "async_tiny")]
++pub use executor::{ext_intr_off, ext_intr_on, run_one, run_until_idle};
++#[cfg(feature = "async_tiny")]
++pub use shared::{kernel_should_switch, SharedPayload, TaskState};
++
++
++use crate::console;
++
++pub fn init() {
++    println!("async_rt INIT");
++}
+diff --git a/kernel/src/async_rt/shared.rs b/kernel/src/async_rt/shared.rs
+index 92dc6ac..621a470 100644
+--- a/kernel/src/async_rt/shared.rs
++++ b/kernel/src/async_rt/shared.rs
+@@ -1,140 +1,154 @@
+-//! 内核执行器实现
+-use super::shared::TaskState;
+-use crate::{
+-    hart::KernelHartInfo,
+-    syscall::get_swap_cx,
+-    task::{KernelTaskRepr, TaskResult},
+-    trap::switch_to_user,
+-};
+-use alloc::sync::Arc;
+-use core::{
+-    mem,
+-    task::{Context, Poll},
+-};
+-#[allow(unused)]
+-use riscv::register::sie;
+-use woke::waker_ref;
++use crate::{hart::KernelHartInfo, memory::AddressSpaceId, task::async_task::TaskResult};
++use core::{mem, ptr::NonNull};
+ 
+-/// 内核执行器实现
+-///
+-/// 如果是当前上下文，就解释运行，如果不是，就切换上下文。
+-///
+-/// 切换上下文时，要把上下文保存好，最终还是要回到切换的地方继续运行。
+-pub fn run_until_idle(
+-    peek_task: impl Fn() -> TaskResult,
+-    delete_task: impl Fn(usize) -> bool,
+-    set_task_state: impl Fn(usize, TaskState),
+-) {
+-    loop {
+-        // unsafe {
+-        //     sstatus::set_sie();
+-        // }
+-        ext_intr_off();
+-        let task = peek_task();
+-        ext_intr_on();
+-        // println!(">>> kernel executor: next task = {:x?}", task);
+-        match task {
+-            TaskResult::Task(task_repr) => {
+-                // 在相同的（内核）地址空间里面
+-                ext_intr_off();
+-                set_task_state(task_repr, TaskState::Sleeping);
+-                ext_intr_on();
+-                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
+-                // 注册 waker
+-                let waker = waker_ref(&task);
+-                let mut context = Context::from_waker(&*waker);
+-                let ret = task.task().future.lock().as_mut().poll(&mut context);
+-                if let Poll::Pending = ret {
+-                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
+-                } else {
+-                    // 否则，释放task的内存
+-                    ext_intr_off();
+-                    delete_task(task_repr);
+-                    ext_intr_on();
+-                } // 隐含一个drop(task)
+-            }
+-            TaskResult::ShouldYield(next_asid) => {
+-                // 不释放这个任务的内存，执行切换地址空间的系统调用
+-                mem::forget(task);
+-                let next_satp = KernelHartInfo::user_satp(next_asid).expect("get satp with asid");
+-                let swap_cx = unsafe { get_swap_cx(&next_satp, next_asid) };
+-                switch_to_user(swap_cx, next_satp.inner(), next_asid)
++/// 任务当前的状态
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++#[repr(u8)]
++pub enum TaskState {
++    Ready = 0,
++    Sleeping = 1,
++}
++
++pub extern "C" fn kernel_should_switch(address_space_id: AddressSpaceId) -> bool {
++    // 如果当前和下一个任务间地址空间变化了，就说明应当切换上下文
++    KernelHartInfo::current_address_space_id() != address_space_id
++}
++
++/// 共享调度器
++#[repr(C)]
++pub struct SharedPayload {
++    pub(crate) shared_scheduler: NonNull<()>,
++    shared_add_task: unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool,
++    shared_peek_task:
++        unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult,
++    shared_delete_task: unsafe extern "C" fn(NonNull<()>, usize) -> bool,
++    pub(crate) shared_set_task_state: unsafe extern "C" fn(NonNull<()>, usize, TaskState),
++}
++
++unsafe impl Send for SharedPayload {}
++unsafe impl Sync for SharedPayload {}
++
++type SharedPayloadAsUsize = [usize; 7]; // 编译时基地址，初始化函数，共享调度器地址，添加函数，弹出函数
++type InitFunction = unsafe extern "C" fn() -> PageList;
++type SharedPayloadRaw = (
++    usize, // 编译时基地址，转换后类型占位，不使用
++    usize, // 初始化函数，执行完之后，内核将函数指针置空
++    NonNull<()>,
++    unsafe extern "C" fn(NonNull<()>, usize, AddressSpaceId, usize) -> bool, // 添加任务
++    unsafe extern "C" fn(NonNull<()>, extern "C" fn(AddressSpaceId) -> bool) -> TaskResult, // 弹出任务
++    unsafe extern "C" fn(NonNull<()>, usize) -> bool, // 删除任务
++    unsafe extern "C" fn(NonNull<()>, usize, TaskState), // 改变任务的状态
++);
++
++impl SharedPayload {
++    /// 根据基地址加载共享调度器
++    ///
++    /// # Example:
++    ///
++    /// ```
++    /// # const BASE: usize = 0x8600_000;
++    /// let shared_load = unsafe { SharedPayload::load(BASE); }
++    /// ```
++    pub unsafe fn load(base: usize) -> Self {
++        let mut payload_usize = *(base as *const SharedPayloadAsUsize);
++        // println!(
++        //     "[kernel:shared] Raw table base: {:p}",
++        //     base as *const SharedPayloadAsUsize
++        // );
++        // println!("[kernel:shared] Content: {:x?}", payload_usize);
++        let compiled_offset = payload_usize[0];
++        for (i, idx) in payload_usize.iter_mut().enumerate() {
++            if i == 0 {
++                continue;
+             }
+-            TaskResult::NoWakeTask => {
+-                // 没有醒着的任务，直接跳过
++            *idx = idx.wrapping_sub(compiled_offset).wrapping_add(base);
++            if *idx == 0 {
++                panic!("shared scheduler used effective address of zero")
+             }
+-            TaskResult::Finished => break,
+         }
+-        // unsafe {
+-        //     sstatus::clear_sie();
+-        // }
++        // println!("[kernel:shared] After patched: {:x?}", payload_usize);
++        let payload_init: InitFunction = mem::transmute(payload_usize[1]);
++        let _page_list = payload_init(); // 初始化载荷，包括零初始化段的清零等等
++        payload_usize[1] = 0; // 置空初始化函数
++                              // println!("[kernel:shared] Init, page list: {:x?}", page_list); // 应当在分页系统中使用上，本次比赛设计暂时不深入
++        let raw_table: SharedPayloadRaw = mem::transmute(payload_usize);
++        Self {
++            shared_scheduler: raw_table.2,
++            shared_add_task: raw_table.3,
++            shared_peek_task: raw_table.4,
++            shared_delete_task: raw_table.5,
++            shared_set_task_state: raw_table.6,
++        }
+     }
+-}
+ 
+-/// 用于内核第一次升到用户态
+-///
+-/// note: 需要确保共享调度器中只有一个任务
+-///
+-/// 不一定会用到，但先留着
+-#[allow(unused)]
+-pub fn run_one(
+-    add_task: impl Fn(usize) -> bool,
+-    peek_task: impl Fn() -> TaskResult,
+-    delete_task: impl Fn(usize) -> bool,
+-    set_task_state: impl Fn(usize, TaskState),
+-) {
+-    loop {
+-        ext_intr_off();
+-        let task = peek_task();
+-        ext_intr_on();
+-        println!(">>> run one: next task = {:x?}", task);
+-        match task {
+-            TaskResult::Task(task_repr) => {
+-                ext_intr_off();
+-                set_task_state(task_repr, TaskState::Sleeping);
+-                ext_intr_on();
+-                let task: Arc<KernelTaskRepr> = unsafe { Arc::from_raw(task_repr as *mut _) };
+-                // 注册 waker
+-                let waker = waker_ref(&task);
+-                let mut context = Context::from_waker(&*waker);
+-                // poll 操作之前在共享调度器中删除这个任务
+-                ext_intr_off();
+-                delete_task(task_repr);
+-                ext_intr_on();
+-                let ret = task.task().future.lock().as_mut().poll(&mut context);
+-                if let Poll::Pending = ret {
+-                    mem::forget(task); // 不要释放task的内存，它将继续保存在内存中被使用
+-                    ext_intr_off();
+-                    add_task(task_repr); // 重新把这个任务放进共享调度器
+-                    ext_intr_on();
+-                } else {
+-                    // 否则，释放task的内存
+-                    unreachable!() // 该任务不可能返回 Ready(T)
+-                }
+-            }
+-            TaskResult::NoWakeTask => {}
+-            _ => unreachable!(),
+-        }
++    /// 往共享调度器中添加任务
++    ///
++    /// # Example:
++    ///
++    /// ```
++    /// # const BASE: usize = 0x8600_000;
++    /// unsafe {
++    ///     let shared_load = SharedPayload::new(BASE);
++    ///     let asid = AddressSpaceId::from_raw(0);
++    ///     shared_load.add_task(0, asid, task.task_repr());
++    /// }
++    /// ```
++    pub unsafe fn add_task(
++        &self,
++        hart_id: usize,
++        address_space_id: AddressSpaceId,
++        task_repr: usize,
++    ) -> bool {
++        let f = self.shared_add_task;
++        // hart_id, address_space_id, task_repr);
++        f(self.shared_scheduler, hart_id, address_space_id, task_repr)
+     }
+-}
+ 
+-/// 唤醒机制
+-impl woke::Woke for KernelTaskRepr {
+-    fn wake_by_ref(task: &Arc<Self>) {
+-        unsafe { task.do_wake() }
++    /// 从共享调度器中得到下一个任务
++    ///
++    /// # Example:
++    ///
++    /// ```
++    /// todo!()
++    /// ```
++    pub unsafe fn peek_task(
++        &self,
++        should_yield: extern "C" fn(AddressSpaceId) -> bool,
++    ) -> TaskResult {
++        let f = self.shared_peek_task;
++        f(self.shared_scheduler, should_yield)
+     }
+-}
+ 
+-/// 打开外部中断
+-pub fn ext_intr_on() {
+-    unsafe {
+-        sie::set_sext();
++    /// 从共享调度器中删除任务
++    ///
++    /// ```
++    /// unsafe{
++    ///     assert!(shared_load.delete_task(task.task_repr()));        
++    /// }
++    /// ```
++    pub unsafe fn delete_task(&self, task_repr: usize) -> bool {
++        let f = self.shared_delete_task;
++        f(self.shared_scheduler, task_repr)
+     }
+-}
+ 
+-/// 关闭外部中断
+-pub fn ext_intr_off() {
+-    unsafe {
+-        sie::clear_sext();
++    /// 设置一个任务的状态
++    ///
++    /// # Example:
++    ///
++    /// ```
++    /// todo!()
++    /// ```
++    pub unsafe fn set_task_state(&self, task_repr: usize, new_state: TaskState) {
++        let f = self.shared_set_task_state;
++        f(self.shared_scheduler, task_repr, new_state)
+     }
+ }
++
++/// 共享载荷各个段的范围，方便内存管理的权限设置
++#[derive(Debug)]
++#[repr(C)]
++struct PageList {
++    rodata: [usize; 2], // 只读数据段
++    data: [usize; 2],   // 数据段
++    text: [usize; 2],   // 代码段
++}
+diff --git a/kernel/src/hart.rs b/kernel/src/hart.rs
+new file mode 100644
+index 0000000..726e9e4
+--- /dev/null
++++ b/kernel/src/hart.rs
+@@ -0,0 +1,235 @@
++//! 和处理核相关的函数
++use crate::{
++    memory::{AddressSpaceId, MemorySet, Satp},
++    task::async_task::Process,
++};
++use alloc::{boxed::Box, collections::LinkedList, sync::Arc};
++
++use core::arch::asm;
++
++/// 写一个指针到上下文指针
++#[inline]
++pub unsafe fn write_tp(tp: usize) {
++    asm!("mv tp, {}", in(reg) tp, options(nostack));
++}
++
++/// 从tp寄存器读上下文指针
++#[inline]
++pub fn read_tp() -> usize {
++    let tp: usize;
++    unsafe {
++        asm!("mv {}, tp", out(reg) tp, options(nomem, nostack));
++    }; // rust-lang/rust#82753 Thank you @Amanieu :)
++    tp
++}
++
++/// 用户层将定义自己的tp寄存器意义
++///
++/// 在内核层中，tp指向一个结构体，说明当前的硬件线程编号，
++/// 以及已经分配的地址空间和对应的用户上下文
++#[repr(C)]
++pub struct KernelHartInfo {
++    hart_id: usize,
++    current_address_space_id: AddressSpaceId, // currently unused
++    current_process: Option<Arc<Process>>,    // currently unused
++    hart_max_asid: AddressSpaceId,            // note: different between qemu and k210 platform
++    asid_alloc: (LinkedList<usize>, usize),   // (空余的编号回收池，目前已分配最大的编号)
++    user_mm_sets: (LinkedList<MemorySet>, usize), // (注册的用户地址空间映射，上一次进入的用户地址空间编号)
++}
++
++impl KernelHartInfo {
++    /// 准备一个新的核，以供调度器使用
++    ///
++    /// 在堆上申请一片内存存放[`KernelHartInfo`]数据结构
++    /// 这片内存不会马上释放，只有在调用`unload_hart`函数的时候才会释放
++    pub unsafe fn load_hart(hart_id: usize) {
++        let hart_info = Box::new(KernelHartInfo {
++            hart_id,
++            current_address_space_id: AddressSpaceId::from_raw(0),
++            current_process: None,
++            hart_max_asid: crate::memory::max_asid(),
++            asid_alloc: (LinkedList::new(), 0), // 0留给内核，其它留给应用,
++            user_mm_sets: (LinkedList::new(), 0),
++        });
++        let tp = Box::into_raw(hart_info) as usize; // todo: 这里有内存泄漏，要在drop里处理
++        write_tp(tp)
++    }
++
++    /// 热加载/热卸载处理核，释放这个核占用的内存资源
++    pub unsafe fn unload_hart() {
++        let addr = read_tp();
++        let bx: Box<KernelHartInfo> = Box::from_raw(addr as *mut _);
++        drop(bx);
++    }
++
++    /// 得到当前硬件线程的编号，必须在load_hart之后使用
++    pub fn hart_id() -> usize {
++        use_tp_box(|b| b.hart_id)
++    }
++
++    pub unsafe fn load_address_space_id(asid: AddressSpaceId) {
++        use_tp_box(|b| b.current_address_space_id = asid);
++    }
++
++    /// 得到当前的地址空间编号
++    pub fn current_address_space_id() -> AddressSpaceId {
++        use_tp_box(|b| b.current_address_space_id)
++    }
++
++    // unused
++    pub unsafe fn load_process(process: Arc<Process>) {
++        use_tp_box(|b| b.current_process = Some(process.clone()));
++    }
++
++    // unused
++    pub fn current_process() -> Option<Arc<Process>> {
++        use_tp_box(|b| b.current_process.clone())
++    }
++
++    /// 分配一个地址空间编号
++    #[cfg(feature = "qemu")]
++    pub fn alloc_address_space_id() -> Option<AddressSpaceId> {
++        use_tp_box(|b| {
++            let (free, max) = &mut b.asid_alloc;
++            if let Some(_) = free.front() {
++                // 如果链表有内容，返回内容
++                return free
++                    .pop_front()
++                    .map(|idx| unsafe { AddressSpaceId::from_raw(idx) });
++            }
++            // 如果链表是空的
++            if *max < b.hart_max_asid.into_inner() {
++                let ans = *max;
++                *max += 1;
++                Some(unsafe { AddressSpaceId::from_raw(ans) })
++            } else {
++                None
++            }
++        })
++    }
++
++    #[cfg(feature = "k210")]
++    pub fn alloc_address_space_id() -> Option<AddressSpaceId> {
++        // k210 平台上最大地址空间编号为 `0`，这里假设可以存在大于 0 的地址空间编号
++        use_tp_box(|b| {
++            let (free, max) = &mut b.asid_alloc;
++            if let Some(_) = free.front() {
++                // 如果链表有内容，返回内容
++                return free
++                    .pop_front()
++                    .map(|idx| unsafe { AddressSpaceId::from_raw(idx) });
++            }
++            // 如果链表是空的
++            let ans = *max;
++            *max += 1;
++            Some(unsafe { AddressSpaceId::from_raw(ans) })
++        })
++    }
++
++    /// 释放地址空间编号
++    #[allow(unused)]
++    pub fn free_address_space_id(asid: AddressSpaceId) {
++        use_tp_box(|b| {
++            let (free, max) = &mut b.asid_alloc;
++            if asid.into_inner() == *max && *max > 0 {
++                *max -= 1;
++                return;
++            } else {
++                free.push_back(asid.into_inner())
++            }
++        });
++    }
++
++    /// 添加用户地址空间映射
++    ///
++    /// 添加成功返回true，否则返回false
++    pub fn load_user_mm_set(mm_set: MemorySet) -> bool {
++        use_tp_box_move(|b| {
++            // 检查链表当前是否有相同地址空间的[`MemorySet`]
++            let (link, _prev) = &mut b.user_mm_sets;
++            for set in link.iter() {
++                if set.address_space_id == mm_set.address_space_id {
++                    return false;
++                }
++            }
++            link.push_back(mm_set);
++            true
++        })
++    }
++
++    /// 删除某个用户地址空间映射
++    ///
++    /// note: feature `linked_list_remove` is not stable
++    #[allow(unused)]
++    pub unsafe fn unload_user_mm_set(asid: usize) -> Option<MemorySet> {
++        use_tp_box(|b| {
++            let (link, _prev) = &mut b.user_mm_sets;
++            let mut index = 0;
++            for set in link.iter() {
++                if set.address_space_id.into_inner() == asid {
++                    break;
++                }
++                index += 1;
++            }
++            if index < link.len() {
++                let mm_set = link.remove(index);
++                Some(mm_set)
++            } else {
++                None
++            }
++        })
++    }
++
++    /// 根据地址空间编号找到相应的[`Satp`]结构
++    ///
++    /// 没有对应的地址空间编号返回[`None`]
++    pub fn user_satp(asid: usize) -> Option<Satp> {
++        use_tp_box(|b| {
++            let (link, _prev) = &b.user_mm_sets;
++            for set in link.iter() {
++                if set.address_space_id.into_inner() == asid {
++                    return Some(set.satp());
++                }
++            }
++            None
++        })
++    }
++
++    /// 获取上一个进入的用户的[`Satp`]结构
++    pub fn prev_satp() -> Option<Satp> {
++        let asid = use_tp_box(|b| b.user_mm_sets.1);
++        Self::user_satp(asid)
++    }
++
++    /// 设置上一次进入的用户地址空间编号
++    ///
++    /// 用于即将进入用户态
++    pub fn set_prev_asid(asid: usize) {
++        use_tp_box(|b| b.user_mm_sets.1 = asid)
++    }
++
++    /// 获取上一次进入的用户态地址空间编号
++    ///
++    /// 用于用户陷入内核的时候
++    pub fn get_prev_asid() -> usize {
++        use_tp_box(|b| b.user_mm_sets.1)
++    }
++}
++
++#[inline]
++fn use_tp_box<F: Fn(&mut Box<KernelHartInfo>) -> T, T>(f: F) -> T {
++    let addr = read_tp();
++    let mut bx: Box<KernelHartInfo> = unsafe { Box::from_raw(addr as *mut _) };
++    let ans = f(&mut bx);
++    drop(Box::into_raw(bx)); // 防止Box指向的空间被释放
++    ans
++}
++
++#[inline]
++fn use_tp_box_move<F: FnOnce(&mut Box<KernelHartInfo>) -> T, T>(f: F) -> T {
++    let addr = read_tp();
++    let mut bx: Box<KernelHartInfo> = unsafe { Box::from_raw(addr as *mut _) };
++    let ans = f(&mut bx);
++    drop(Box::into_raw(bx)); // 防止Box指向的空间被释放
++    ans
++}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index 32638c9..ab2e60e 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -37,7 +37,10 @@ mod syscall;
+ mod task;
+ mod timer;
+ mod trap;
+-mod hart {}
++#[cfg(feature = "async_tiny")]
++mod memory;
++#[cfg(feature = "async_tiny")]
++mod hart;
+ 
+ use crate::drivers::chardev::CharDevice;
+ use crate::drivers::chardev::UART;
+diff --git a/kernel/src/memory/address.rs b/kernel/src/memory/address.rs
+new file mode 100644
+index 0000000..9a654c8
+--- /dev/null
++++ b/kernel/src/memory/address.rs
+@@ -0,0 +1,201 @@
++//! 物理地址和虚拟地址相关
++use super::config::{KERNEL_MAP_OFFSET, PAGE_SIZE};
++use bit_field::BitField;
++
++/// 物理地址，其实可以比usize要长
++#[repr(C)]
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct PhysicalAddress(pub usize);
++
++impl PhysicalAddress {
++    /// 从虚拟地址取得某类型的 &mut 引用
++    pub unsafe fn deref_linear_static<T>(self) -> &'static mut T {
++        self.virtual_address_linear().deref_virtual()
++    }
++    /// 线性映射下，得到物理地址对应的虚拟地址
++    pub fn virtual_address_linear(self) -> VirtualAddress {
++        let va = self.0.wrapping_add(KERNEL_MAP_OFFSET);
++        VirtualAddress(va)
++    }
++}
++
++impl core::ops::Add<usize> for PhysicalAddress {
++    type Output = PhysicalAddress;
++    fn add(self, rhs: usize) -> Self::Output {
++        // 物理地址和偏移回环相加，得到物理地址
++        PhysicalAddress(self.0.wrapping_add(rhs))
++    }
++}
++
++impl core::ops::AddAssign<usize> for PhysicalAddress {
++    fn add_assign(&mut self, rhs: usize) {
++        self.0 = self.0.wrapping_add(rhs)
++    }
++}
++
++impl core::ops::Sub<PhysicalAddress> for PhysicalAddress {
++    type Output = usize;
++    fn sub(self, rhs: PhysicalAddress) -> Self::Output {
++        // 物理地址回环相减，得到地址的偏移
++        self.0.wrapping_sub(rhs.0)
++    }
++}
++
++impl From<PhysicalAddress> for usize {
++    fn from(src: PhysicalAddress) -> usize {
++        src.0
++    }
++}
++
++/// 物理页号
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct PhysicalPageNumber(usize);
++
++impl PhysicalPageNumber {
++    /// 将地址转换为页号，向下取整
++    pub const fn floor(address: PhysicalAddress) -> Self {
++        Self(address.0 / PAGE_SIZE)
++    }
++    /// 将地址转换为页号，向上取整
++    pub const fn ceil(address: PhysicalAddress) -> Self {
++        Self(address.0 / PAGE_SIZE + (address.0 % PAGE_SIZE != 0) as usize)
++    }
++    /// 从 satp 寄存器中取出根页表物理页号
++    pub fn from_satp(satp: usize) -> Self {
++        Self(satp.get_bits(0..44))
++    }
++    /// 得到物理页的起始地址
++    pub fn start_address(&self) -> PhysicalAddress {
++        PhysicalAddress(self.0 << 12)
++    }
++}
++
++impl core::ops::Add<usize> for PhysicalPageNumber {
++    type Output = PhysicalPageNumber;
++    fn add(self, rhs: usize) -> Self::Output {
++        PhysicalPageNumber(self.0 + rhs)
++    }
++}
++
++impl core::ops::Sub<PhysicalPageNumber> for PhysicalPageNumber {
++    type Output = usize;
++    fn sub(self, rhs: PhysicalPageNumber) -> Self::Output {
++        self.0.wrapping_sub(rhs.0) // todo
++    }
++}
++
++impl From<PhysicalPageNumber> for usize {
++    fn from(src: PhysicalPageNumber) -> usize {
++        src.0
++    }
++}
++
++impl From<usize> for PhysicalPageNumber {
++    fn from(src: usize) -> PhysicalPageNumber {
++        PhysicalPageNumber(src)
++    }
++}
++
++/// 虚拟地址，usize恰好能表示虚拟地址
++#[repr(C)]
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct VirtualAddress(pub usize);
++
++impl VirtualAddress {
++    /// 从虚拟地址取得某类型的 &mut 引用
++    pub unsafe fn deref_virtual<T>(self) -> &'static mut T {
++        &mut *(self.0 as *mut T)
++    }
++    // 线性映射下，得到物理地址对应的虚拟地址
++    pub fn physical_address_linear(self) -> PhysicalAddress {
++        let pa = self.0.wrapping_sub(KERNEL_MAP_OFFSET);
++        PhysicalAddress(pa)
++    }
++}
++
++impl core::ops::Add<usize> for VirtualAddress {
++    type Output = VirtualAddress;
++    fn add(self, rhs: usize) -> Self::Output {
++        // 虚拟地址和偏移回环相加，得到虚拟地址
++        VirtualAddress(self.0.wrapping_add(rhs))
++    }
++}
++
++impl core::ops::AddAssign<usize> for VirtualAddress {
++    fn add_assign(&mut self, rhs: usize) {
++        self.0 = self.0.wrapping_add(rhs)
++    }
++}
++
++impl core::ops::Sub<VirtualAddress> for VirtualAddress {
++    type Output = usize;
++    fn sub(self, rhs: VirtualAddress) -> Self::Output {
++        // 虚拟地址回环相减，得到地址的偏移
++        self.0.wrapping_sub(rhs.0)
++    }
++}
++
++impl From<VirtualAddress> for usize {
++    fn from(src: VirtualAddress) -> usize {
++        src.0
++    }
++}
++
++/// 虚拟页号
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct VirtualPageNumber(pub usize);
++
++impl VirtualPageNumber {
++    /// 将地址转换为页号，向下取整
++    pub const fn floor(address: VirtualAddress) -> Self {
++        Self(address.0 / PAGE_SIZE)
++    }
++    /// 将地址转换为页号，向上取整
++    pub const fn ceil(address: VirtualAddress) -> Self {
++        Self(address.0 / PAGE_SIZE + (address.0 % PAGE_SIZE != 0) as usize)
++    }
++    /// 得到虚拟页的起始地址
++    pub fn start_address(&self) -> VirtualAddress {
++        VirtualAddress(self.0 << 12)
++    }
++    // 线性映射下，得到虚拟页号对应的物理页号
++    pub fn physical_page_number_linear(self) -> PhysicalPageNumber {
++        let va = self.start_address();
++        let pa = va.physical_address_linear();
++        PhysicalPageNumber(pa.0 / PAGE_SIZE)
++    }
++    /// 对于Sv39，得到一、二、三级页号
++    pub fn levels(&self) -> [usize; 3] {
++        [
++            self.0.get_bits(18..27),
++            self.0.get_bits(9..18),
++            self.0.get_bits(0..9),
++        ]
++    }
++}
++
++impl core::ops::Add<usize> for VirtualPageNumber {
++    type Output = VirtualPageNumber;
++    fn add(self, rhs: usize) -> Self::Output {
++        VirtualPageNumber(self.0 + rhs)
++    }
++}
++
++impl core::ops::Sub<VirtualPageNumber> for VirtualPageNumber {
++    type Output = usize;
++    fn sub(self, rhs: VirtualPageNumber) -> Self::Output {
++        self.0.wrapping_sub(rhs.0) // todo
++    }
++}
++
++impl From<VirtualPageNumber> for usize {
++    fn from(src: VirtualPageNumber) -> usize {
++        src.0
++    }
++}
++
++impl From<usize> for VirtualPageNumber {
++    fn from(src: usize) -> VirtualPageNumber {
++        VirtualPageNumber(src)
++    }
++}
+diff --git a/kernel/src/memory/algorithm/allocator/stacked_allocator.rs b/kernel/src/memory/algorithm/allocator/stacked_allocator.rs
+new file mode 100644
+index 0000000..b242adc
+--- /dev/null
++++ b/kernel/src/memory/algorithm/allocator/stacked_allocator.rs
+@@ -0,0 +1,33 @@
++use super::Allocator;
++use alloc::{vec, vec::Vec};
++use core::ops::Range;
++
++/// 栈分配器
++pub struct StackedAllocator {
++    list: Vec<Range<usize>>,
++}
++
++impl StackedAllocator {
++    pub fn new(capacity: usize) -> Self {
++        Self {
++            list: vec![0..capacity],
++        }
++    }
++}
++
++impl Allocator for StackedAllocator {
++    fn alloc(&mut self) -> Option<usize> {
++        if let Some(range) = self.list.pop() {
++            if range.end - range.start > 1 {
++                self.list.push(range.start + 1..range.end);
++            }
++            Some(range.start)
++        } else {
++            None
++        }
++    }
++
++    fn dealloc(&mut self, index: usize) {
++        self.list.push(index..index + 1);
++    }
++}
+diff --git a/kernel/src/memory/algorithm/mod.rs b/kernel/src/memory/algorithm/mod.rs
+new file mode 100644
+index 0000000..836df60
+--- /dev/null
++++ b/kernel/src/memory/algorithm/mod.rs
+@@ -0,0 +1,14 @@
++pub use allocator::{Allocator, StackedAllocator};
++mod allocator {
++    mod stacked_allocator;
++
++    pub use stacked_allocator::StackedAllocator;
++
++    /// 帧分配器
++    pub trait Allocator {
++        /// 分配一个元素，无法分配则返回 `None`
++        fn alloc(&mut self) -> Option<usize>;
++        /// 回收一个元素
++        fn dealloc(&mut self, index: usize);
++    }
++}
+diff --git a/kernel/src/memory/config.rs b/kernel/src/memory/config.rs
+new file mode 100644
+index 0000000..063f6ae
+--- /dev/null
++++ b/kernel/src/memory/config.rs
+@@ -0,0 +1,51 @@
++//!  内存相关的一些配置
++use crate::memory::{PhysicalAddress, VirtualAddress};
++use lazy_static::lazy_static;
++
++/// 内核堆大小
++pub const KERNEL_HEAP_SIZE: usize = 0x20_0000;
++
++/// 内核中最高物理地址
++pub const MEMORY_END_ADDRESS: PhysicalAddress = PhysicalAddress(0x8800_0000);
++
++lazy_static! {
++    pub static ref FREE_MEMORY_START: VirtualAddress = {
++        extern "C" {
++            fn free_memory_start();
++        }
++        VirtualAddress(free_memory_start as usize)
++    };
++}
++
++/// 页大小
++pub const PAGE_SIZE: usize = 4096;
++
++/// 内核映射偏移
++pub const KERNEL_MAP_OFFSET: usize = 0xffff_ffff_4000_0000;
++
++/// 每个线程的运行栈大小 512 KB
++pub const STACK_SIZE: usize = 0x8_0000;
++
++/// .swap 段的虚拟地址，用户和内核在该地址上有相同的映射关系
++/// 映射关系的虚拟地址是地址空间的最高处（不管是用户还是内核）
++pub const SWAP_FRAME_VA: usize = usize::MAX - PAGE_SIZE + 1;
++
++/// 用户态和内核态切换时上下文保存的地址
++/// 用户和内核在该地址上同样有相同的映射关系
++///
++/// 每个用户程序都有一个页来保存上下文
++pub const fn swap_contex_va(asid: usize) -> usize {
++    SWAP_FRAME_VA - PAGE_SIZE * asid
++}
++
++/// qemu puts platform-level interrupt controller (PLIC) here.
++///
++/// ref: https://github.com/kaist-cp/rv6/blob/riscv/kernel-rs/src/arch/memlayout.rs
++/// thanks!
++pub const PLIC_BASE: usize = 0xc000000 + KERNEL_MAP_OFFSET;
++
++/// qemu virtio disk mmio
++pub const VIRTIO0: usize = 0x10001000 + KERNEL_MAP_OFFSET;
++
++/// qemu virtio irq
++pub const VIRTIO0_IRQ: usize = 1;
+diff --git a/kernel/src/memory/frame.rs b/kernel/src/memory/frame.rs
+new file mode 100644
+index 0000000..7a17951
+--- /dev/null
++++ b/kernel/src/memory/frame.rs
+@@ -0,0 +1,11 @@
++//! 帧分配器
++mod allocator;
++mod tracker;
++
++pub use tracker::FrameTracker;
++
++/// 分配一个物理页  
++/// 如果已经分配完毕，返回 `None`
++pub fn frame_alloc() -> Option<FrameTracker> {
++    allocator::FRAME_ALLOCATOR.lock().alloc()
++}
+diff --git a/kernel/src/memory/frame/allocator.rs b/kernel/src/memory/frame/allocator.rs
+new file mode 100644
+index 0000000..c7b6cff
+--- /dev/null
++++ b/kernel/src/memory/frame/allocator.rs
+@@ -0,0 +1,53 @@
++use super::{
++    super::algorithm::{Allocator, StackedAllocator},
++    super::{
++        config::{FREE_MEMORY_START, MEMORY_END_ADDRESS},
++        frame::FrameTracker,
++        PhysicalPageNumber,
++    },
++};
++use core::ops::Range;
++use lazy_static::lazy_static;
++use spin::Mutex;
++
++lazy_static! {
++    /// 全局帧分配器
++    pub static ref FRAME_ALLOCATOR: Mutex<FrameAllocator<StackedAllocator>> = {
++        let pa_start = FREE_MEMORY_START.physical_address_linear();
++        let ppn_start = PhysicalPageNumber::ceil(pa_start);
++        let ppn_end = PhysicalPageNumber::floor(MEMORY_END_ADDRESS);
++        return Mutex::new(FrameAllocator::new(
++            ppn_start..ppn_end,
++            StackedAllocator::new(ppn_end - ppn_start),
++        ))
++    };
++}
++
++/// 帧分配器
++pub struct FrameAllocator<A> {
++    allocator: A,
++    start_ppn: PhysicalPageNumber,
++}
++
++impl<A: Allocator> FrameAllocator<A> {
++    /// 创建一个帧分配器
++    pub fn new(range: Range<PhysicalPageNumber>, allocator: A) -> Self {
++        FrameAllocator {
++            start_ppn: range.start,
++            allocator,
++        }
++    }
++    /// 申请一个帧
++    pub fn alloc(&mut self) -> Option<FrameTracker> {
++        self.allocator
++            .alloc()
++            .map(|idx| FrameTracker(self.start_ppn + idx))
++    }
++}
++
++impl<A: Allocator> FrameAllocator<A> {
++    // only be called in FrameTracker::drop
++    pub(in crate::memory) fn dealloc(&mut self, frame: &FrameTracker) {
++        self.allocator.dealloc(frame.page_number() - self.start_ppn)
++    }
++}
+diff --git a/kernel/src/memory/frame/tracker.rs b/kernel/src/memory/frame/tracker.rs
+new file mode 100644
+index 0000000..65d6460
+--- /dev/null
++++ b/kernel/src/memory/frame/tracker.rs
+@@ -0,0 +1,39 @@
++use super::allocator::FRAME_ALLOCATOR;
++use super::super::{config::PAGE_SIZE, PhysicalAddress, PhysicalPageNumber};
++
++/// 这个结构体就像一个Handle，Drop之后会释放PPN表示的物理帧
++#[derive(Debug)]
++pub struct FrameTracker(pub(super) PhysicalPageNumber);
++
++impl FrameTracker {
++    #[allow(missing_docs)]
++    pub fn start_address(&self) -> PhysicalAddress {
++        self.0.start_address()
++    }
++    #[allow(missing_docs)]
++    pub fn page_number(&self) -> PhysicalPageNumber {
++        self.0
++    }
++}
++
++/// 释放的时候，将释放所持有的帧内存
++impl Drop for FrameTracker {
++    fn drop(&mut self) {
++        FRAME_ALLOCATOR.lock().dealloc(self);
++    }
++}
++
++/// `FrameTracker` 可以 deref 得到对应的 `[u8; PAGE_SIZE]`
++impl core::ops::Deref for FrameTracker {
++    type Target = [u8; PAGE_SIZE];
++    fn deref(&self) -> &Self::Target {
++        unsafe { self.page_number().start_address().deref_linear_static() }
++    }
++}
++
++/// `FrameTracker` 可以 deref 得到对应的 `[u8; PAGE_SIZE]`
++impl core::ops::DerefMut for FrameTracker {
++    fn deref_mut(&mut self) -> &mut Self::Target {
++        unsafe { self.page_number().start_address().deref_linear_static() }
++    }
++}
+diff --git a/kernel/src/memory/heap.rs b/kernel/src/memory/heap.rs
+new file mode 100644
+index 0000000..80896f3
+--- /dev/null
++++ b/kernel/src/memory/heap.rs
+@@ -0,0 +1,26 @@
++//! 堆管理
++//!
++//! 分配一块内存空间用作堆空间使用
++use super::config::KERNEL_HEAP_SIZE;
++use alloc::alloc::Layout;
++use buddy_system_allocator::LockedHeap;
++
++static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
++
++/// 全局的堆分配器
++#[global_allocator]
++static HEAP: LockedHeap<32> = LockedHeap::empty();
++
++#[cfg_attr(not(test), alloc_error_handler)]
++#[allow(unused)]
++fn alloc_error_handler(layout: Layout) -> ! {
++    panic!("alloc error for layout {:?}", layout)
++}
++
++/// 初始化堆
++pub fn init() {
++    unsafe {
++        HEAP.lock()
++            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE)
++    }
++}
+diff --git a/kernel/src/memory/mapping.rs b/kernel/src/memory/mapping.rs
+new file mode 100644
+index 0000000..f19bef4
+--- /dev/null
++++ b/kernel/src/memory/mapping.rs
+@@ -0,0 +1,13 @@
++//! 内存管理映射相关
++mod mapping;
++mod memory_set;
++mod page_table;
++mod page_table_entry;
++mod satp;
++mod segment;
++
++pub use mapping::Mapping;
++pub use memory_set::MemorySet;
++pub use page_table_entry::Flags;
++pub use satp::Satp;
++pub use segment::{MapType, Segment};
+diff --git a/kernel/src/memory/mapping/mapping.rs b/kernel/src/memory/mapping/mapping.rs
+new file mode 100644
+index 0000000..72e9909
+--- /dev/null
++++ b/kernel/src/memory/mapping/mapping.rs
+@@ -0,0 +1,323 @@
++//! 内存映射具体实现
++use super::{
++    page_table::{PageTable, PageTableTracker},
++    page_table_entry::PageTableEntry,
++    Flags, MapType, Segment,
++};
++use super::super::{
++    config::PAGE_SIZE, frame::FrameTracker, frame_alloc, AddressSpaceId, PhysicalAddress,
++    PhysicalPageNumber, VirtualAddress, VirtualPageNumber,
++};
++use alloc::{collections::VecDeque, vec::Vec};
++use bit_field::BitField;
++use core::{ops::Range, ptr::slice_from_raw_parts_mut};
++/// 一个上下文的内存映射关系
++#[derive(Debug)]
++pub struct Mapping {
++    /// 使用到的所有页表
++    page_tables: Vec<PageTableTracker>,
++    /// 根页表的物理页号
++    root_ppn: PhysicalPageNumber,
++    /// 虚拟页到物理页的映射信息
++    mapped_pairs: VecDeque<(VirtualPageNumber, FrameTracker)>,
++}
++
++impl Mapping {
++    /// 分配一个有根节点的映射，包括分配地址空间编号
++    pub fn new_alloc() -> Option<Mapping> {
++        let root_table = PageTableTracker::new_zeroed(frame_alloc()?);
++        let root_ppn = root_table.page_number();
++        Some(Mapping {
++            page_tables: alloc::vec![root_table],
++            root_ppn,
++            mapped_pairs: VecDeque::new(),
++        })
++    }
++
++    /// 软件找到虚拟页号对应最终的页表项。这个页表项合上偏移地址，就是物理地址了
++    pub fn find_or_insert_entry(&mut self, vpn: VirtualPageNumber) -> Option<&mut PageTableEntry> {
++        let root_table_pa = self.root_ppn.start_address();
++        let root_table: &mut PageTable = unsafe { root_table_pa.deref_linear_static() };
++        let mut entry = &mut root_table.entries[vpn.levels()[0]];
++        for vpn_i in &vpn.levels()[1..] {
++            // 这个地方没有页表
++            if entry.is_empty() {
++                // 分配一个新的页表
++                let new_table = PageTableTracker::new_zeroed(frame_alloc()?);
++                let new_ppn = new_table.page_number();
++                // 把新的页表写到页表项里
++                *entry = PageTableEntry::new(Some(new_ppn), Flags::VALID);
++                // 保存页表的跟踪器到结构体中，结构体拥有所有权，否则新页表会被释放
++                self.page_tables.push(new_table);
++            }
++            // 进入下一级页表
++            let next_table_pa = entry.start_address();
++            let next_table: &mut PageTable = unsafe { next_table_pa.deref_linear_static() };
++            entry = &mut next_table.entries[*vpn_i];
++        }
++        // 解引用结束，entry位于最后一级页表
++        Some(entry)
++    }
++
++    /// 找到虚拟页号对应的页表项，如果不存在则返回 None
++    pub fn find_pte(&self, vpn: VirtualPageNumber) -> Option<&mut PageTableEntry> {
++        let root_table_pa = self.root_ppn.start_address();
++        let root_table: &mut PageTable = unsafe { root_table_pa.deref_linear_static() };
++        let mut entry = &mut root_table.entries[vpn.levels()[0]];
++        for vpn_i in &vpn.levels()[1..] {
++            // 如果没有页表或者页表无效
++            if entry.is_empty() || !entry.is_valid() {
++                return None;
++            }
++            // 进入下一级页表
++            let next_table_pa = entry.start_address();
++            let next_table: &mut PageTable = unsafe { next_table_pa.deref_linear_static() };
++            entry = &mut next_table.entries[*vpn_i];
++        }
++        // 解引用结束，entry 位于最后一级页表
++        Some(entry)
++    }
++
++    /// 地址转换
++    pub fn translate(&self, vpn: VirtualPageNumber) -> Option<PageTableEntry> {
++        self.find_pte(vpn).map(|pte| pte.clone())
++    }
++
++    /// 插入一项虚拟页号对物理页号的映射关系，Some表示成功
++    pub fn map_one(
++        &mut self,
++        vpn: VirtualPageNumber,
++        ppn: Option<PhysicalPageNumber>,
++        flags: Flags,
++    ) -> Option<()> {
++        // 先找到页表项
++        let entry_mut = self.find_or_insert_entry(vpn)?;
++        // 要插入映射关系，页表项必须是空的
++        assert!(
++            entry_mut.is_empty(),
++            "virtual address should not already be mapped"
++        );
++        // 然后向空的页表项写入内容
++        *entry_mut = PageTableEntry::new(ppn, flags);
++        Some(())
++    }
++
++    /// 插入并映射一个段
++    pub fn map_segment(
++        &mut self,
++        segment: &Segment,
++        init_data: Option<&[u8]>,
++    ) -> Option<Vec<(VirtualPageNumber, FrameTracker)>> {
++        match segment.map_type {
++            MapType::Linear => self.map_range_linear(
++                range_vpn_contains_va(segment.range.clone()),
++                segment.flags,
++                init_data.map(|slice| (slice, segment.range.clone())),
++            ),
++            MapType::Framed => self.map_range_framed(
++                range_vpn_contains_va(segment.range.clone()),
++                segment.flags,
++                init_data.map(|slice| (slice, segment.range.clone())),
++            ),
++        }
++    }
++
++    /// 自由映射一个段
++    pub fn map_defined(
++        &mut self,
++        va_range: &Range<VirtualAddress>,
++        pa_range: &Range<PhysicalAddress>,
++        flags: Flags,
++    ) {
++        let vpn_range = range_vpn_contains_va(va_range.clone());
++        let ppn_range = range_vpn_contains_pa(pa_range.clone());
++        self.map_range(vpn_range, ppn_range, flags);
++    }
++
++    /// 映射指定的虚拟页号和物理页号
++    fn map_range(
++        &mut self,
++        vpn_range: Range<VirtualPageNumber>,
++        ppn_range: Range<PhysicalPageNumber>,
++        flags: Flags,
++    ) {
++        let mut vpn_iter = vpn_step_iter(vpn_range);
++        let mut ppn_iter = ppn_step_iter(ppn_range);
++        assert_eq!(vpn_iter.len(), ppn_iter.len());
++        // todo: 这里应该为 (VpnRangeIter, VpnRangeIter) 实现迭代器
++        // 不对，这语义太复杂，可能两个区间不相同，这样就会出现问题--luojia65
++        // 收到，这里后续会进一步考虑如何修改--hustccc
++        while let (Some(vpn), Some(ppn)) = (vpn_iter.next(), ppn_iter.next()) {
++            self.map_one(vpn, Some(ppn), flags);
++        }
++    }
++
++    /// 插入和映射线性的段
++    fn map_range_linear(
++        &mut self,
++        vpn_range: Range<VirtualPageNumber>,
++        flags: Flags,
++        init: Option<(&[u8], Range<VirtualAddress>)>,
++    ) -> Option<Vec<(VirtualPageNumber, FrameTracker)>> {
++        for vpn in vpn_step_iter(vpn_range) {
++            self.map_one(vpn, Some(vpn.physical_page_number_linear()), flags)?;
++        }
++        if let Some((src_data, range)) = init {
++            let target_data = unsafe { range.start.deref_virtual() } as *mut u8;
++            let target_len = range.end - range.start;
++            let target_slice = unsafe { &mut *slice_from_raw_parts_mut(target_data, target_len) };
++            target_slice.copy_from_slice(src_data);
++        }
++        Some(Vec::new())
++    }
++
++    /// 插入和映射按帧分页的段
++    fn map_range_framed(
++        &mut self,
++        vpn_range: Range<VirtualPageNumber>,
++        flags: Flags,
++        init: Option<(&[u8], Range<VirtualAddress>)>,
++    ) -> Option<Vec<(VirtualPageNumber, FrameTracker)>> {
++        let mut _allocated_pairs = Vec::new();
++        for vpn in vpn_step_iter(vpn_range) {
++            // 新页面的内容
++            let mut page_data = [0u8; PAGE_SIZE];
++            if let Some((src_data, ref va_range)) = init {
++                let page_start_va = vpn.start_address();
++                let start = if va_range.start > page_start_va {
++                    va_range.start - page_start_va
++                } else {
++                    0
++                };
++                let end = usize::min(PAGE_SIZE, va_range.end - page_start_va);
++                let dst_slice = &mut page_data[start..end];
++                let src_slice = &src_data[(page_start_va + start - va_range.start)
++                    ..(page_start_va + end - va_range.start)];
++                dst_slice.copy_from_slice(src_slice);
++            }
++            // 分配新的页帧，用于映射
++            let mut frame = frame_alloc()?;
++            // 更新页表
++            self.map_one(vpn, Some(frame.page_number()), flags)?;
++            // 写入数据
++            (*frame).copy_from_slice(&page_data);
++            // 保存帧跟踪器，否则会被释放
++            self.mapped_pairs.push_back((vpn, frame));
++        }
++        Some(_allocated_pairs) // todo!
++    }
++
++    /// 把当前的映射保存到satp寄存器
++    pub fn activate_on(&self, asid: AddressSpaceId) {
++        use riscv::register::satp::{self, Mode};
++        let asid = asid.into_inner();
++        unsafe {
++            // 将新的 ppn 和 asid 值写到 satp 寄存器
++            // note: k210 平台上最大地址空间编号为 0，这样写可能会触发异常
++            #[cfg(feature = "qemu")]
++            satp::set(Mode::Sv39, asid, self.root_ppn.into());
++            #[cfg(feature = "k210")]
++            satp::set(Mode::Sv39, 0, self.root_ppn.into());
++            // 刷新页表。rs1=x0、rs2=asid，说明刷新与这个地址空间有关的所有地址
++            core::arch::asm!("sfence.vma x0, {asid}", asid = in(reg) asid);
++        }
++    }
++
++    /// 获取当前映射的satp寄存器值
++    pub fn get_satp(&self, asid: AddressSpaceId) -> usize {
++        // 60..64 mode
++        // 44..60 asid
++        // 0..44 ppn
++        use riscv::register::satp::Mode;
++        let mut bits = 0usize;
++        bits.set_bits(60..64, Mode::Sv39 as usize);
++        bits.set_bits(44..60, asid.into_inner());
++        bits.set_bits(0..44, self.root_ppn.into());
++        bits
++    }
++}
++
++// 找到包含虚拟地址段的所有虚拟页
++// 比如 0xFFF是一个地址最大的偏移量，包含0x11fff..0x14000的所有页有：0x11，0x12，0x13
++// 此时返回 0x11..0x14 (0x11 ..= 0x13)
++// 包含0x11fff..0x14001有0x11，0x12，0x13，0x14
++// 返回 0x11..0x15（0x11 ..= 0x14）
++fn range_vpn_contains_va(src: Range<VirtualAddress>) -> Range<VirtualPageNumber> {
++    VirtualPageNumber::floor(src.start)..VirtualPageNumber::ceil(src.end)
++}
++
++fn range_vpn_contains_pa(src: Range<PhysicalAddress>) -> Range<PhysicalPageNumber> {
++    PhysicalPageNumber::floor(src.start)..PhysicalPageNumber::ceil(src.end)
++}
++
++/// 一个虚拟页号段区间的迭代器
++struct VpnRangeIter {
++    /// 区间结束，不包含
++    end_addr: usize,
++    /// 区间开始，包含
++    current_addr: usize,
++}
++
++impl VpnRangeIter {
++    pub fn len(&self) -> usize {
++        self.end_addr - self.current_addr
++    }
++}
++
++impl Iterator for VpnRangeIter {
++    type Item = VirtualPageNumber;
++    fn next(&mut self) -> Option<Self::Item> {
++        if self.current_addr == self.end_addr {
++            return None;
++        }
++        // 这里只要右移12位即可，ceil和floor区别不大
++        let current_vpn = VirtualPageNumber::ceil(VirtualAddress(self.current_addr));
++        let next_addr = self.current_addr.wrapping_add(PAGE_SIZE);
++        self.current_addr = next_addr;
++        Some(current_vpn)
++    }
++}
++
++/// 一个物理页号段区间的迭代器
++struct PpnRangeIter {
++    /// 区间结束，不包含
++    end_addr: usize,
++    /// 区间开始，包含
++    current_addr: usize,
++}
++
++impl PpnRangeIter {
++    pub fn len(&self) -> usize {
++        self.end_addr - self.current_addr
++    }
++}
++
++impl Iterator for PpnRangeIter {
++    type Item = PhysicalPageNumber;
++    fn next(&mut self) -> Option<Self::Item> {
++        if self.current_addr == self.end_addr {
++            return None;
++        }
++        // 这里只要右移12位即可，ceil和floor区别不大
++        let current_ppn = PhysicalPageNumber::ceil(PhysicalAddress(self.current_addr));
++        let next_addr = self.current_addr.wrapping_add(PAGE_SIZE);
++        self.current_addr = next_addr;
++        Some(current_ppn)
++    }
++}
++
++// 等到Step trait稳定之后，可以用trait Step的迭代器实现
++// 目前先自己实现迭代器
++fn vpn_step_iter(src: Range<VirtualPageNumber>) -> VpnRangeIter {
++    VpnRangeIter {
++        end_addr: src.end.start_address().0,
++        current_addr: src.start.start_address().0,
++    }
++}
++
++fn ppn_step_iter(src: Range<PhysicalPageNumber>) -> PpnRangeIter {
++    PpnRangeIter {
++        end_addr: src.end.start_address().0,
++        current_addr: src.start.start_address().0,
++    }
++}
+diff --git a/kernel/src/memory/mapping/memory_set.rs b/kernel/src/memory/mapping/memory_set.rs
+new file mode 100644
+index 0000000..eaf3a6f
+--- /dev/null
++++ b/kernel/src/memory/mapping/memory_set.rs
+@@ -0,0 +1,294 @@
++#[allow(unused)]
++use crate::memory::config::{PLIC_BASE, VIRTIO0};
++#[allow(unused)]
++use crate::memory::KERNEL_MAP_OFFSET;
++use crate::memory::{
++    config::{FREE_MEMORY_START, MEMORY_END_ADDRESS, PAGE_SIZE, SWAP_FRAME_VA},
++    swap_contex_va, AddressSpaceId, Flags, FrameTracker, MapType, Mapping, PhysicalAddress,
++    PhysicalPageNumber, Segment, VirtualAddress, VirtualPageNumber,
++};
++use crate::SHAREDPAYLOAD_BASE;
++use alloc::vec::Vec;
++use core::ops::Range;
++
++use super::Satp;
++
++/// 一个地址空间中，所有与内存空间有关的信息
++#[derive(Debug)]
++pub struct MemorySet {
++    /// 本空间的页表和映射关系
++    pub mapping: Mapping,
++    /// 每个字段
++    pub segments: Vec<Segment>,
++    /// 所有分配的物理页面映射信息
++    pub allocated_pairs: Vec<(VirtualPageNumber, FrameTracker)>,
++    /// 这个映射关系的地址空间编号
++    pub address_space_id: AddressSpaceId,
++}
++
++impl MemorySet {
++    /// 创建内核重映射
++    pub fn new_kernel() -> Option<MemorySet> {
++        // 各个字段的起始和结束点，在链接器脚本中给出
++        extern "C" {
++            fn _stext();
++            fn _etext();
++            fn _srodata();
++            fn _erodata();
++            fn _sdata();
++            fn _edata();
++            fn _sbss();
++            fn _ebss();
++            fn _swap_frame();
++        }
++
++        // println!(
++        //     "text:   {:x?}",
++        //     VirtualAddress(_stext as usize)..VirtualAddress(_etext as usize)
++        // );
++        // println!(
++        //     "rodata: {:x?}",
++        //     VirtualAddress(_srodata as usize)..VirtualAddress(_erodata as usize)
++        // );
++        // println!(
++        //     "data:   {:x?}",
++        //     VirtualAddress(_sdata as usize)..VirtualAddress(_edata as usize)
++        // );
++        // println!(
++        //     "bss:    {:x?}",
++        //     VirtualAddress(_sbss as usize)..VirtualAddress(_ebss as usize)
++        // );
++        // println!(
++        //     "swap frame: {:x?}",
++        //     VirtualAddress(_swap_frame as usize)..VirtualAddress(_etext as usize)
++        // );
++        // println!(
++        //     "free:   {:x?}",
++        //     *FREE_MEMORY_START..MEMORY_END_ADDRESS.virtual_address_linear()
++        // );
++
++        // 建立字段
++        #[allow(unused_mut)]
++        let mut segments = alloc::vec![
++            // .text 段，r-x
++            Segment {
++                map_type: MapType::Linear,
++                range: VirtualAddress(_stext as usize)..VirtualAddress(_swap_frame as usize),
++                flags: Flags::READABLE | Flags::EXECUTABLE,
++            },
++            // .rodata 段，r--
++            Segment {
++                map_type: MapType::Linear,
++                range: VirtualAddress(_srodata as usize)..VirtualAddress(_erodata as usize),
++                flags: Flags::READABLE,
++            },
++            // .data 段，rw-
++            Segment {
++                map_type: MapType::Linear,
++                range: VirtualAddress(_sdata as usize)..VirtualAddress(_edata as usize),
++                flags: Flags::READABLE | Flags::WRITABLE,
++            },
++            // .bss 段，rw-
++            Segment {
++                map_type: MapType::Linear,
++                range: VirtualAddress(_sbss as usize)..VirtualAddress(_ebss as usize),
++                flags: Flags::READABLE | Flags::WRITABLE,
++            },
++            // 剩余内存空间，rw-
++            Segment {
++                map_type: MapType::Linear,
++                range: *FREE_MEMORY_START..MEMORY_END_ADDRESS.virtual_address_linear(),
++                flags: Flags::READABLE | Flags::WRITABLE,
++            },
++        ];
++
++        #[cfg(feature = "k210")]
++        segments.push(Segment {
++            map_type: MapType::Linear,
++            range: VirtualAddress(0x40000000 + KERNEL_MAP_OFFSET)
++                ..VirtualAddress(0x40600000 + KERNEL_MAP_OFFSET),
++            flags: Flags::READABLE | Flags::WRITABLE,
++        });
++
++        let mut mapping = Mapping::new_alloc()?;
++        // 准备保存所有新分配的物理页面
++        let allocated_pairs = Vec::new();
++
++        // 每个字段在页表中进行映射
++        for segment in segments.iter() {
++            mapping.map_segment(segment, None)?;
++        }
++
++        map_mmio(&mut mapping);
++
++        let va_range =
++            VirtualAddress(SHAREDPAYLOAD_BASE)..VirtualAddress(SHAREDPAYLOAD_BASE + 0x40_0000);
++        let pa_range =
++            PhysicalAddress(SHAREDPAYLOAD_BASE)..PhysicalAddress(SHAREDPAYLOAD_BASE + 0x40_0000);
++        mapping.map_defined(
++            &va_range,
++            &pa_range,
++            Flags::WRITABLE | Flags::READABLE | Flags::EXECUTABLE,
++        );
++
++        // 映射 _swap_frame
++        let swap_frame_va = VirtualAddress(SWAP_FRAME_VA);
++        let swap_frame_vpn = VirtualPageNumber::floor(swap_frame_va);
++        let swap_frame_pa = VirtualAddress(_swap_frame as usize).physical_address_linear();
++        let swap_frame_ppn = PhysicalPageNumber::floor(swap_frame_pa);
++        mapping.map_one(
++            swap_frame_vpn,
++            Some(swap_frame_ppn),
++            Flags::EXECUTABLE | Flags::READABLE | Flags::WRITABLE,
++        )?;
++
++        let address_space_id = crate::hart::KernelHartInfo::alloc_address_space_id()?;
++        println!("[kernel] kernel new asid = {:?}", address_space_id);
++
++        Some(MemorySet {
++            mapping,
++            segments,
++            allocated_pairs,
++            address_space_id,
++        })
++    }
++    /// 通过一个二进制文件创建用户态映射
++    pub fn new_bin(base: usize, pages: usize, asid: AddressSpaceId) -> Option<MemorySet> {
++        extern "C" {
++            fn _swap_frame();
++        }
++        let mut mapping = Mapping::new_alloc()?;
++        let allocated_pairs = Vec::new();
++
++        let va_range = VirtualAddress(0)..VirtualAddress(PAGE_SIZE * pages);
++        let pa_range = PhysicalAddress(base)..PhysicalAddress(base + PAGE_SIZE * pages);
++        mapping.map_defined(
++            &va_range,
++            &pa_range,
++            Flags::EXECUTABLE | Flags::READABLE | Flags::WRITABLE | Flags::USER,
++        );
++
++        // 映射 _swap_frame
++        let swap_frame_va = VirtualAddress(SWAP_FRAME_VA);
++        let swap_frame_vpn = VirtualPageNumber::floor(swap_frame_va);
++        let swap_frame_pa = VirtualAddress(_swap_frame as usize).physical_address_linear();
++        let swap_frame_ppn = PhysicalPageNumber::floor(swap_frame_pa);
++        mapping.map_one(
++            swap_frame_vpn,
++            Some(swap_frame_ppn),
++            Flags::EXECUTABLE | Flags::READABLE | Flags::WRITABLE,
++        );
++
++        // 映射[`SwapContext`]
++        let swap_cx_va = VirtualAddress(swap_contex_va(asid.into_inner()));
++        mapping.map_segment(
++            &Segment {
++                map_type: MapType::Framed,
++                range: swap_cx_va..swap_cx_va + PAGE_SIZE,
++                flags: Flags::READABLE | Flags::WRITABLE,
++            },
++            None,
++        )?;
++
++        // 映射共享调度器
++        let va_range =
++            VirtualAddress(SHAREDPAYLOAD_BASE)..VirtualAddress(SHAREDPAYLOAD_BASE + 0x40_0000);
++        let pa_range =
++            PhysicalAddress(SHAREDPAYLOAD_BASE)..PhysicalAddress(SHAREDPAYLOAD_BASE + 0x40_0000);
++        mapping.map_defined(
++            &va_range,
++            &pa_range,
++            Flags::WRITABLE | Flags::READABLE | Flags::EXECUTABLE | Flags::USER,
++        );
++
++        Some(MemorySet {
++            mapping,
++            segments: Vec::new(),
++            allocated_pairs,
++            address_space_id: asid,
++        })
++    }
++    /// 检测一段内存区域和已有的是否存在重叠区域
++    pub fn overlap_with(&self, range: Range<VirtualPageNumber>) -> bool {
++        fn range_overlap<T: core::cmp::Ord>(a: &Range<T>, b: &Range<T>) -> bool {
++            <&T>::min(&a.end, &b.end) > <&T>::max(&a.start, &b.start)
++        }
++        for seg in self.segments.iter() {
++            if range_overlap(&range, &seg.page_range()) {
++                return true;
++            }
++        }
++        false
++    }
++    /// 添加一个[`Segment`]的内存映射
++    pub fn add_segment(&mut self, segment: Segment, init_data: Option<&[u8]>) -> Option<()> {
++        // 检测 segment 没有重合
++        assert!(!self.overlap_with(segment.page_range()));
++        // 映射并将新分配的页面保存下来
++        self.allocated_pairs
++            .extend(self.mapping.map_segment(&segment, init_data)?);
++        self.segments.push(segment);
++        Some(())
++    }
++    /// 分配一定数量的连续虚拟空间
++    ///
++    /// 在本映射中，找到一段给定长度的未占用虚拟地址空间，分配物理页面并建立映射。返回对应的页面区间。
++    ///
++    /// `flags` 包含r、w、x和user。
++    pub fn alloc_page_range(&mut self, size: usize, flags: Flags) -> Option<Range<VirtualAddress>> {
++        // memory_set 只能按页分配，所以让 size 向上取整页
++        let alloc_size = (size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
++        // 从 memory_set 中找一段不会发生重叠的空间
++        let mut range = VirtualAddress(0x1000000)..VirtualAddress(0x1000000 + alloc_size);
++        while self.overlap_with(range_vpn_from_range_va(&range)) {
++            range.start += alloc_size;
++            range.end += alloc_size;
++        }
++        // 分配物理页面，建立映射
++        self.add_segment(
++            Segment {
++                map_type: MapType::Framed,
++                range: range.clone(),
++                flags,
++            },
++            None,
++        )?;
++        // 返回地址区间（使用参数 size，而非向上取整的 alloc_size）
++        Some(range.start..(range.start + size))
++    }
++    /// 替换 `satp` 以激活页表
++    ///
++    /// 如果当前页表就是自身，则不会替换，但仍然会刷新 TLB。
++    pub fn activate(&self) {
++        println!("[kernel] activating memory set in asid {:?}", self.address_space_id);
++        self.mapping.activate_on(self.address_space_id);
++    }
++    /// 获得当前映射的 [`Satp`]
++    pub fn satp(&self) -> Satp {
++        Satp(self.mapping.get_satp(self.address_space_id))
++    }
++}
++
++fn range_vpn_from_range_va(src: &Range<VirtualAddress>) -> Range<VirtualPageNumber> {
++    VirtualPageNumber::floor(src.start)..VirtualPageNumber::floor(src.end.into())
++}
++
++fn map_mmio(mapping: &mut Mapping) {
++    // 映射 PLIC
++    let plic_va_start = VirtualAddress(PLIC_BASE);
++    let plic_va_end = VirtualAddress(PLIC_BASE + 0x400000);
++    mapping.map_defined(
++        &(plic_va_start..plic_va_end),
++        &(plic_va_start.physical_address_linear()..plic_va_end.physical_address_linear()),
++        Flags::READABLE | Flags::WRITABLE,
++    );
++
++    // 映射 virtio disk mmio
++    let virtio_va = VirtualAddress(VIRTIO0);
++    let virtio_pa = VirtualAddress(VIRTIO0).physical_address_linear();
++    mapping.map_one(
++        VirtualPageNumber::floor(virtio_va),
++        Some(PhysicalPageNumber::floor(virtio_pa)),
++        Flags::WRITABLE | Flags::READABLE,
++    );
++}
+diff --git a/kernel/src/memory/mapping/page_table.rs b/kernel/src/memory/mapping/page_table.rs
+new file mode 100644
+index 0000000..be67306
+--- /dev/null
++++ b/kernel/src/memory/mapping/page_table.rs
+@@ -0,0 +1,45 @@
++//! 页表实现
++use super::page_table_entry::PageTableEntry;
++use crate::memory::{config::PAGE_SIZE, frame::FrameTracker, PhysicalPageNumber};
++use core::ops::{Deref, DerefMut};
++
++// repr(C)：保证内存对齐等设置，和RISC-V标准相同
++#[repr(C)]
++pub struct PageTable {
++    pub entries: [PageTableEntry; PAGE_SIZE / 8],
++}
++
++impl PageTable {
++    pub fn clear(&mut self) {
++        self.entries = [Default::default(); PAGE_SIZE / 8];
++    }
++}
++
++#[derive(Debug)]
++pub struct PageTableTracker(pub FrameTracker);
++
++impl PageTableTracker {
++    /// 创建空页表
++    pub fn new_zeroed(frame_tracker: FrameTracker) -> Self {
++        let mut page_table = Self(frame_tracker);
++        page_table.clear(); // PageTableTracker (deref_mut->) PageTable
++        page_table
++    }
++    /// 获取物理页号
++    pub fn page_number(&self) -> PhysicalPageNumber {
++        self.0.page_number()
++    }
++}
++
++impl Deref for PageTableTracker {
++    type Target = PageTable;
++    fn deref(&self) -> &PageTable {
++        unsafe { self.0.start_address().deref_linear_static() }
++    }
++}
++
++impl DerefMut for PageTableTracker {
++    fn deref_mut(&mut self) -> &mut PageTable {
++        unsafe { self.0.start_address().deref_linear_static() }
++    }
++}
+diff --git a/kernel/src/memory/mapping/page_table_entry.rs b/kernel/src/memory/mapping/page_table_entry.rs
+new file mode 100644
+index 0000000..065ca38
+--- /dev/null
++++ b/kernel/src/memory/mapping/page_table_entry.rs
+@@ -0,0 +1,76 @@
++//! 页表项实现
++use crate::memory::{PhysicalAddress, PhysicalPageNumber};
++use bit_field::BitField;
++
++#[derive(Copy, Clone, Default)]
++#[repr(C)]
++pub struct PageTableEntry(usize);
++
++const FLAG_RANGE: core::ops::Range<usize> = 0..8;
++const PAGE_NUMBER_RANGE: core::ops::Range<usize> = 10..54;
++
++impl PageTableEntry {
++    /// 创建一个新的页表项
++    pub fn new(page_number: Option<PhysicalPageNumber>, mut flags: Flags) -> Self {
++        flags.set(Flags::VALID, page_number.is_some());
++        let inner = *0usize.set_bits(FLAG_RANGE, flags.bits()).set_bits(
++            PAGE_NUMBER_RANGE,
++            page_number.map(|a| a.into()).unwrap_or(0),
++        );
++        PageTableEntry(inner)
++    }
++    /// 获取页号
++    pub fn page_number(&self) -> PhysicalPageNumber {
++        PhysicalPageNumber::from(self.0.get_bits(10..54))
++    }
++    /// 获取包含的物理页的起始地址，用于软件找到下一级页表的位置
++    pub fn start_address(&self) -> PhysicalAddress {
++        self.page_number().start_address()
++    }
++    /// 获取标志位
++    pub fn flags(&self) -> Flags {
++        unsafe { Flags::from_bits_unchecked(self.0.get_bits(FLAG_RANGE)) }
++    }
++    /// 如果为空，说明页表不存在，需要分配新的页表
++    pub fn is_empty(&self) -> bool {
++        self.0 == 0
++    }
++    /// 是否有效
++    pub fn is_valid(&self) -> bool {
++        (self.flags() & Flags::VALID) != Flags::empty()
++    }
++}
++
++impl core::fmt::Debug for PageTableEntry {
++    fn fmt(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
++        formatter
++            .debug_struct("PageTableEntry")
++            .field("value", &self.0)
++            .field("page_number", &self.page_number())
++            .field("flags", &self.flags())
++            .finish()
++    }
++}
++
++bitflags::bitflags! {
++    /// 页表项中的 8 个标志位
++    #[derive(Default)]
++    pub struct Flags: usize {
++        /// 有效位
++        const VALID =       1 << 0;
++        /// 可读位
++        const READABLE =    1 << 1;
++        /// 可写位
++        const WRITABLE =    1 << 2;
++        /// 可执行位
++        const EXECUTABLE =  1 << 3;
++        /// 用户位
++        const USER =        1 << 4;
++        /// 全局位
++        const GLOBAL =      1 << 5;
++        /// 已使用位，用于替换算法
++        const ACCESSED =    1 << 6;
++        /// 已修改位，用于替换算法
++        const DIRTY =       1 << 7;
++    }
++}
+diff --git a/kernel/src/memory/mapping/satp.rs b/kernel/src/memory/mapping/satp.rs
+new file mode 100644
+index 0000000..4586770
+--- /dev/null
++++ b/kernel/src/memory/mapping/satp.rs
+@@ -0,0 +1,59 @@
++//! satp寄存器抽象，可用于地址转换
++use super::{page_table::PageTable, page_table_entry::PageTableEntry};
++use super::super::{PhysicalPageNumber, VirtualPageNumber};
++use bit_field::BitField;
++use riscv::register::satp::Mode;
++
++/// satp寄存器，用于用户陷入内核态的时候提供地址映射帮助
++#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
++pub struct Satp(pub usize);
++
++impl Satp {
++    #[allow(unused)]
++    pub fn mode(&self) -> Mode {
++        match self.0.get_bits(60..64) {
++            0 => Mode::Bare,
++            8 => Mode::Sv39,
++            9 => Mode::Sv48,
++            10 => Mode::Sv57,
++            11 => Mode::Sv64,
++            _ => unreachable!(),
++        }
++    }
++    /// 地址空间参数
++    #[allow(unused)]
++    pub fn asid(&self) -> usize {
++        self.0.get_bits(44..60)
++    }
++    /// 根页表物理页号
++    #[allow(unused)]
++    pub fn ppn(&self) -> usize {
++        self.0.get_bits(0..44)
++    }
++    /// 找三级页表项
++    pub fn find_pte(&self, vpn: VirtualPageNumber) -> Option<&mut PageTableEntry> {
++        let root_ppn = PhysicalPageNumber::from_satp(self.0);
++        let root_table_pa = root_ppn.start_address();
++        let root_table: &mut PageTable = unsafe { root_table_pa.deref_linear_static() };
++        let mut entry = &mut root_table.entries[vpn.levels()[0]];
++        for vpn_i in &vpn.levels()[1..] {
++            // 没有页表项或页表项无效
++            if entry.is_empty() || !entry.is_valid() {
++                return None;
++            }
++            // 进入下一级页表
++            let next_table_pa = entry.start_address();
++            let next_table: &mut PageTable = unsafe { next_table_pa.deref_linear_static() };
++            entry = &mut next_table.entries[*vpn_i];
++        }
++        Some(entry)
++    }
++    /// 将虚拟页号转换为物理页号
++    pub fn translate(&self, vpn: VirtualPageNumber) -> Option<PhysicalPageNumber> {
++        self.find_pte(vpn).map(|pte| pte.page_number())
++    }
++    /// 获取内部值
++    pub fn inner(&self) -> usize {
++        self.0
++    }
++}
+diff --git a/kernel/src/memory/mapping/segment.rs b/kernel/src/memory/mapping/segment.rs
+new file mode 100644
+index 0000000..048bf77
+--- /dev/null
++++ b/kernel/src/memory/mapping/segment.rs
+@@ -0,0 +1,30 @@
++use crate::memory::{mapping::Flags, VirtualAddress, VirtualPageNumber};
++use core::ops::Range;
++
++/// 映射的类型
++#[derive(Debug)]
++pub enum MapType {
++    /// 线性映射，操作系统使用
++    Linear,
++    /// 按帧分配映射
++    /// 后面给用户上下文用
++    Framed,
++}
++
++/// 一个需要映射的程序片段
++#[derive(Debug)]
++pub struct Segment {
++    /// 映射类型
++    pub map_type: MapType,
++    /// 要映射的虚拟地址区间
++    pub range: Range<VirtualAddress>,
++    /// 权限和标记
++    pub flags: Flags,
++}
++
++impl Segment {
++    /// 将地址相应地上下取整，获得虚拟页号区间
++    pub fn page_range(&self) -> Range<VirtualPageNumber> {
++        VirtualPageNumber::floor(self.range.start)..VirtualPageNumber::ceil(self.range.end)
++    }
++}
+diff --git a/kernel/src/memory/mod.rs b/kernel/src/memory/mod.rs
+new file mode 100644
+index 0000000..d88e075
+--- /dev/null
++++ b/kernel/src/memory/mod.rs
+@@ -0,0 +1,42 @@
++//! 内存管理模块
++mod address;
++mod config;
++mod frame;
++mod heap;
++mod mapping;
++mod algorithm;
++
++pub use address::{PhysicalAddress, PhysicalPageNumber, VirtualAddress, VirtualPageNumber};
++pub use self::config::*;
++pub use frame::{frame_alloc, FrameTracker};
++pub use mapping::{Flags, MapType, Mapping, MemorySet, Satp, Segment};
++
++pub fn init() {
++    heap::init();
++}
++
++#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
++#[repr(C)]
++pub struct AddressSpaceId(u16); // in Sv39, [0, 2^16)
++
++impl AddressSpaceId {
++    pub(crate) unsafe fn from_raw(asid: usize) -> AddressSpaceId {
++        AddressSpaceId(asid as u16)
++    }
++    pub(crate) fn into_inner(self) -> usize {
++        self.0 as usize
++    }
++}
++
++pub fn max_asid() -> AddressSpaceId {
++    let mut val: usize = ((1 << 16) - 1) << 44;
++    unsafe {
++        core::arch::asm!("
++        csrr    {tmp}, satp
++        or      {val}, {tmp}, {val}
++        csrw    satp, {val}
++        csrrw   {val}, satp, {tmp}
++    ", tmp = out(reg) _, val = inlateout(reg) val)
++    };
++    return AddressSpaceId(((val >> 44) & ((1 << 16) - 1)) as u16);
++}
+diff --git a/kernel/src/task/async_task/kernel_task.rs b/kernel/src/task/async_task/kernel_task.rs
+new file mode 100644
+index 0000000..822e355
+--- /dev/null
++++ b/kernel/src/task/async_task/kernel_task.rs
+@@ -0,0 +1,78 @@
++use crate::{memory::VirtualAddress, task::async_task::Process};
++use alloc::{boxed::Box, sync::Arc};
++use core::{
++    fmt,
++    future::Future,
++    ops::Range,
++    pin::Pin,
++    sync::atomic::{AtomicUsize, Ordering},
++};
++use spin::Mutex;
++
++/// 任务的信息
++///
++/// 如果要运行用户的进程，首先切换到用户的地址空间，其中包含一个初始化好的栈和剩余空间，然后在里面增加用户的任务
++pub struct KernelTask {
++    /// 任务的编号
++    pub id: TaskId,
++    /// 任务所属的进程
++    pub process: Arc<Process>,
++    /// 任务信息的可变部分
++    pub inner: Mutex<TaskInner>,
++    /// 任务的内容
++    pub future: Mutex<Pin<Box<dyn Future<Output = ()> + 'static + Send + Sync>>>, // 用UnsafeCell代替Mutex会好一点
++}
++
++/// 任务的编号
++#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash)]
++pub struct TaskId(usize);
++
++impl TaskId {
++    pub(crate) fn generate() -> TaskId {
++        // 任务编号计数器，任务编号自增
++        static COUNTER: AtomicUsize = AtomicUsize::new(0);
++        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
++        if id > usize::max_value() / 2 {
++            // TODO: 不让系统 Panic
++            panic!("too many tasks!")
++        }
++        TaskId(id)
++    }
++}
++
++/// 任务信息的可变部分
++pub struct TaskInner {
++    /// 本任务运行的栈
++    ///
++    /// 内核任务复用执行器的栈。用户任务占有一个栈，下一个任务复用此栈。强制中断暂停时，下一个任务使用新分配的栈。
++    pub stack: Option<Range<VirtualAddress>>,
++}
++
++impl KernelTask {
++    /// 创建一个任务，将会复用执行器的栈
++    pub fn new(
++        future: impl Future<Output = ()> + 'static + Send + Sync,
++        process: Arc<Process>,
++    ) -> KernelTask {
++        // 得到新的内核任务编号
++        let task_id = TaskId::generate();
++        // 打包为任务
++        KernelTask {
++            id: task_id,
++            process,
++            inner: Mutex::new(TaskInner { stack: None }),
++            future: Mutex::new(Box::pin(future)),
++        }
++    }
++}
++
++impl fmt::Debug for KernelTask {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        let inner = self.inner.lock();
++        f.debug_struct("KernelTask")
++            .field("task id", &self.id)
++            .field("address space id", &self.process.address_space_id())
++            .field("stack", &inner.stack)
++            .finish()
++    }
++}
+diff --git a/kernel/src/task/async_task/mod.rs b/kernel/src/task/async_task/mod.rs
+new file mode 100644
+index 0000000..432d497
+--- /dev/null
++++ b/kernel/src/task/async_task/mod.rs
+@@ -0,0 +1,70 @@
++//! 内核态的任务管理模块
++
++mod kernel_task;
++mod process;
++
++pub use kernel_task::{KernelTask, TaskId};
++pub use process::{Process, ProcessId};
++pub use safe_cell::{Lock, LockGuard};
++
++use crate::async_rt::TaskState;
++use alloc::sync::Arc;
++use core::{future::Future, ptr::NonNull};
++
++/// 共享调度器返回的结果
++#[derive(Debug)]
++#[repr(C)]
++#[allow(dead_code)] // value is constructed elsewhere
++pub enum TaskResult {
++    /// 应当立即执行特定任务
++    Task(usize),
++    /// 其它地址空间的任务要运行，应当让出时间片
++    ShouldYield(usize),
++    /// 调度器中没有非睡眠任务
++    NoWakeTask,
++    /// 队列已空，所有任务已经结束
++    Finished,
++}
++
++/// 创建一个新的内核任务，打包它的环境
++pub fn new_kernel(
++    future: impl Future<Output = ()> + 'static + Send + Sync,
++    process: Arc<Process>,
++    shared_scheduler: NonNull<()>,
++    set_task_state: unsafe extern "C" fn(NonNull<()>, usize, TaskState),
++) -> Arc<KernelTaskRepr> {
++    Arc::new(KernelTaskRepr(
++        KernelTask::new(future, process),
++        shared_scheduler.as_ptr() as usize,
++        set_task_state,
++    ))
++}
++
++/// 内核任务的表示
++#[derive(Debug)]
++pub struct KernelTaskRepr(
++    KernelTask,
++    usize,
++    unsafe extern "C" fn(NonNull<()>, usize, TaskState),
++);
++
++impl KernelTaskRepr {
++    /// 转换到共享的任务指针
++    ///
++    /// note(unsafe): 创建了一个没有边界的生命周期
++    pub unsafe fn task_repr(self: Arc<Self>) -> usize {
++        Arc::into_raw(self) as usize
++    }
++    /// 唤醒这个任务
++    ///
++    /// 目前内核里面有些地方使用上这个函数代码会比较简洁，这个留到比赛后修改
++    pub unsafe fn do_wake(self: &Arc<Self>) {
++        let shared_scheduler = NonNull::new(self.1 as *mut ()).unwrap();
++        let task_repr = Arc::as_ptr(self) as usize;
++        (self.2)(shared_scheduler, task_repr, TaskState::Ready);
++    }
++    #[inline]
++    pub fn task(&self) -> &KernelTask {
++        &self.0
++    }
++}
+diff --git a/kernel/src/task/async_task/process.rs b/kernel/src/task/async_task/process.rs
+new file mode 100644
+index 0000000..29ee278
+--- /dev/null
++++ b/kernel/src/task/async_task/process.rs
+@@ -0,0 +1,89 @@
++//! unused
++use crate::hart::KernelHartInfo;
++use crate::memory::{AddressSpaceId, Flags, MemorySet, VirtualAddress, STACK_SIZE};
++use alloc::sync::Arc;
++use core::ops::Range;
++use lazy_static::lazy_static;
++use spin::Mutex;
++
++/// 进程的所有信息
++#[derive(Debug)]
++pub struct Process {
++    /// 进程的编号
++    pub id: ProcessId,
++    /// 进程是否属于用户态进程
++    pub is_user: bool,
++    /// 可变部分
++    pub inner: Mutex<ProcessInner>,
++}
++
++/// 进程所有信息的可变部分
++#[derive(Debug)]
++pub struct ProcessInner {
++    /// 进程中所有任务的公用内存映射
++    memory_set: MemorySet,
++}
++
++impl Process {
++    /// 创建一个进程
++    ///
++    /// 如果内存分配失败，返回[`None`]
++    pub fn new(memory_set: MemorySet) -> Option<Arc<Self>> {
++        let process = Arc::new(Process {
++            id: next_process_id(),
++            is_user: false,
++            inner: Mutex::new(ProcessInner { memory_set }),
++        });
++        unsafe {
++            KernelHartInfo::load_address_space_id(process.address_space_id());
++            KernelHartInfo::load_process(process.clone());
++        };
++        Some(process)
++    }
++
++    /// 创建一个用户进程
++    ///
++    /// 暂时和创建内核进程无太大区别，后续会思考这部分设计
++    #[allow(unused)]
++    pub fn new_user(memory_set: MemorySet) -> Option<Arc<Self>> {
++        let process = Arc::new(Process {
++            id: next_process_id(),
++            is_user: true,
++            inner: Mutex::new(ProcessInner { memory_set }),
++        });
++        Some(process)
++    }
++
++    /// 得到进程*所在*的地址空间编号。进程不*对应*地址空间编号
++    pub fn address_space_id(&self) -> AddressSpaceId {
++        self.inner.lock().memory_set.address_space_id
++    }
++
++    /// 在本进程的地址空间下，分配一个新的任务栈
++    pub fn alloc_stack(&self) -> Option<Range<VirtualAddress>> {
++        let mut flags = Flags::READABLE | Flags::WRITABLE;
++        if self.is_user {
++            flags |= Flags::USER;
++        }
++        flags |= Flags::VALID;
++        self.inner
++            .lock()
++            .memory_set
++            .alloc_page_range(STACK_SIZE, flags)
++    }
++}
++
++/// 进程的编号
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct ProcessId(usize);
++
++lazy_static! {
++    pub static ref PROCESS_COUNTER: Mutex<usize> = Mutex::new(1);
++}
++
++fn next_process_id() -> ProcessId {
++    let mut pid = PROCESS_COUNTER.lock();
++    let ans = *pid;
++    *pid += 1;
++    ProcessId(ans)
++}
+diff --git a/kernel/src/task/mod.rs b/kernel/src/task/mod.rs
+index d631cda..1110ea3 100644
+--- a/kernel/src/task/mod.rs
++++ b/kernel/src/task/mod.rs
+@@ -7,6 +7,8 @@ mod signal;
+ mod switch;
+ #[allow(clippy::module_inception)]
+ mod task;
++#[cfg(feature = "async_tiny")]
++pub mod async_task;
+ 
+ use self::id::TaskUserRes;
+ use crate::fs::{open_file, OpenFlags};
+-- 
+2.34.1
+

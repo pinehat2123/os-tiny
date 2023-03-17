@@ -1,0 +1,42 @@
+From 2fe69cf55dcf8fdee9dcec12899b798b7262de47 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 01:16:40 -0500
+Subject: [PATCH 52/80] add pre-commit
+
+---
+ .gitignore              |  3 ++-
+ .pre-commit-config.yaml | 10 ++++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+ create mode 100644 .pre-commit-config.yaml
+
+diff --git a/.gitignore b/.gitignore
+index 631eddb..2d92c85 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,4 +3,5 @@ target
+ *.lock
+ tools
+ build
+-other_libs
+\ No newline at end of file
++other_libs
++.pre_commit
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+new file mode 100644
+index 0000000..fd16ba2
+--- /dev/null
++++ b/.pre-commit-config.yaml
+@@ -0,0 +1,10 @@
++# See https://pre-commit.com for more information
++# See https://pre-commit.com/hooks.html for more hooks
++repos:
++-   repo: https://github.com/pre-commit/pre-commit-hooks
++    rev: v3.2.0
++    hooks:
++    -   id: trailing-whitespace
++    -   id: end-of-file-fixer
++    -   id: check-yaml
++    -   id: check-added-large-files
+-- 
+2.34.1
+

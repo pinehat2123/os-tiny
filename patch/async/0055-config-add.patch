@@ -1,0 +1,24 @@
+From 5e83c7924071ed7fbfa7084e39a8a5630a9dbd85 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Fri, 10 Mar 2023 02:08:11 -0500
+Subject: [PATCH 55/80] config add.
+
+---
+ application/user/Cargo.toml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/application/user/Cargo.toml b/application/user/Cargo.toml
+index 8607948..d98e2a5 100644
+--- a/application/user/Cargo.toml
++++ b/application/user/Cargo.toml
+@@ -20,6 +20,7 @@ r0 = "1"
+ syscall_macro = { path = "../../syscall", package = "syscall" }
+ event = { path = "../../event", package = "event" }
+ async-mutex = { path = "../../async_tiny/async_mutex", package = "async_mutex"}
++config = { path = "../../tconfig", package = "tconfig" }
+ 
+ [profile.release]
+ debug = true
+-- 
+2.34.1
+

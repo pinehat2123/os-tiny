@@ -1,0 +1,32 @@
+From 52a9062f684e2487262defe086ccc980889f041b Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Sat, 11 Feb 2023 13:27:00 -0500
+Subject: [PATCH 15/80] split to config module
+
+---
+ kernel/src/config.rs | 13 -------------
+ 1 file changed, 13 deletions(-)
+ delete mode 100644 kernel/src/config.rs
+
+diff --git a/kernel/src/config.rs b/kernel/src/config.rs
+deleted file mode 100644
+index 8f8b709..0000000
+--- a/kernel/src/config.rs
++++ /dev/null
+@@ -1,13 +0,0 @@
+-#[allow(unused)]
+-
+-pub const USER_STACK_SIZE: usize = 4096 * 2;
+-pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
+-pub const KERNEL_HEAP_SIZE: usize = 0x100_0000;
+-pub const MEMORY_END: usize = 0x88000000;
+-pub const PAGE_SIZE: usize = 0x1000;
+-pub const PAGE_SIZE_BITS: usize = 0xc;
+-
+-pub const TRAMPOLINE: usize = usize::MAX - PAGE_SIZE + 1;
+-pub const TRAP_CONTEXT_BASE: usize = TRAMPOLINE - PAGE_SIZE;
+-
+-pub use crate::board::{CLOCK_FREQ, MMIO};
+-- 
+2.34.1
+

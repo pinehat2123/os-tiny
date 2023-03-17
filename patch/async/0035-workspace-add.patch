@@ -1,0 +1,30 @@
+From 01939c2f5aebe6c50c330635f210e17781d78041 Mon Sep 17 00:00:00 2001
+From: andre <12485443-Andre_HJR@users.noreply.gitlab.com>
+Date: Mon, 6 Mar 2023 03:45:21 -0500
+Subject: [PATCH 35/80] workspace add
+
+---
+ Cargo.toml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 1dd2fd5..7484611 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,11 +2,12 @@
+ members = [
+     "application/easy-fs-fuse",
+     "application/user",
+-    "application/ring_scheduler",
++    "ring_scheduler",
+     "easy-fs", 
+     "kernel", 
+     "memory",
+     "safe_cell",
++    "event",
+     "tconfig",
+     ]
+ default-members = ["kernel"]
+-- 
+2.34.1
+
