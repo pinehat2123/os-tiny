@@ -10,6 +10,7 @@ BOOTLOADER                := rustsbi-qemu.bin
 
 BUILD_DIR                 :=  $(ROOT_DIR)/target
 KERNEL_BUILD_DIR          :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
+RING_SCHEDULER_BUILD_DIR  :=  $(BUILD_DIR)/$(TARGET)/$(BUILD_MODE)
 
 BUILD_TARGET              := $(ROOT_DIR)/build
 
