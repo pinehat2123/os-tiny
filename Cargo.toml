@@ -14,8 +14,9 @@ members = [
     "safe_cell",
     "event",
     "tconfig",
+    "xtask",
     ]
-default-members = ["kernel"]
+default-members = ["xtask"]
 
 exclude = [
     "mkConfig",
