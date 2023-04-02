@@ -1,13 +1,18 @@
-use syscall_macro::syscall_number::kernel::*;
 use crate::{
-    fs::syscall::{sys_dup, sys_open, sys_close, sys_pipe, sys_read, sys_write},
-    task::process_syscall::{sys_exit, sys_yield, sys_kill, sys_get_time, sys_getpid, sys_fork, sys_exec, sys_waitpid},
-    task::thread_syscall::{sys_thread_create, sys_gettid, sys_waittid},
-    sync::syscall::{sys_sleep, sys_mutex_create, sys_mutex_lock, sys_mutex_unlock, sys_semaphore_create, sys_semaphore_up, sys_semaphore_down, sys_condvar_create, sys_condvar_signal, sys_condvar_wait}
+    fs::syscall::{sys_close, sys_dup, sys_open, sys_pipe, sys_read, sys_write},
+    sync::syscall::{
+        sys_condvar_create, sys_condvar_signal, sys_condvar_wait, sys_mutex_create, sys_mutex_lock,
+        sys_mutex_unlock, sys_semaphore_create, sys_semaphore_down, sys_semaphore_up, sys_sleep,
+    },
+    task::process_syscall::{
+        sys_exec, sys_exit, sys_fork, sys_get_time, sys_getpid, sys_kill, sys_waitpid, sys_yield,
+    },
+    task::thread_syscall::{sys_gettid, sys_thread_create, sys_waittid},
 };
+use syscall_macro::syscall_number::kernel::*;
 #[cfg(feature = "async_tiny")]
 pub(crate) mod async_tiny {
-    pub use crate::async_rt::syscall::{get_swap_cx};
+    pub use crate::async_rt::syscall::get_swap_cx;
 }
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {

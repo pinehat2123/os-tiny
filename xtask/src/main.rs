@@ -1,4 +1,4 @@
-use clap::{arg, Command, Arg};
+use clap::{arg, Arg, Command};
 use std::path::PathBuf;
 
 fn cli() -> Command {
@@ -95,12 +95,8 @@ fn cli() -> Command {
                     Command::new("qemu")
                         .about("Qemu Run")
                         .arg_required_else_help(true)
-                        .arg(
-                            Arg::new("plantform")
-                            .short('p')
-                            .help("plantform specify")
-                        )
-            )
+                        .arg(Arg::new("plantform").short('p').help("plantform specify")),
+                )
                 // For env build
                 .subcommand(Command::new("env")),
         )
@@ -126,11 +122,16 @@ fn main() {
         Some(("tiny", sub_matches)) => match sub_matches.subcommand() {
             Some(("qemu", sub_matches)) => {
                 if sub_matches.contains_id("plantform") {
-                    let plantform = sub_matches.get_one::<String>("plantform").expect("required");
+                    let plantform = sub_matches
+                        .get_one::<String>("plantform")
+                        .expect("required");
                     println!("Plantform {}", plantform);
                     match &plantform as &str {
                         "riscv64" => {
-                            CM::new("/usr/bin/make").arg("run").status().expect("Run tiny error");
+                            CM::new("/usr/bin/make")
+                                .arg("run")
+                                .status()
+                                .expect("Run tiny error");
                         }
                         _ => {}
                     }
