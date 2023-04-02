@@ -16,6 +16,7 @@ check:
 	${CROSS_GDB} --version;
 
 include  script/makefile/run.mk
+include  script/makefile/debug.mk
 
 clean:
 # for easy-fs-fuse
