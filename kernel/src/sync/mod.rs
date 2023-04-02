@@ -1,6 +1,7 @@
 mod condvar;
 mod mutex;
 mod semaphore;
+pub(crate) mod syscall;
 
 pub use condvar::Condvar;
 pub use mutex::{Mutex, MutexBlocking, MutexSpin};

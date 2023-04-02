@@ -1,4 +1,4 @@
-use super::super::{
+use crate::{
     hart::KernelHartInfo,
     memory::{
         self, swap_contex_va, AddressSpaceId, Satp, VirtualAddress, VirtualPageNumber,

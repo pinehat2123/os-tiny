@@ -1,6 +1,7 @@
 mod inode;
 mod pipe;
 mod stdio;
+pub(crate) mod syscall;
 
 use crate::mm::UserBuffer;
 

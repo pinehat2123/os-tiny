@@ -9,6 +9,8 @@ mod signal;
 mod switch;
 #[allow(clippy::module_inception)]
 mod task;
+pub(crate) mod process_syscall;
+pub(crate) mod thread_syscall;
 
 use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};
