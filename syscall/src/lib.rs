@@ -112,3 +112,9 @@ fn syscall_3_helper(id: usize, args: [usize; 3]) -> isize {
 pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     syscall_3_helper(id, args)
 }
+
+#[cfg(all(any(target_os = "none"), target_arch = "riscv64"))]
+#[path = "arch/riscv64.rs"]
+mod arch;
+
+mod number;

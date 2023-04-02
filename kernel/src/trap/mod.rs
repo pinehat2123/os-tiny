@@ -17,8 +17,9 @@ use riscv::register::{
     sie, sscratch, sstatus, stval, stvec,
 };
 
-#[cfg(target_arch="riscv64")]
-core::arch::global_asm!(r#"
+#[cfg(target_arch = "riscv64")]
+core::arch::global_asm!(
+    r#"
 .altmacro
 .macro SAVE_GP n
     sd x\n, \n*8(sp)
@@ -123,7 +124,8 @@ __restore_k:
     .endr
     addi sp, sp, 34*8
     sret
-"#);
+"#
+);
 
 pub fn init() {
     set_kernel_trap_entry();

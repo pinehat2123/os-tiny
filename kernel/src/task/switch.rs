@@ -1,7 +1,8 @@
 use super::TaskContext;
 
-#[cfg(target_arch="riscv64")]
-core::arch::global_asm!(r#"
+#[cfg(target_arch = "riscv64")]
+core::arch::global_asm!(
+    r#"
 .altmacro
 .macro SAVE_SN n
     sd s\n, (\n+2)*8(a0)
@@ -36,7 +37,8 @@ __switch:
     ld sp, 8(a1)
     ret
 
-"#);
+"#
+);
 extern "C" {
     pub fn __switch(current_task_cx_ptr: *mut TaskContext, next_task_cx_ptr: *const TaskContext);
 }

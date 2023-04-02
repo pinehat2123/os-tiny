@@ -54,8 +54,9 @@ use crate::drivers::chardev::UART;
 use lazy_static::*;
 use safe_cell::UPIntrFreeCell;
 
-#[cfg(target_arch="riscv64")]
-core::arch::global_asm!(r#"
+#[cfg(target_arch = "riscv64")]
+core::arch::global_asm!(
+    r#"
     .section .text.entry
     # .globl _start
 _start:
@@ -68,7 +69,8 @@ boot_stack_lower_bound:
     # .globl boot_stack_top
 boot_stack_top:
 
-"#);
+"#
+);
 
 fn clear_bss() {
     extern "C" {
