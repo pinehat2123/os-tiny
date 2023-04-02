@@ -10,6 +10,6 @@ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 buddy_system_allocator = "0.6"
 bitflags = "1.2.1"
 xmas-elf = "0.7.0"
-riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a"}
+riscv = "0.10.1"
 config = { path = "../tconfig", package = "tconfig" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
