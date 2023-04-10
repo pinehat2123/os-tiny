@@ -46,7 +46,7 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     unsafe {
         // 从 gp 寄存器里面取出 shared_raw_table 的地址，直接读
-        // asm!("mv {}, gp", out(reg) SHARED_PAYLOAD_BASE, options(nomem, nostack));
+        asm!("mv {}, gp", out(reg) SHARED_PAYLOAD_BASE, options(nomem, nostack));
 
         // 从 tp 寄存器里面取出该用户态的地址空间编号
         asm!("mv {}, tp", out(reg) ADDRESS_SPACE_ID, options(nomem, nostack));
