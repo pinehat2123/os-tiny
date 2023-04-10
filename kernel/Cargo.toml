@@ -39,8 +39,8 @@ bench = false
 # that we can jump to from the bootloader
 crate-type = ["staticlib"]
 
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
+# [profile.dev]
+# panic = "abort"
+#
+# [profile.release]
+# panic = "abort"

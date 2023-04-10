@@ -8,7 +8,7 @@ include script/makefile/mkEnv.mk
 		gitlab gitStatus
 
 simple:
-	@${MAKE} clean && cargo build -p kernel --release --target riscv64gc-unknown-none-elf
+	@${MAKE} clean && ${CARGO} build -p kernel --release --target riscv64gc-unknown-none-elf
 
 check:
 	${CROSS_AS} --version;
@@ -20,7 +20,7 @@ include  script/makefile/debug.mk
 
 clean:
 # for easy-fs-fuse
-	@cd application/easy-fs-fuse && cargo clean
+	@cd application/easy-fs-fuse && ${CARGO} clean
 	@${PERL} ./script/simple-clean clean
 
 gitlab:

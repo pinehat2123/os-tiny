@@ -28,7 +28,9 @@ const USER_HEAP_SIZE: usize = 32768;
 
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
 
-static mut SHARED_PAYLOAD_BASE: usize = 0;
+// static mut SHARED_PAYLOAD_BASE: usize = 0;
+// Just read the ring_scheduler from kernel config, write.
+static mut SHARED_PAYLOAD_BASE: usize = 0x8600_0000;
 static mut ADDRESS_SPACE_ID: usize = 0;
 
 #[global_allocator]
@@ -43,14 +45,15 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 #[link_section = ".text.entry"]
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     unsafe {
-        // 从 gp 寄存器里面取出 shared_raw_table 的地址
-        asm!("mv {}, gp", out(reg) SHARED_PAYLOAD_BASE, options(nomem, nostack));
+        // 从 gp 寄存器里面取出 shared_raw_table 的地址，直接读
+        // asm!("mv {}, gp", out(reg) SHARED_PAYLOAD_BASE, options(nomem, nostack));
 
         // 从 tp 寄存器里面取出该用户态的地址空间编号
         asm!("mv {}, tp", out(reg) ADDRESS_SPACE_ID, options(nomem, nostack));
         HEAP.lock()
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
+    println!("SHARED_PAYLOAD_BASE: {}, ADDRESS_SPACE_ID: {}, USER_HEAP_SIZE: {}", unsafe {SHARED_PAYLOAD_BASE}, unsafe {ADDRESS_SPACE_ID}, USER_HEAP_SIZE );
     let mut v: Vec<&'static str> = Vec::new();
     for i in 0..argc {
         let str_start =
@@ -65,13 +68,22 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
             .unwrap(),
         );
     }
-    exit(main(argc, v.as_slice()));
+    exit(0);
+    // exit(usertests_main());
+    // exit(main(argc, v.as_slice()));
 }
 
 #[linkage = "weak"]
 #[no_mangle]
 fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
+}
+// TODO: move the usertests from bin to library internal.
+pub(crate) mod usertests_lib;
+// TODO: Just exit from usertests. do not wait.
+#[no_mangle]
+fn usertests_main() -> i32 {
+    usertests_lib::t_main()
 }
 
 bitflags! {

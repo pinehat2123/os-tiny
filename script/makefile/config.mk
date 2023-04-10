@@ -1,4 +1,4 @@
-# Basic directory/firl path definitions used throughout the Makefiel
+# Basic directory/firl path definitions used throughout the Makefile
 
 OS_ARCH                   ?= riscv64gc
 TARGET                    ?= $(OS_ARCH)-unknown-none-elf

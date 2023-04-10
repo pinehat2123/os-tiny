@@ -4,7 +4,13 @@ git = "xtask git"
 cargo = "xtask cargo"
 tiny = "xtask tiny"
 
+[net]
+retry = 2
+offline = true
 
+[term]
+quiet=true
+verbose = false
 
 # [build]
 # target = "riscv64gc-unknown-none-elf"

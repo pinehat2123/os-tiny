@@ -7,9 +7,9 @@ members = [
     "async_tiny/async_easy_fs",
     "utils/ge",
     "ring_scheduler",
-    "easy-fs", 
+    "easy-fs",
     "syscall",
-    "kernel", 
+    "kernel",
     "memory",
     "safe_cell",
     "event",
@@ -30,6 +30,8 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+debug = true
+
 
 [patch.crates-io]
 riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a" }

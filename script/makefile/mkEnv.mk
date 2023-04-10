@@ -6,7 +6,7 @@ RISCV_GDB_BIN_DIR   := ${RISCV_GDB_DIR}/bin
 
 AUTHOR := [my]
 
-MAKE        ?= make
+MAKE        ?= make –no-print-directory
 MKDIR       ?= mkdir
 CP          ?= cp
 CARGO       ?= cargo
@@ -17,5 +17,6 @@ CROSS_AS    ?= ${RISCV_BIN_DIR}/${CROSS}as
 CROSS_LD    ?= ${RISCV_BIN_DIR}/${CROSS}ld
 CROSS_GDB   ?= ${RISCV_GDB_BIN_DIR}/riscv64-unknown-elf-gdb
 PRINT       ?= /bin/echo -e "\e[37m\e[4mPRINT\e[0m "
+ATTENTION       ?= /bin/echo -e "\e[37m\e[4mPRINT\e[0m "
 INFO        ?= /bin/echo -e "\e[34mNOTE\e[0m "
 NEWLINE     ?= /bin/echo -e "\n"

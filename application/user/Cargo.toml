@@ -22,8 +22,8 @@ event = { path = "../../event", package = "event" }
 async-mutex = { path = "../../async_tiny/async_mutex", package = "async_mutex"}
 config = { path = "../../tconfig", package = "tconfig" }
 
-[profile.release]
-debug = true
+# [profile.release]
+# debug = true
 
 [features]
 async_lib = []

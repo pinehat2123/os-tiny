@@ -1,3 +1,4 @@
+include ../../script/makefile/mkEnv.mk
 TARGET := riscv64gc-unknown-none-elf
 MODE := release
 APP_DIR := src/bin
@@ -8,12 +9,12 @@ BINS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%.bin, $(APPS))
 
 OBJDUMP := rust-objdump --arch-name=riscv64
 OBJCOPY := rust-objcopy --binary-architecture=riscv64
-CP := cp 
+CP := cp
 
 TEST ?= 1
 
 elf: $(APPS)
-	@cargo build -p user_lib --release
+	@${CARGO} build -p user_lib --release
 ifeq ($(TEST), 1)
 	@$(CP) $(TARGET_DIR)/usertests $(TARGET_DIR)/initproc
 endif
@@ -24,6 +25,6 @@ binary: elf
 build: binary
 
 clean:
-	@cargo clean
+	@${CARGO} clean
 
 .PHONY: elf binary build clean
