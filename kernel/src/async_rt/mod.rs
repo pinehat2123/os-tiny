@@ -24,9 +24,8 @@ pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 
 #[cfg(feature = "async_tiny")]
 pub(crate) mod syscall;
-#[cfg(feature = "async_tiny")]
+#[cfg(all(features = ["async_tiny", "async_test"]))]
 pub fn init() {
-/*
      extern "C" {
         static mut _sbss: u32;
         static mut _ebss: u32;
@@ -60,7 +59,6 @@ pub fn init() {
         |task_repr| unsafe { shared_payload.delete_task(task_repr) },
         |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
     );
-    */
 }
 
 async fn task_1() {

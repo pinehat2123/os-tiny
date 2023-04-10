@@ -32,6 +32,7 @@ features = []
 [features]
 default = ["async_tiny"]
 async_tiny = []
+async_test = []
 
 [lib]
 bench = false
