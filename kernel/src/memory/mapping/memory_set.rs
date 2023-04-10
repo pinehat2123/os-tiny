@@ -42,30 +42,30 @@ impl MemorySet {
             fn _swap_frame();
         }
 
-        // println!(
-        //     "text:   {:x?}",
-        //     VirtualAddress(_stext as usize)..VirtualAddress(_etext as usize)
-        // );
-        // println!(
-        //     "rodata: {:x?}",
-        //     VirtualAddress(_srodata as usize)..VirtualAddress(_erodata as usize)
-        // );
-        // println!(
-        //     "data:   {:x?}",
-        //     VirtualAddress(_sdata as usize)..VirtualAddress(_edata as usize)
-        // );
-        // println!(
-        //     "bss:    {:x?}",
-        //     VirtualAddress(_sbss as usize)..VirtualAddress(_ebss as usize)
-        // );
-        // println!(
-        //     "swap frame: {:x?}",
-        //     VirtualAddress(_swap_frame as usize)..VirtualAddress(_etext as usize)
-        // );
-        // println!(
-        //     "free:   {:x?}",
-        //     *FREE_MEMORY_START..MEMORY_END_ADDRESS.virtual_address_linear()
-        // );
+        println!(
+            "text:   {:x?}",
+            VirtualAddress(_stext as usize)..VirtualAddress(_etext as usize)
+        );
+        println!(
+            "rodata: {:x?}",
+            VirtualAddress(_srodata as usize)..VirtualAddress(_erodata as usize)
+        );
+        println!(
+            "data:   {:x?}",
+            VirtualAddress(_sdata as usize)..VirtualAddress(_edata as usize)
+        );
+        println!(
+            "bss:    {:x?}",
+            VirtualAddress(_sbss as usize)..VirtualAddress(_ebss as usize)
+        );
+        println!(
+            "swap frame: {:x?}",
+            VirtualAddress(_swap_frame as usize)..VirtualAddress(_etext as usize)
+        );
+        println!(
+            "free:   {:x?}",
+            *FREE_MEMORY_START..MEMORY_END_ADDRESS.virtual_address_linear()
+        );
 
         // 建立字段
         #[allow(unused_mut)]
@@ -101,14 +101,6 @@ impl MemorySet {
                 flags: Flags::READABLE | Flags::WRITABLE,
             },
         ];
-
-        #[cfg(feature = "k210")]
-        segments.push(Segment {
-            map_type: MapType::Linear,
-            range: VirtualAddress(0x40000000 + KERNEL_MAP_OFFSET)
-                ..VirtualAddress(0x40600000 + KERNEL_MAP_OFFSET),
-            flags: Flags::READABLE | Flags::WRITABLE,
-        });
 
         let mut mapping = Mapping::new_alloc()?;
         // 准备保存所有新分配的物理页面
