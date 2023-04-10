@@ -9,6 +9,7 @@ SECTIONS
 
     stext = .;
     .text : {
+        _stext = .;
         *(.text.entry)
         . = ALIGN(4K);
         strampoline = .;
@@ -26,26 +27,33 @@ SECTIONS
     etext = .;
     srodata = .;
     .rodata : {
+        _srodata = .;
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
+        _erodata = .;
     }
 
     . = ALIGN(4K);
     erodata = .;
     sdata = .;
-    .data : {
+    .data : ALIGN(4k){
+        _sidata = LOADADDR(.data);
+        _sdata = .;
         *(.data .data.*)
         *(.sdata .sdata.*)
+        _edata = .;
     }
 
     . = ALIGN(4K);
     edata = .;
     sbss_with_stack = .;
     .bss : {
+        _sbss = .;
         *(.bss.stack)
         sbss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
+        _ebss = .;
     }
 
     . = ALIGN(4K);
