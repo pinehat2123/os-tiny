@@ -69,7 +69,6 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
         );
     }
     // exit(0);
-    // exit(usertests_main());
     exit(main(argc, v.as_slice()));
 }
 
@@ -77,13 +76,6 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
 #[no_mangle]
 fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
-}
-// TODO: move the usertests from bin to library internal.
-pub(crate) mod usertests_lib;
-// TODO: Just exit from usertests. do not wait.
-#[no_mangle]
-fn usertests_main() -> i32 {
-    usertests_lib::t_main()
 }
 
 bitflags! {
