@@ -109,7 +109,7 @@ extern "C" fn rcore_main() -> ! {
     println!("KERN: init async");
     #[cfg(feature = "async_tiny")]
     async_rt::init();
-    fs::list_apps();
+    // fs::list_apps();
     task::add_initproc();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
