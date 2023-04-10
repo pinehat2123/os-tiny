@@ -24,7 +24,10 @@ pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 
 #[cfg(feature = "async_tiny")]
 pub(crate) mod syscall;
-#[cfg(all(features = ["async_tiny", "async_test"]))]
+#[cfg(all(feature = "async_tiny", not(feature = "async_test")))]
+pub fn init() {
+}
+#[cfg(all(feature = "async_tiny", feature = "async_test"))]
 pub fn init() {
      extern "C" {
         static mut _sbss: u32;
