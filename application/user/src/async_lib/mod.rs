@@ -5,7 +5,9 @@ mod syscall;
 #[allow(dead_code)]
 mod task;
 
-static mut SHARED_PAYLOAD_BASE: usize = 0;
+// static mut SHARED_PAYLOAD_BASE: usize = 0;
+// Just read the ring_scheduler from kernel config, write.
+static mut SHARED_PAYLOAD_BASE: usize = 0x8600_0000;
 static mut ADDRESS_SPACE_ID: usize = 0;
 
 use core::future::Future;
@@ -35,6 +37,7 @@ pub fn execute_async_main(main: impl Future<Output = i32> + Send + Sync + 'stati
 }
 
 pub fn spawn(future: impl Future<Output = ()> + Send + Sync + 'static) {
+    println!("SHARED_PAYLOAD_BASE: {}", unsafe { SHARED_PAYLOAD_BASE });
     let shared_payload = unsafe { task::shared::SharedPayload::new(SHARED_PAYLOAD_BASE) };
     let asid = unsafe { task::shared::AddressSpaceId::from_raw(ADDRESS_SPACE_ID) };
     let task = task::new_user(
