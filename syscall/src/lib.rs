@@ -2,7 +2,6 @@
 #[allow(dead_code)]
 
 pub mod syscall_number {
-
     pub mod user {
         pub const MODULE_PROCESS: usize = 0x114514;
         pub const MODULE_TASK: usize = 0x7777777;
@@ -115,6 +114,8 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
 
 #[cfg(all(any(target_os = "none"), target_arch = "riscv64"))]
 #[path = "arch/riscv64.rs"]
+#[allow(dead_code)]
 mod arch;
 
+#[allow(dead_code)]
 mod number;
