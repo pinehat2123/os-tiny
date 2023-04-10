@@ -26,17 +26,43 @@ pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 pub(crate) mod syscall;
 #[cfg(feature = "async_tiny")]
 pub fn init() {
-    use crate::console;
-    println!("No Implement");
-    // let _shared_payload = unsafe { SharedPayload::load(SHAREDPAYLOAD_BASE) };
-    // run_until_idle(
-    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
-    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
-    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
-    // );
-    // run_until_idle(
-    //     || unsafe { shared_payload.peek_task(kernel_should_switch) },
-    //     |task_repr| unsafe { shared_payload.delete_task(task_repr) },
-    //     |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
-    // );
+/*
+     extern "C" {
+        static mut _sbss: u32;
+        static mut _ebss: u32;
+
+        static mut _sdata: u32;
+        static mut _edata: u32;
+
+        static mut _stext: u32;
+        static mut _srodata: u32;
+        static mut _erodata: u32;
+    }
+    let kernel_memory = crate::memory::MemorySet::new_kernel().expect("create kernel memory set");
+    kernel_memory.activate();
+    let shared_payload = unsafe { SharedPayload::load(SHAREDPAYLOAD_BASE) };
+    let process = crate::task::async_task::Process::new(kernel_memory).expect("create process 1");
+    let hart_id = crate::hart::KernelHartInfo::hart_id();
+    let address_space_id = process.address_space_id();
+    let _stack_handle = process.alloc_stack().expect("alloc initial stack");
+    #[allow(unused)]
+    let task_1 = crate::task::async_task::new_kernel(
+        task_1(),
+        process.clone(),
+        shared_payload.shared_scheduler,
+        shared_payload.shared_set_task_state,
+    );
+    unsafe {
+        shared_payload.add_task(hart_id, address_space_id, task_1.task_repr());
+    }
+    run_until_idle(
+        || unsafe { shared_payload.peek_task(kernel_should_switch) },
+        |task_repr| unsafe { shared_payload.delete_task(task_repr) },
+        |task_repr, new_state| unsafe { shared_payload.set_task_state(task_repr, new_state) },
+    );
+    */
+}
+
+async fn task_1() {
+    println!("Hello World");
 }
