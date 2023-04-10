@@ -51,6 +51,7 @@ SECTIONS
     . = ALIGN(4K);
     ebss = .;
     __end = .;
+    free_memory_start = .;
     ekernel = .;
 
     /DISCARD/ : {
