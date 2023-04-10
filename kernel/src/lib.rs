@@ -110,6 +110,7 @@ extern "C" fn rcore_main() -> ! {
     #[cfg(feature = "async_tiny")]
     async_rt::init();
     // fs::list_apps();
+    println!("KERN: ---test the whole apps from userspace.---");
     task::add_initproc();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
