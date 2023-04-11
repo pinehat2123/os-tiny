@@ -51,11 +51,11 @@ impl SharedPayload {
     /// ```
     pub unsafe fn load(base: usize) -> Self {
         let mut payload_usize = *(base as *const SharedPayloadAsUsize);
-        // println!(
-        //     "[kernel:shared] Raw table base: {:p}",
-        //     base as *const SharedPayloadAsUsize
-        // );
-        // println!("[kernel:shared] Content: {:x?}", payload_usize);
+        println!(
+            "[kernel:shared] Raw table base: {:p}",
+            base as *const SharedPayloadAsUsize
+        );
+        println!("[kernel:shared] Content: {:x?}", payload_usize);
         let compiled_offset = payload_usize[0];
         for (i, idx) in payload_usize.iter_mut().enumerate() {
             if i == 0 {
@@ -123,7 +123,7 @@ impl SharedPayload {
     ///
     /// ```
     /// unsafe{
-    ///     assert!(shared_load.delete_task(task.task_repr()));        
+    ///     assert!(shared_load.delete_task(task.task_repr()));
     /// }
     /// ```
     pub unsafe fn delete_task(&self, task_repr: usize) -> bool {

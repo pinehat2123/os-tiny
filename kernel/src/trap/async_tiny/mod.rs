@@ -4,6 +4,7 @@ use super::super::{
     memory::{swap_contex_va, SWAP_FRAME_VA},
     // memory::{SWAP_FRAME_VA},
 };
+pub mod user_trap;
 /// 内核态和用户态切换时需要保存的上下文
 #[repr(C)]
 #[derive(Debug, Clone)]

@@ -3,12 +3,12 @@ mod io;
 #[allow(dead_code)]
 mod syscall;
 #[allow(dead_code)]
-mod task;
+pub mod task;
 
 // static mut SHARED_PAYLOAD_BASE: usize = 0;
 // Just read the ring_scheduler from kernel config, write.
 static mut SHARED_PAYLOAD_BASE: usize = 0x8600_0000;
-static mut ADDRESS_SPACE_ID: usize = 0;
+static mut ADDRESS_SPACE_ID: usize = 1;
 
 use core::future::Future;
 
@@ -35,11 +35,11 @@ pub fn execute_async_main(main: impl Future<Output = i32> + Send + Sync + 'stati
 
     unsafe { EXIT_CODE }
 }
-
-pub fn spawn(future: impl Future<Output = ()> + Send + Sync + 'static) {
-    println!("SHARED_PAYLOAD_BASE: {}", unsafe { SHARED_PAYLOAD_BASE });
+pub fn job_add(future: impl Future<Output = ()> + Send + Sync + 'static) {
+    println!("job add.");
     let shared_payload = unsafe { task::shared::SharedPayload::new(SHARED_PAYLOAD_BASE) };
     let asid = unsafe { task::shared::AddressSpaceId::from_raw(ADDRESS_SPACE_ID) };
+    println!("SHARED_PAYLOAD_BASE: {:x?}, ADDRESS_SPACE_ID: {:x?}", unsafe { SHARED_PAYLOAD_BASE }, unsafe { ADDRESS_SPACE_ID});
     let task = task::new_user(
         future,
         shared_payload.shared_scheduler,
@@ -50,7 +50,22 @@ pub fn spawn(future: impl Future<Output = ()> + Send + Sync + 'static) {
     }
 }
 
+pub fn spawn(future: impl Future<Output = ()> + Send + Sync + 'static) {
+    println!("Try SPAWN");
+    let shared_payload = unsafe { task::shared::SharedPayload::new(SHARED_PAYLOAD_BASE) };
+    let asid = unsafe { task::shared::AddressSpaceId::from_raw(ADDRESS_SPACE_ID) };
+    let task = task::new_user(
+        future,
+        shared_payload.shared_scheduler,
+        shared_payload.shared_set_task_state,
+    );
+    unsafe {
+        shared_payload.add_task(0/* todo */, asid, task.task_repr());
+    }
+}
+
 pub fn execute_async() {
+    println!("SHARED_PAYLOAD_BASE: {:x?}", unsafe { SHARED_PAYLOAD_BASE });
     let shared_payload = unsafe { task::shared::SharedPayload::new(SHARED_PAYLOAD_BASE) };
     task::shared::run_until_ready(
         || unsafe { shared_payload.peek_task(task::shared::user_should_switch) },
