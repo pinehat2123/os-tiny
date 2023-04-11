@@ -9,6 +9,7 @@ extern crate user_lib;
 
 // item of TESTS : app_name(argv_0), argv_1, argv_2, argv_3, exit_code
 static SUCC_TESTS: &[(&str, &str, &str, &str, i32)] = &[
+    ("async_test\0", "\0", "\0", "\0", 0),
     ("filetest_simple\0", "\0", "\0", "\0", 0),
     ("cat\0", "filea\0", "\0", "\0", 0),
     ("cmdline_args\0", "1\0", "2\0", "3\0", 0),
@@ -51,7 +52,7 @@ static FAIL_TESTS: &[(&str, &str, &str, &str, i32)] = &[
     // ("priv_csr\0", "\0", "\0", "\0", -4),
     // ("priv_inst\0", "\0", "\0", "\0", -4),
     ("store_fault\0", "\0", "\0", "\0", -11),
-    ("async_test\0", "\0", "\0", "\0", -11),
+    // ("async_test\0", "\0", "\0", "\0", -11), // code is work, while the ring_scheduler is load error.
     // ("until_timeout\0", "\0", "\0", "\0", -6),
     // ("adder\0", "\0", "\0", "\0", -6),
     // ("adder_simple_spin\0", "\0", "\0", "\0", -6),

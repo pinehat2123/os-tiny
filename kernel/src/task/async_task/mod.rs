@@ -11,6 +11,8 @@ use crate::async_rt::TaskState;
 use alloc::sync::Arc;
 use core::{future::Future, ptr::NonNull};
 
+#[cfg(all(feature = "async_tiny", feature = "async_test_woke"))]
+pub mod woke;
 /// 共享调度器返回的结果
 #[derive(Debug)]
 #[repr(C)]

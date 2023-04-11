@@ -30,9 +30,10 @@ version = "0.4"
 features = []
 
 [features]
-default = ["async_tiny"]
+default = ["async_tiny", "async_test_woke"]
 async_tiny = []
 async_test = []
+async_test_woke = []
 
 [lib]
 bench = false
