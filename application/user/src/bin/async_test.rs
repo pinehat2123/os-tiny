@@ -25,14 +25,14 @@ impl Future for FibonacciFuture {
     type Output = usize;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.index == self.count {
-            // println!("Fibonacci {} result: {}", self.count, self.predecessor);
+            println!("[user async]\x1b[7m\x1b[31m[Fib Record]\x1b[0m\x1b[27m\x1b[0mFibonacci {} result: {}", self.count, self.predecessor);
             Poll::Ready(self.predecessor)
         } else {
             let tmp = self.predecessor;
             self.predecessor += self.successor;
             self.successor = tmp;
             self.index += 1;
-            println!("[user space][async test]Fibonacci {}; index = {}, predecessor = {}, successor = {}", self.count, self.index, self.predecessor, self.successor);
+            println!("[user async]\x1b[7m\x1b[96m[Fib Record]\x1b[0m\x1b[27m\x1b[0mFibonacci {}; index = {}, predecessor = {}, successor = {}", self.count, self.index, self.predecessor, self.successor);
             cx.waker().wake_by_ref();
             Poll::Pending
         }
