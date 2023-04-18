@@ -5,8 +5,12 @@ extern crate alloc;
 #[macro_use]
 extern crate user_lib;
 
-use user_lib::{async_lib::task::wokes::Executor};
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use user_lib::async_lib::task::wokes::Executor;
 
 struct FibonacciFuture {
     predecessor: usize,
@@ -16,8 +20,13 @@ struct FibonacciFuture {
 }
 
 impl FibonacciFuture {
-    fn new (count: usize) -> FibonacciFuture {
-        FibonacciFuture { predecessor: 0, successor: 1, index: 0, count }
+    fn new(count: usize) -> FibonacciFuture {
+        FibonacciFuture {
+            predecessor: 0,
+            successor: 1,
+            index: 0,
+            count,
+        }
     }
 }
 
