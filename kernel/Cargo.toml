@@ -19,6 +19,18 @@ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4e
 easy-fs = { path = "../easy-fs" }
 embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
+simple_endian = { git = "https://github.com/michalfita/simple-endian-rs", branch = "bugfix/4/fix-no_std-support-right-way", default_features = false, features = [
+    "bitwise",
+    "comparisons",
+    "format",
+    "math_ops",
+    "neg_ops",
+    "shift_ops",
+    "both_endian",
+    "float_impls",
+    "integer_impls",
+    "byte_impls",
+] }
 config = { path = "../tconfig", package = "tconfig" }
 mm = { path = "../memory", package = "memory" }
 safe_cell = { path = "../safe_cell", package = "safe_cell" }
