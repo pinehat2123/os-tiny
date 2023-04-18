@@ -24,24 +24,24 @@ pub use shared::{kernel_should_switch, SharedPayload, TaskState};
 
 #[cfg(feature = "async_tiny")]
 pub(crate) mod syscall;
-#[cfg(all(feature = "async_tiny", not(any(feature = "async_test", feature = "async_test_woke"))))]
-pub fn init() {
-}
+#[cfg(all(
+    feature = "async_tiny",
+    not(any(feature = "async_test", feature = "async_test_woke"))
+))]
+pub fn init() {}
 #[cfg(all(feature = "async_tiny", feature = "async_test_woke"))]
 pub fn init() {
     let executor = crate::task::async_task::woke::Executor::default();
 
     for _ in 1..20 {
-        executor.spawn(async {
-            println!("[kernel async] Hello world!")
-        });
+        executor.spawn(async { println!("[kernel async] Hello world!") });
     }
 
     executor.run_until_idle();
 }
 #[cfg(all(feature = "async_tiny", feature = "async_test"))]
 pub fn init() {
-     extern "C" {
+    extern "C" {
         static mut _sbss: u32;
         static mut _ebss: u32;
 
@@ -60,7 +60,7 @@ pub fn init() {
     // println!("_supervisor_to_user:  {:#x}", _supervisor_to_user as usize);
 
     // FIX: Here is an error, I just identitify the hart id for job.
-    unsafe { crate::hart::KernelHartInfo::load_hart(0)};
+    unsafe { crate::hart::KernelHartInfo::load_hart(0) };
     let kernel_memory = crate::memory::MemorySet::new_kernel().expect("create kernel memory set");
     kernel_memory.activate();
     let shared_payload = unsafe { SharedPayload::load(SHAREDPAYLOAD_BASE) };
@@ -68,7 +68,10 @@ pub fn init() {
     let hart_id = crate::hart::KernelHartInfo::hart_id();
     let address_space_id = process.address_space_id();
     // let _stack_handle = process.alloc_stack().expect("alloc initial stack");
-    println!("s: {}, process: {}, hart_id: {}, address_space_id: {}, _stack_handle: {}", shared_payload, process, hard_id, address_space_id, _stack_handle);
+    println!(
+        "s: {}, process: {}, hart_id: {}, address_space_id: {}, _stack_handle: {}",
+        shared_payload, process, hard_id, address_space_id, _stack_handle
+    );
     #[allow(unused)]
     let task_1 = crate::task::async_task::new_kernel(
         task_1(),
