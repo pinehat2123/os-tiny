@@ -8,6 +8,9 @@ tiny = "xtask tiny"
 retry = 2
 offline = true
 
+[http]
+proxy = "192.168.111.1:10808"
+
 [term]
 quiet=true
 verbose = false
