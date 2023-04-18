@@ -39,7 +39,11 @@ pub fn job_add(future: impl Future<Output = ()> + Send + Sync + 'static) {
     println!("job add.");
     let shared_payload = unsafe { task::shared::SharedPayload::new(SHARED_PAYLOAD_BASE) };
     let asid = unsafe { task::shared::AddressSpaceId::from_raw(ADDRESS_SPACE_ID) };
-    println!("SHARED_PAYLOAD_BASE: {:x?}, ADDRESS_SPACE_ID: {:x?}", unsafe { SHARED_PAYLOAD_BASE }, unsafe { ADDRESS_SPACE_ID});
+    println!(
+        "SHARED_PAYLOAD_BASE: {:x?}, ADDRESS_SPACE_ID: {:x?}",
+        unsafe { SHARED_PAYLOAD_BASE },
+        unsafe { ADDRESS_SPACE_ID }
+    );
     let task = task::new_user(
         future,
         shared_payload.shared_scheduler,
@@ -60,7 +64,7 @@ pub fn spawn(future: impl Future<Output = ()> + Send + Sync + 'static) {
         shared_payload.shared_set_task_state,
     );
     unsafe {
-        shared_payload.add_task(0/* todo */, asid, task.task_repr());
+        shared_payload.add_task(0 /* todo */, asid, task.task_repr());
     }
 }
 
