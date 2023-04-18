@@ -1,10 +1,9 @@
-
+use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
-use alloc::boxed::Box;
 use core::future::Future;
 use core::pin::Pin;
-use core::task::{Poll, Context};
+use core::task::{Context, Poll};
 
 use spin::Mutex;
 use woke::{waker_ref, Woke};
