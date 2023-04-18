@@ -1,10 +1,10 @@
 // use super::load::load_user;
 use crate::{
+    async_rt::syscall::get_swap_cx,
     hart::{self, KernelHartInfo},
     memory::{
         swap_contex_va, Flags, VirtualAddress, VirtualPageNumber, KERNEL_MAP_OFFSET, STACK_SIZE,
     },
-    async_rt::syscall::{get_swap_cx},
     trap,
 };
 use alloc::string::String;
