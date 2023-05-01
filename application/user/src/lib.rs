@@ -19,6 +19,8 @@ use core::arch::asm;
 extern crate alloc;
 #[macro_use]
 extern crate bitflags;
+#[macro_use]
+pub mod module;
 
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
