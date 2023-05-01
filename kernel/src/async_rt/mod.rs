@@ -31,13 +31,14 @@ pub(crate) mod syscall;
 pub fn init() {}
 #[cfg(all(feature = "async_tiny", feature = "async_test_woke"))]
 pub fn init() {
-    let executor = crate::task::async_task::woke::Executor::default();
+    // let executor = crate::task::async_task::woke::Executor::default();
 
-    for _ in 1..20 {
-        executor.spawn(async { println!("[kernel async] Hello world!") });
-    }
+    // for _ in 1..20 {
+    //     executor.spawn(async { println!("[kernel async] Hello world!") });
+    // }
 
-    executor.run_until_idle();
+    // executor.run_until_idle();
+    println!("async init....");
 }
 #[cfg(all(feature = "async_tiny", feature = "async_test"))]
 pub fn init() {
