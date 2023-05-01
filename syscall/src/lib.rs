@@ -23,6 +23,24 @@ pub mod syscall_number {
         pub const FUNC_TEST_READ_TIMER: usize = 0x22;
     }
 
+    pub mod net {
+        pub const PF_INET: u32 = 1;
+        pub const PF_INET6: u32 = 2;
+        pub const PF_UNIX: u32 = 3;
+        pub const PF_LOCAL: u32 = 3;
+        pub const PF_UNSPEC: u32 = 4;
+        pub const PF_NETLINK: u32 = 5;
+        pub const PF_BRIDGE: u32 = 6;
+
+        pub const AF_INET: u32 = PF_INET;
+        pub const AF_INET6: u32 = PF_INET6;
+        pub const AF_UNIX: u32 = PF_UNIX;
+        pub const AF_LOCAL: u32 = PF_LOCAL;
+        pub const AF_UNSPEC: u32 = PF_UNSPEC;
+        pub const AF_NETLINK: u32 = PF_NETLINK;
+        pub const AF_BRIDGE: u32 = PF_BRIDGE;
+    }
+
     pub mod kernel {
         pub const SYSCALL_DUP: usize = 24;
         pub const SYSCALL_OPEN: usize = 56;
