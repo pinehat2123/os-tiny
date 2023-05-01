@@ -41,14 +41,15 @@ mod hart;
 mod lang_items;
 #[cfg(feature = "async_tiny")]
 mod memory;
+mod mod_mgmt;
+#[cfg(feature = "socket")]
+mod net;
 mod sbi;
 mod sync;
 mod syscall;
 mod task;
 mod timer;
 mod trap;
-mod net;
-mod mod_mgmt;
 
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
