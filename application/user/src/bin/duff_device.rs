@@ -18,14 +18,16 @@ pub fn main() -> i32 {
                     state = 1;
                     continue 'outer;
                 }
-                _ => {
-                    loop {
-                        state = 1; i += 1;
-                        println!("I_STATE: {}, STATE: {}", i, state);
-                        if i >= STATE_NUM { break 'outer; }
-                        else { continue 'outer; }
+                _ => loop {
+                    state = 1;
+                    i += 1;
+                    println!("I_STATE: {}, STATE: {}", i, state);
+                    if i >= STATE_NUM {
+                        break 'outer;
+                    } else {
+                        continue 'outer;
                     }
-                }
+                },
             }
         }
     }
