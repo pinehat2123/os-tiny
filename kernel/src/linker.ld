@@ -55,6 +55,11 @@ SECTIONS
         *(.sbss .sbss.*)
         _ebss = .;
     }
+    .kernel_modules : {
+        __kernel_modules_start = .;
+        KEEP(*(.kernel_modules.init))
+        __kernel_modules_end = .;
+    }
 
     . = ALIGN(4K);
     ebss = .;
