@@ -35,7 +35,8 @@ run-debug:
 	@${INFO} "You Need Clearly the file by yourself"
 
 run:
-	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} ring_scheduler && ${MAKE} ${ring_scheduler_binary} && ${MAKE} fs-img
+# @${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} ring_scheduler && ${MAKE} ${ring_scheduler_binary} && ${MAKE} fs-img
+	@${MAKE} clean && ${MAKE} kernel && ${MAKE} ${kernel_binary} && ${MAKE} fs-img
 	@${ATTENTION} "------------------------Starfish(TinyOS) Run)"
 	@${MAKE} run-inner
 	@${NEWLINE}
@@ -59,13 +60,13 @@ run-inner:
 		-nographic \
 		-bios $(BOOTLOADER) \
 		-device loader,file=$(kernel_binary),addr=80200000\
-		-device loader,file=$(ring_scheduler_binary),addr=86000000\
 		-drive file=build/apps/fs.img,if=none,format=raw,id=x0 \
         -device virtio-blk-device,drive=x0 \
 		-device virtio-gpu-device  \
 		-device virtio-keyboard-device  \
 		-device virtio-mouse-device
 
+# -device loader,file=$(ring_scheduler_binary),addr=86000000\
 # -drive file=$(FS_IMG),if=none,format=raw,id=x0
 run-debug-inner:
 	qemu-system-riscv64 \

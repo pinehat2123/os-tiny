@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate user_lib;
 
-const STATE_NUM: i32 = 68;
+const STATE_NUM: i32 = 6;
 
 #[no_mangle]
 pub fn main() -> i32 {
