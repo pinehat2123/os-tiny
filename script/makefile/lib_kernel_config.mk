@@ -8,5 +8,5 @@ ring_scheduler_binary             := $(BUILD_TARGET_RING_SCHEDULER)/ring_schedul
 BUILD_TARGET_ASM                  := $(BUILD_TARGET)/asm
 
 linker_script                     := kernel/src/linker.ld
-linker_script_ring_scheduler      := ring_scheduler/src/linker.ld
+linker_script_ring_scheduler      := kernel/module/ring_scheduler/src/linker.ld
 BUILD_TARGET_ABI                  := riscv64gc-unknown-none-elf
