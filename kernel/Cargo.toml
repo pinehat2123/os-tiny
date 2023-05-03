@@ -15,9 +15,7 @@ spin = "0.7.0"
 woke = "0.0.2"
 xmas-elf = "0.7.0"
 volatile = "0.3"
-#virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
-virtio-drivers = { git = "https://github.com/Andre-HJR/virtio-drivers.git", rev = "4ee80e5" }
-easy-fs = { path = "module/easy-fs" }
+virtio-drivers = "0.1.0"
 embedded-graphics = "0.7.1"
 tinybmp = "0.3.1"
 simple_endian = { git = "https://github.com/michalfita/simple-endian-rs", branch = "bugfix/4/fix-no_std-support-right-way", default_features = false, features = [
@@ -32,6 +30,7 @@ simple_endian = { git = "https://github.com/michalfita/simple-endian-rs", branch
     "integer_impls",
     "byte_impls",
 ] }
+easy-fs = { path = "module/easy-fs" }
 config = { path = "module/tconfig", package = "tconfig" }
 mm = { path = "module/memory", package = "memory" }
 safe_cell = { path = "module/safe_cell", package = "safe_cell" }

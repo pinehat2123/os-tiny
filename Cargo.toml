@@ -33,4 +33,7 @@ debug = true
 
 
 [patch.crates-io]
-riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a" }
+# riscv = { git = "https://github.com/Andre-HJR/riscv.git", rev = "031d548a" }
+riscv = { path = "other_libs/riscv" }
+# virtio-drivers = { git = "https://github.com/Andre-HJR/virtio-drivers.git", rev = "4ee80e5" }
+virtio-drivers = { path = "other_libs/virtio-drivers" }

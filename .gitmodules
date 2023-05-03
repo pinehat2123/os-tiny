@@ -1,0 +1,6 @@
+[submodule "other_libs/virtio-drivers"]
+	path = other_libs/virtio-drivers
+	url = https://github.com/Andre-HJR/virtio-drivers.git
+[submodule "other_libs/riscv"]
+	path = other_libs/riscv
+	url = https://github.com/Andre-HJR/riscv.git
