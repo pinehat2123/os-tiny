@@ -10,6 +10,7 @@ members = [
     "kernel/module/easy-fs",
     "kernel/module/syscall",
     "kernel/module/fs_node",
+    "kernel/module/path",
     "kernel/module/memory",
     "kernel/module/safe_cell",
     "kernel/module/event",
