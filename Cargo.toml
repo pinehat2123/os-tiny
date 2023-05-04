@@ -15,6 +15,7 @@ members = [
     "kernel/module/safe_cell",
     "kernel/module/event",
     "kernel/module/tconfig",
+    "tlib/tlog",
     "xtask",
     ]
 default-members = ["xtask"]
